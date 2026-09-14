@@ -1,0 +1,236 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/images/icon-192.png">
+    <script>
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('/static/sw.js')
+        .then(function() { console.log('Service Worker Registered'); });
+        }
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理者ダッシュボード - FUJIN-P</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            min-height: 100vh;
+            padding: 10px;
+        }
+        .container { max-width: 1600px; margin: 0 auto; }
+        .header {
+            background: white;
+            padding: 10px 17px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; margin-bottom: 2px; font-size: 1rem; }
+        .welcome { color: #666; font-size: 0.6rem; margin-bottom: 3px; }
+
+        .features-list { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+        .feature-badge {
+            display: inline-block; font-size: 0.47rem; padding: 1px 5px;
+            border-radius: 12px; background-color: #e0e7ff; color: #4338ca;
+            border: 1px solid #c7d2fe; white-space: nowrap;
+        }
+
+        .user-actions { float: right; display: flex; gap: 5px; }
+        .profile-btn {
+            padding: 4px 8px; background: #10b981; color: white; border: none;
+            border-radius: 5px; cursor: pointer; font-weight: 600;
+            text-decoration: none; display: inline-block; font-size: 0.57rem;
+        }
+        .profile-btn:hover { background: #059669; }
+        .logout-btn {
+            padding: 4px 8px; background: #dc2626; color: white; border: none;
+            border-radius: 5px; cursor: pointer; font-weight: 600; font-size: 0.57rem;
+        }
+        .logout-btn:hover { background: #b91c1c; }
+
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 8px; margin-bottom: 10px;
+        }
+        .stat-card {
+            background: white; padding: 10px; border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex;
+            justify-content: space-between; align-items: center;
+            text-decoration: none; color: inherit; transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); border-color: #667eea; }
+        .stat-info h3 { color: #666; font-size: 0.55rem; margin-bottom: 3px; }
+        .stat-info .number { font-size: 1.2rem; font-weight: bold; color: #333; }
+        .stat-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; }
+        .stat-pending .stat-icon { background: #fff3cd; color: #856404; }
+        .stat-blacklist .stat-icon { background: #f8d7da; color: #721c24; }
+        .stat-approved .stat-icon { background: #d4edda; color: #155724; }
+
+        .section-separator {
+            color: #fff; font-size: 0.73rem; margin: 7px 0 7px 3px;
+            padding-bottom: 3px; border-bottom: 1px solid rgba(255,255,255,0.3);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2); font-weight: 500;
+            display: flex; align-items: center; gap: 5px;
+        }
+
+        .apps-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 8px; margin-bottom: 17px;
+        }
+
+        .app-card {
+            background: white; padding: 4px 6px; border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s;
+            text-decoration: none; color: inherit; display: block; border: 2px solid transparent;
+        }
+        .app-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); border-color: #667eea; }
+        .app-card.clickable { cursor: pointer; }
+        .app-card.non-clickable { opacity: 0.7; cursor: default; }
+        .app-card.non-clickable:hover { transform: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-color: transparent; }
+
+        .app-title { display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 2px; }
+        .app-icon { font-size: 1rem; }
+        .app-card h3 { color: #333; font-size: 0.7rem; font-weight: 600; }
+        .app-card p { color: #666; font-size: 0.55rem; line-height: 1.2; text-align: center; }
+
+        /* ===== システム管理：深いボルドー→濃紺 ===== */
+        .app-card.admin-function {
+            background: linear-gradient(135deg, #4c0519 0%, #1e1b4b 100%);
+            color: white;
+        }
+        .app-card.admin-function h3, .app-card.admin-function p { color: white !important; }
+        .app-card.admin-function:hover { border-color: #fb7185; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+
+        /* ===== FUJIN-Pソムリエ：パープル・バイオレット系 ===== */
+        .app-card.sommelier {
+            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+            color: white; border: 2px solid transparent;
+        }
+        .app-card.sommelier:hover { border-color: #ddd6fe; box-shadow: 0 4px 12px rgba(124,58,237,0.4); }
+        .app-card.sommelier h3, .app-card.sommelier p { color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+
+        /* ===== 管理支援：アンバー・オレンジ系 ===== */
+        .app-card.admin-support {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white; border: 2px solid transparent;
+        }
+        .app-card.admin-support:hover { border-color: #fef3c7; box-shadow: 0 4px 12px rgba(217,119,6,0.4); }
+        .app-card.admin-support h3, .app-card.admin-support p { color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+
+        /* ===== 構成員向け標準機能：グリーン ===== */
+        .app-card.highlight {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        .app-card.highlight h3, .app-card.highlight p { color: white; }
+
+        /* ===== 一般ユーザ向け：ライトスカイ ===== */
+        .app-card.open-sky {
+            background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
+            color: white; border: 2px solid transparent;
+        }
+        .app-card.open-sky:hover { border-color: #e0f2fe; box-shadow: 0 4px 12px rgba(14,165,233,0.4); }
+        .app-card.open-sky h3, .app-card.open-sky p { color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+
+        /* ===== フィーチャーアプリ：スチールブルー ===== */
+        .app-card.feature-app {
+            background: linear-gradient(135deg, #7fb3d5 0%, #6a9cc2 100%);
+            color: white;
+        }
+        .app-card.feature-app:hover { border-color: #aed6f1; }
+        .app-card.feature-app h3, .app-card.feature-app p { color: white; }
+
+        /* ===== レガシー（廃止予定）：グレー ===== */
+        .app-card.legacy {
+            background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+            color: white; border: 2px solid transparent;
+        }
+        .app-card.legacy:hover { border-color: #e5e7eb; box-shadow: 0 4px 12px rgba(107,114,128,0.4); }
+        .app-card.legacy h3, .app-card.legacy p { color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+
+        /* ===== 開発中：グレー ===== */
+        .app-card.dev-app {
+            background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+            color: white;
+        }
+        .app-card.dev-app:hover { border-color: #cbd5e1; }
+        .app-card.dev-app h3, .app-card.dev-app p { color: white; }
+
+        .badge {
+            display: inline-block; background: rgba(255,255,255,0.3);
+            padding: 3px 8px; border-radius: 10px; font-size: 0.65rem; margin-top: 4px;
+        }
+        /* ★2026-08-27 使用区分（使用コントローラー）の表示 */
+        .vis-badge {
+            display: block; text-align: center; margin-top: 3px;
+            font-size: 0.5rem; color: rgba(255,255,255,0.9); opacity: .85;
+        }
+        .app-card:not(.admin-function):not(.sommelier):not(.admin-support):not(.highlight):not(.open-sky):not(.legacy) .vis-badge { color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="user-actions">
+                <a href="{{ url_for('profile.edit_profile') }}" class="profile-btn">プロフィール</a>
+                <form action="{{ url_for('auth.logout') }}" method="post" style="display: inline;">
+                    <button type="submit" class="logout-btn">ログアウト</button>
+                </form>
+            </div>
+            <h1>FUJIN-P〈{{ site_url }}〉：管理者ダッシュボード</h1>
+            <p class="welcome"> - ようこそ、{{ user_name }}［{{ user_email }}］さん </p>
+            {% if features %}
+            <div class="features-list">
+                {% for feature in features %}
+                    <span class="feature-badge">{{ feature.feature_name }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 登録申請統計 -->
+        <h3 class="section-separator">📊 登録申請状況</h3>
+        <div class="stats-grid">
+            <a href="{{ url_for('admin.pending_requests') }}" class="stat-card stat-pending">
+                <div class="stat-info"><h3>承認待ち</h3><div class="number">{{ statistics.pending_count if statistics else 0 }}</div></div>
+                <div class="stat-icon">⏳</div>
+            </a>
+            <a href="{{ url_for('admin.approved_users_list') }}" class="stat-card stat-approved">
+                <div class="stat-info"><h3>承認済み（未設定）</h3><div class="number">{{ statistics.approved_count if statistics else 0 }}</div></div>
+                <div class="stat-icon">✓</div>
+            </a>
+            <a href="{{ url_for('admin.blacklisted_users') }}" class="stat-card stat-blacklist">
+                <div class="stat-info"><h3>ブラックリスト</h3><div class="number">{{ statistics.blacklisted_count if statistics else 0 }}</div></div>
+                <div class="stat-icon">🚫</div>
+            </a>
+        </div>
+
+        {# ── アプリのランチャ（正本 fujinp/app_registry.json から描画）──
+           区画・カード・表示条件はアプシャの管理画面で編集し，「発行」で反映する．
+           この部分は手で編集しない． #}
+        {% for sec in launcher_sections %}
+        <h3 class="section-separator">{{ sec.title }}</h3>
+        <div class="apps-grid">
+            {% for c in sec.cards %}
+            <a href="{{ c.href }}" class="app-card {{ sec.css_class }}{% if c.extra_class %} {{ c.extra_class }}{% endif %}">
+                <div class="app-title"><span class="app-icon">{{ c.icon }}</span><h3>{{ c.label }}</h3></div>
+                <p>{{ c.description }}</p>
+                <span class="vis-badge" title="使用区分（アプシャのランチャで変更）">{{ c.visibility_icon }} {{ c.visibility_label }}{% if c.groups %}：{{ c.groups|join('・') }}{% endif %}</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>

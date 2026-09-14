@@ -1,0 +1,568 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>アプシャ - FUJIN-P アプリ共有</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);min-height:100vh;padding:15px}
+        .container{max-width:1400px;margin:0 auto}
+        .header{background:#fff;padding:15px 25px;border-radius:10px;margin-bottom:15px;box-shadow:0 2px 4px rgba(0,0,0,.1)}
+        h1{color:#333;font-size:1.5rem;margin-bottom:5px}.subtitle{color:#666;font-size:.9rem}
+        .hdr-btns{float:right;display:flex;gap:8px;align-items:center}
+        .hdr-btns a{padding:8px 16px;border:none;border-radius:5px;cursor:pointer;text-decoration:none;font-size:.85rem;font-weight:600;color:#fff;background:#6366f1}
+        .hdr-btns a:hover{background:#4f46e5}
+        .btn-return{display:inline-block;padding:8px 16px;border:none;border-radius:5px;text-decoration:none;font-size:.85rem;font-weight:600;color:#fff;background:#ef4444;float:right}
+        .btn-return:hover{background:#dc2626}
+        .role-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600;margin-left:10px}
+        .role-admin{background:#dbeafe;color:#1e40af}.role-guest{background:#f3e8ff;color:#7c3aed}
+        .tabs{display:flex;gap:5px;margin-bottom:15px;flex-wrap:wrap}
+        .tab{padding:10px 20px;background:rgba(255,255,255,.3);border:none;border-radius:8px 8px 0 0;cursor:pointer;color:#fff;font-weight:600;transition:.3s}
+        .tab:hover{background:rgba(255,255,255,.5)}.tab.active{background:#fff;color:#333}
+        .tab-content{display:none;background:#fff;padding:20px;border-radius:0 10px 10px 10px;box-shadow:0 2px 4px rgba(0,0,0,.1)}
+        .tab-content.active{display:block}
+        h2{color:#333;margin-bottom:15px;font-size:1.2rem}
+        h3{color:#555;margin:20px 0 10px;font-size:1rem}
+        table{width:100%;border-collapse:collapse;margin:15px 0;font-size:.85rem}
+        th,td{padding:10px;text-align:left;border-bottom:1px solid #e5e7eb}
+        th{background:#f3f4f6;font-weight:600}
+        button{padding:8px 16px;border:none;border-radius:5px;cursor:pointer;font-weight:600;font-size:.85rem;transition:.3s}
+        button.primary{background:#6366f1;color:#fff}button.primary:hover{background:#4f46e5}
+        button.success{background:#10b981;color:#fff}button.success:hover{background:#059669}
+        button.danger{background:#ef4444;color:#fff}button.danger:hover{background:#dc2626}
+        button.warning{background:#f59e0b;color:#fff}button.warning:hover{background:#d97706}
+        button.secondary{background:#e5e7eb;color:#374151}button.secondary:hover{background:#d1d5db}
+        button:disabled{opacity:.5;cursor:not-allowed}
+        .form-group{margin-bottom:15px}.form-group label{display:block;margin-bottom:5px;font-weight:600;color:#374151}
+        .form-group input,.form-group select,.form-group textarea{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:5px;font-size:.9rem}
+        #result{padding:15px;border-radius:5px;margin:15px 0;display:none}
+        #result.success{background:#d1fae5;color:#065f46;border:1px solid #10b981}
+        #result.error{background:#fee2e2;color:#991b1b;border:1px solid #ef4444}
+        #loading{display:none;text-align:center;padding:20px;color:#6366f1}
+        .info-box{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:15px;margin:15px 0}
+        .warning-box{background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:15px;margin:15px 0}
+        .success-box{background:#d1fae5;border:1px solid #6ee7b7;border-radius:8px;padding:15px;margin:15px 0}
+        .error-box{background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:12px;margin:8px 0}
+        .badge-gray{background:#e5e7eb;color:#374151}
+        .danger-box{background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:15px;margin:15px 0;color:#991b1b}
+        .gc-list{max-height:220px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin:8px 0;font-size:.84rem;font-family:monospace;background:#f9fafb}
+        .gc-list .gc-db{font-weight:700;color:#334155;margin-top:6px}
+        .gc-confirm{width:160px;padding:8px;border:2px solid #ef4444;border-radius:5px;font-weight:700;letter-spacing:2px;text-align:center}
+        .badge{display:inline-block;padding:3px 8px;border-radius:12px;font-size:.75rem;font-weight:600}
+        .badge-success{background:#d1fae5;color:#065f46}.badge-warning{background:#fef3c7;color:#92400e}
+        .badge-info{background:#dbeafe;color:#1e40af}.badge-danger{background:#fee2e2;color:#991b1b}
+        .badge-gray{background:#e5e7eb;color:#374151}
+        .app-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:15px;margin:15px 0}
+        .app-card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:15px;position:relative;transition:.3s}
+        .app-card:hover{border-color:#a5b4fc;box-shadow:0 2px 8px rgba(99,102,241,.15)}
+        .app-card .card-top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+        .app-card .card-icon{font-size:1.8rem;line-height:1}
+        .app-card .card-titles{flex:1;min-width:0}
+        .app-card .card-name{font-weight:700;color:#333;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .app-card .card-dir{font-size:.75rem;color:#999}
+        .app-card .card-desc{font-size:.82rem;color:#555;line-height:1.4;height:2.8em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:10px}
+        .app-card .card-actions{display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid #e5e7eb;padding-top:10px}
+        .app-card .card-actions button{padding:5px 10px;font-size:.78rem;border-radius:4px}
+        .btn-manual{background:#0ea5e9;color:#fff}.btn-manual:hover{background:#0284c7}
+        .btn-spec{background:#8b5cf6;color:#fff}.btn-spec:hover{background:#7c3aed}
+        .btn-export{background:#10b981;color:#fff}.btn-export:hover{background:#059669}
+        .btn-import{background:#f59e0b;color:#fff}.btn-import:hover{background:#d97706}
+        .btn-mgmt{background:#475569;color:#fff}.btn-mgmt:hover{background:#334155}
+        .btn-disc{background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe}.btn-disc:hover{background:#c7d2fe}
+        .badge-priv{display:inline-block;padding:1px 7px;border-radius:10px;font-size:.7rem;font-weight:600;background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+        .btn-ver{background:#0d9488;color:#fff}.btn-ver:hover{background:#0f766e}
+        .app-card .card-ver{font-size:.72rem;color:#0f766e;margin:2px 0 0}
+        .app-card .card-ver code{background:#f0fdfa;padding:1px 5px;border-radius:4px}
+        .btn-sm{padding:4px 8px!important;font-size:.72rem!important}
+        .btn-move{background:#e2e8f0;color:#475569;border:1px solid #cbd5e1}.btn-move:hover{background:#cbd5e1}
+        .btn-del{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5}.btn-del:hover{background:#fca5a5;color:#fff}
+        .btn-gear{background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1}.btn-gear:hover{background:#e2e8f0;color:#334155}
+        .card-ctrl{position:absolute;top:6px;right:6px;display:flex;gap:3px;opacity:0;transition:.2s}
+        .app-card:hover .card-ctrl{opacity:1}
+        .add-card{background:#fff;border:2px dashed #c7d2fe;border-radius:8px;padding:20px;display:flex;flex-direction:column;justify-content:center;align-items:center;cursor:pointer;transition:.3s;min-height:140px}
+        .add-card:hover{border-color:#6366f1;background:#eef2ff}
+        .add-card .plus{font-size:2rem;color:#a5b4fc;margin-bottom:8px}
+        .add-card span{font-size:.85rem;color:#6366f1;font-weight:600}
+        .ce-popup{position:absolute;top:0;left:0;right:0;background:#fff;border:2px solid #6366f1;border-radius:8px;padding:12px;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,.15)}
+        .ce-popup input,.ce-popup textarea{padding:6px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:.85rem;width:100%;margin-bottom:6px}
+        .ce-row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+        .ce-btns{display:flex;gap:6px;justify-content:flex-end}
+        .ce-btns button{padding:4px 12px;font-size:.8rem}
+        .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:1000;overflow-y:auto}
+        .modal-overlay.active{display:flex;justify-content:center;align-items:flex-start;padding:20px}
+        .modal{background:#fff;border-radius:10px;max-width:1100px;width:100%;max-height:95vh;overflow-y:auto;margin:20px 0}
+        .modal-header{padding:15px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:10}
+        .modal-header h2{margin:0;font-size:1.2rem}
+        .modal-close{background:none;border:none;font-size:1.5rem;cursor:pointer;color:#666;padding:0}
+        .modal-body{padding:20px}
+        .modal-footer{padding:15px 20px;border-top:1px solid #e5e7eb;display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff}
+        .m-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:20px;padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px}
+        .m-toolbar .mlbl{font-size:.8rem;color:#64748b;margin-right:4px}
+        .m-toolbar button.act{box-shadow:0 0 0 2px #6366f1}
+        .vs{border:1px solid #e5e7eb;border-radius:8px;margin-bottom:16px;overflow:hidden}
+        .vs-h{background:#f1f5f9;padding:10px 16px;font-weight:700;font-size:.9rem;color:#334155;border-bottom:1px solid #e5e7eb}
+        .vs-b{padding:12px 16px}.vs-b.empty{color:#9ca3af;font-style:italic;font-size:.85rem}
+        .md-r{font-size:.88rem;line-height:1.7;color:#1e293b}
+        .md-r h2{font-size:1.05rem;margin:12px 0 6px;color:#1e40af;border-bottom:1px solid #e2e8f0;padding-bottom:4px}
+        .md-r h3{font-size:.95rem;margin:10px 0 4px;color:#334155}.md-r p{margin:4px 0}
+        .md-r ul,.md-r ol{padding-left:1.5em;margin:4px 0}.md-r li{margin:2px 0}
+        .md-r pre{background:#1e293b;color:#e2e8f0;padding:12px;border-radius:6px;overflow-x:auto;font-size:.82rem;line-height:1.5;margin:8px 0}
+        .md-r code{background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:.82rem}
+        .md-r pre code{background:none;padding:0}
+        .md-r table{border-collapse:collapse;width:100%;margin:8px 0}.md-r th,.md-r td{border:1px solid #d1d5db;padding:6px 10px}.md-r th{background:#f3f4f6}
+        .vn{margin-top:8px;padding:6px 10px;background:#fffbeb;border-left:3px solid #f59e0b;font-size:.8rem;color:#92400e;border-radius:0 4px 4px 0}
+        .gn-view{background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:.85rem;color:#92400e;white-space:pre-wrap;font-family:monospace}
+        .ef{border:1px solid #e5e7eb;border-radius:8px;margin-bottom:16px;overflow:hidden}
+        .ef-h{background:#f1f5f9;padding:10px 16px;font-weight:700;font-size:.9rem;color:#334155;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
+        .ef-b{padding:12px 16px}
+        .ef .fv{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:5px;font-family:'Consolas',monospace;font-size:.85rem;resize:vertical;line-height:1.5}
+        .ef .fn{width:100%;padding:8px;border:1px solid #fcd34d;border-radius:5px;background:#fffbeb;font-size:.85rem;resize:vertical;margin-top:8px}
+        .nlbl{font-size:.8rem;color:#92400e;margin-top:8px;margin-bottom:3px}
+        .htgl{background:#e0f2fe;border:none;padding:4px 8px;border-radius:4px;font-size:.75rem;cursor:pointer;color:#0369a1}
+        .hbox{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:10px;margin-bottom:10px;font-size:.8rem;color:#166534;white-space:pre-wrap;font-family:monospace;display:none}
+        .gn-edit{background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:15px;margin-bottom:16px}
+        .gn-edit h4{margin:0 0 8px;color:#92400e;font-size:.9rem}
+        .jt{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+        .jt button{padding:6px 14px;font-size:.8rem}
+        #json-editor{width:100%;min-height:500px;padding:15px;border:2px solid #d1d5db;border-radius:8px;font-family:'Consolas',monospace;font-size:.85rem;line-height:1.5;resize:vertical;tab-size:2;background:#1e293b;color:#e2e8f0;outline:none}
+        #json-editor:focus{border-color:#6366f1}
+        #json-editor.jv{border-color:#10b981}#json-editor.ji{border-color:#ef4444}
+        .js{margin-top:8px;padding:8px 12px;border-radius:5px;font-size:.8rem;font-family:monospace}
+        .js.valid{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
+        .js.invalid{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+        .js.info{background:#dbeafe;color:#1e40af;border:1px solid #93c5fd}
+        .jhelp{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:15px;margin-bottom:15px;font-size:.82rem;color:#475569}
+        .jhelp h4{color:#334155;margin-bottom:8px;font-size:.9rem}
+        .jli{font-size:.75rem;color:#9ca3af;margin-top:4px}
+        .mc{display:none}.mc.active{display:block}
+        .man-content{padding:24px;background:#fff;font-size:.92rem;line-height:1.8;color:#1e293b}
+        .man-content h1{font-size:1.5rem;border-bottom:2px solid #e2e8f0;padding-bottom:8px;margin-bottom:16px}
+        .man-content h2{font-size:1.2rem;border-bottom:1px solid #e2e8f0;padding-bottom:6px;color:#1e40af;margin:20px 0 10px}
+        .man-content pre{background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;overflow-x:auto;font-size:.85rem}
+        .man-content code{background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:.85rem}
+        .man-content pre code{background:none;padding:0}
+        .man-content table{border-collapse:collapse;width:100%;margin:12px 0}
+        .man-content th,.man-content td{border:1px solid #d1d5db;padding:8px 12px}.man-content th{background:#f3f4f6}
+        .man-content blockquote{border-left:4px solid #6366f1;margin:12px 0;padding:8px 16px;background:#f8fafc}
+        .man-content img{max-width:100%;border-radius:8px}
+        .man-empty{text-align:center;padding:60px 20px;color:#9ca3af}
+        .man-empty .me-icon{font-size:3rem;margin-bottom:16px}
+        .man-meta{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 16px;margin-bottom:16px;font-size:.82rem;color:#64748b;display:flex;gap:20px}
+        .add-form .form-group{margin-bottom:12px}
+        .add-form .row2{display:flex;gap:12px}
+        .add-form .row2 .form-group{flex:1}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <a href="{{ url_for('app_share.return_to_fujin') }}" class="btn-return">
+            🏠 FUJINダッシュボードに戻る
+        </a>
+        <h1>📦 アプシャ（App Share）
+            {% if is_admin %}<span class="role-badge role-admin">管理者</span>
+            {% else %}<span class="role-badge role-guest">閲覧モード</span>{% endif %}
+        </h1>
+        <p class="subtitle">FUJIN-P アプリケーション共有システム</p>
+    </div>
+    <div id="result"></div>
+    <div id="loading">⏳ 処理中...</div>
+    <div class="tabs">
+        <button class="tab active" data-tab="local">📂 ローカルアプリ</button>
+        {% if is_admin %}
+        <button class="tab" data-tab="admin">🛠 管理</button>
+        {% endif %}
+    </div>
+    <div id="local-tab" class="tab-content active">
+        <h2>📂 登録済みアプリ
+            <span style="float:right;display:inline-flex;gap:8px">
+                {% if is_admin %}
+                <button class="btn-import" onclick="location.href='{{ url_for('app_share.package_import_page') }}'">📦 新規アプリ取り込み</button>
+                <button class="success" onclick="publishRegistry(false)" title="正本（DB）を fujinp/app_registry.json に写す">📢 発行</button>
+                <button class="secondary" onclick="location.href='{{ url_for('app_share.sections_page') }}'" title="ダッシュボードの区画">🗂 区画</button>
+                <button class="secondary" onclick="location.href='{{ url_for('app_share.api_diag_site') }}'" title="Claude向けのサイト診断JSON">🩺 サイト診断</button>
+                <button class="secondary" id="btn-push" onclick="gitPushAll()" title="関所の未 push コミットを GitHub へ">🚀 push</button>
+                {% endif %}
+                <button class="secondary" onclick="startExport('{{ url_for('app_share.export_kernel_package') }}','カーネル')">⚙ カーネルエクスポート</button>
+                <button class="primary" onclick="startExport('{{ url_for('app_share.package_export_all') }}','全アプリパッケージ')">⬇ 全アプリパッケージエクスポート</button>
+            </span>
+        </h2>
+        {% if is_admin %}
+        <p style="margin-bottom:15px;color:#666">📖マニュアル・📋仕様書の閲覧，🛠管理で正本（起動・ランチャ・テーブル・ライブラリ・定数・文書・版・不具合）を編集，📢発行で app_registry.json に反映．⚙で表示情報，↑↓で並べ替え，＋で新規登録．</p>
+        {% else %}
+        <p style="margin-bottom:15px;color:#666">📖マニュアル・📋仕様書を閲覧できます。</p>
+        {% endif %}
+        {% if is_admin %}<div id="pub-bar" class="info-box" style="display:none;margin-bottom:12px"></div>{% endif %}
+        <div id="local-apps-list" class="app-list"></div>
+    </div>
+    {% if is_admin %}
+    <div id="admin-tab" class="tab-content">
+        <h2>📥 全アプリパッケージからの取り込み</h2>
+        <div class="info-box">「⬇ 全アプリパッケージエクスポート」で出力した JSON（fujinp_apps_overview）を選ぶと，含まれるアプリの一覧と新旧が出ます．取り込むアプリにチェックして「取り込む」．各アプリは 📥 取り込み画面と同じ手順（退避 → 配置 → 正本 → 文書 → 台帳 → テーブル → 不具合 → 発行）で順に処理されます．</div>
+        <div class="form-group"><label>JSONファイル:</label><input type="file" id="ov-file" accept=".json,application/json"></div>
+        <div id="ov-meta" class="success-box" style="display:none"></div>
+        <div id="ov-wrap" style="display:none">
+            <p style="font-size:.83rem;color:#666;margin-bottom:8px">既定は「新規」と「更新あり」にチェック．
+                <button class="secondary btn-sm" style="margin-left:8px" onclick="ovSelect('all')">全選択</button>
+                <button class="secondary btn-sm" onclick="ovSelect('none')">全解除</button>
+                <button class="secondary btn-sm" onclick="ovSelect('updated')">新規・更新のみ</button>
+                <span id="ov-count" style="margin-left:10px"></span></p>
+            <table id="ov-table"><thead><tr><th style="width:36px"></th><th>アプリ</th><th>パッケージの版</th><th>このサイトの版</th><th>状態</th><th></th></tr></thead><tbody></tbody></table>
+            <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <label style="font-size:.82rem"><input type="checkbox" id="ov-tables" checked> テーブルの宣言・改訂を適用する（足すだけ）</label>
+                <button class="success" onclick="ovApply()">📥 選択したアプリを取り込む</button>
+            </div>
+        </div>
+        <div id="ov-result" style="display:none;margin-top:12px"></div>
+    </div>
+    {% endif %}
+</div>
+{% if is_admin %}
+<div id="add-modal" class="modal-overlay">
+    <div class="modal" style="max-width:550px">
+        <div class="modal-header"><h2>➕ アプリ新規登録</h2><button class="modal-close" onclick="closeAdd()">&times;</button></div>
+        <div class="modal-body add-form">
+            <div class="form-group"><label>アプリ名（ディレクトリ名）*</label><input type="text" id="add-name" placeholder="例: my_app"></div>
+            <div class="row2">
+                <div class="form-group"><label>表示名 *</label><input type="text" id="add-display" placeholder="例: マイアプリ"></div>
+                <div class="form-group" style="max-width:100px"><label>アイコン</label><input type="text" id="add-icon" value="📦" style="font-size:1.5rem;text-align:center"></div>
+            </div>
+            <div class="form-group"><label>概要（2行程度）</label><textarea id="add-desc" rows="2" placeholder="アプリの簡単な説明..."></textarea></div>
+        </div>
+<div class="modal-footer"><button class="success" onclick="doAdd()">✓ 登録</button><button class="secondary" onclick="closeAdd()">キャンセル</button></div>
+    </div>
+</div>
+{% endif %}
+{% if is_admin %}
+<div id="ce-modal" class="modal-overlay">
+    <div class="modal" style="max-width:560px">
+        <div class="modal-header"><h2>⚙ アプリ情報の編集</h2><button class="modal-close" onclick="closeCE()">&times;</button></div>
+        <div class="modal-body add-form">
+            <div class="row2">
+                <div class="form-group" style="max-width:110px"><label>アイコン</label><input type="text" id="ce-i" maxlength="4" style="font-size:1.8rem;text-align:center"></div>
+                <div class="form-group"><label>表示名 *</label><input type="text" id="ce-n"></div>
+            </div>
+            <div class="form-group"><label>ディレクトリ名</label>
+                <input type="text" id="ce-a" spellcheck="false" autocapitalize="off" autocomplete="off" style="font-family:monospace">
+                <div style="font-size:.78rem;color:#6b7280;margin-top:4px">英数字とアンダースコアのみ。<code>~/fujinp/&lt;名前&gt;/__init__.py</code> が実在しないと保存できません。変更するとマニュアル・仕様書の紐付けも一緒に移ります。</div>
+            </div>
+            <div class="form-group" style="max-width:160px"><label>表示順</label>
+                <input type="text" id="ce-o" inputmode="decimal" style="text-align:right">
+            </div>
+            <div style="font-size:.78rem;color:#6b7280;margin:-8px 0 12px">小さい順に並びます。既存の間に入れたいときは <code>12.5</code> のような小数が使えます。</div>
+            <div class="form-group"><label>概要（2行程度）</label><textarea id="ce-d" rows="3"></textarea></div>
+        </div>
+        <div class="modal-footer"><button class="success" onclick="saveCE()">✓ 保存</button><button class="secondary" onclick="closeCE()">キャンセル</button></div>
+    </div>
+</div>
+{% endif %}
+<div id="manual-modal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header"><h2>📖 <span id="man-title">ユーザマニュアル</span></h2><button class="modal-close" onclick="closeManual()">&times;</button></div>
+        <div class="modal-body">
+            <div class="man-meta" id="man-meta" style="display:none"><span>📝 更新: <span id="man-date"></span></span><span>👤 <span id="man-author"></span></span></div>
+            <div id="man-body" class="man-content"></div>
+        </div>
+        <div class="modal-footer">
+            {% if is_admin %}<button class="primary" onclick="goEditManual()">📝 編集</button>{% endif %}
+            <button class="secondary" onclick="openManualPage()">🔗 単独ページ</button>
+            <button class="secondary" onclick="copyManualUrl()">📋 URLコピー</button>
+            <button class="secondary" onclick="closeManual()">閉じる</button>
+        </div>
+    </div>
+</div>
+<script>
+
+const IS_ADMIN = {{ is_admin|tojson }};
+marked.setOptions({breaks:true,gfm:true});
+function showResult(m,e){const $r=$('#result');$r.text(m).removeClass('success error').addClass(e?'error':'success').show();setTimeout(()=>$r.fadeOut(),5000)}
+function esc(t){return t?t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
+$('.tab').click(function(){const id=$(this).data('tab');$('.tab').removeClass('active');$(this).addClass('active');$('.tab-content').removeClass('active');$(`#${id}-tab`).addClass('active')});
+// ========== ローカルアプリ ==========
+function loadLocalApps(){
+    $.ajax({url:'/app_share/get_registry_apps',success(r){
+        if(!r.success){showResult('読込エラー',true);return}
+        const $l=$('#local-apps-list').empty();
+        r.apps.forEach(a=>{
+            const desc=a.description||'';
+            let ctrl='';
+            if(IS_ADMIN){
+                ctrl=`<div class="card-ctrl">
+                    <button class="btn-move btn-sm" onclick="moveApp(${a.id},'up',event)" title="上へ">▲</button>
+                    <button class="btn-move btn-sm" onclick="moveApp(${a.id},'down',event)" title="下へ">▼</button>
+                    <button class="btn-gear btn-sm" onclick="openCE(${a.id},event)" title="編集">⚙</button>
+                    <button class="btn-del btn-sm" onclick="delApp(${a.id},'${esc(a.display_name||a.app_name)}',event)" title="削除">✕</button>
+                </div>`;
+            }
+            $l.append(`<div class="app-card" data-id="${a.id}" data-name="${a.app_name}" data-sort="${a.sort_order??''}">
+                ${ctrl}
+                <div class="card-top">
+
+                    <div class="card-icon">${a.icon||'📦'}</div>
+                    <div class="card-titles">
+                        <div class="card-name">${esc(a.display_name||a.app_name)}</div>
+                        <div class="card-dir">${esc(a.app_name)}${a.disclosed===0?' <span class="badge-priv">🔒 非公開</span>':''}</div>
+                    </div>
+                </div>
+                <div class="card-desc">${esc(desc)}</div>
+                <div class="card-ver">🏷 バージョン: <code>${esc(a.version_id||'未確定')}</code></div>
+                <div class="card-actions">
+                    <button class="btn-manual" onclick="openManual('${a.app_name}')">📖 マニュアル</button>
+                    <button class="btn-spec" onclick="location.href='/app_share/spec/'+encodeURIComponent('${a.app_name}')" title="正本と仕様書メモから組み立てた技術仕様書">📋 仕様書</button>
+                    <button class="btn-export" onclick="exportApp('${a.app_name}')" title="アプリ一式をJSONパッケージでダウンロード">📦 エクスポート</button>
+                    ${IS_ADMIN?`<button class="btn-import" onclick="location.href='/app_share/package/import?app='+encodeURIComponent('${a.app_name}')" title="パッケージで差し替え（検証→適用→発行）">📥 取り込み</button>`:''}
+                    ${IS_ADMIN&&a.disclosed!==undefined?`<button class="btn-disc" onclick="toggleDisclose(${a.id},${a.disclosed===0?0:1},event)" title="アプシャでのこのアプリの情報（一覧・マニュアル・仕様書）を admin 以外に見せるかどうか">${a.disclosed===0?'🔓 非公開→公開':'🔒 公開→非公開'}</button>`:''}
+                    ${IS_ADMIN?`<button class="btn-mgmt" onclick="location.href='/app_share/app/'+encodeURIComponent('${a.app_name}')" title="正本の管理（起動・ランチャ・テーブル・ライブラリ・定数・文書・版・不具合）">🛠 管理</button>`:''}
+                    <span class="card-badges" data-app="${a.app_name}"></span>
+                </div>
+            </div>`);
+        });
+        if(IS_ADMIN){
+            $l.append('<div class="add-card" onclick="openAdd()"><div class="plus">＋</div><span>新規アプリ登録</span></div>');
+            loadSummary();
+        }
+    }});
+}
+
+// ========== 正本の要約（open件数・起動状態）と発行状態（段階6a） ==========
+function loadSummary(){
+    $.ajax({url:'/app_share/api/summary',success(r){
+        if(!r.success)return;
+        Object.keys(r.apps).forEach(name=>{
+            const s=r.apps[name];let b='';
+            if(s.open_issues)b+=`<span class="badge badge-warning" title="既知の不具合（open）">🐞 ${s.open_issues}</span> `;
+            if(s.kind==='kernel')b+='<span class="badge badge-gray" title="app.py が固定登録">kernel</span> ';
+            else if(!s.enabled)b+='<span class="badge badge-danger">無効</span> ';
+            else if(s.running===false)b+='<span class="badge badge-danger" title="正本にあるが起動中に未登録（発行＋Reload が必要）">未起動</span> ';
+            const g=s.git;
+            if(g&&!g.error){
+                if(g.needs_commit){
+                    const onlyDel=(g.changed+g.added===0&&g.deleted>0);
+                    b+=`<span class="badge badge-warning" title="変更 ${g.changed} / 新規 ${g.added} / 削除 ${g.deleted}" style="cursor:pointer" onclick="location.href='/app_share/app/${name}#ver'">${onlyDel?'🔶 関所の整理（削除 '+g.deleted+'）':'🔶 要commit '+esc(g.last_change||'')}</span> `;
+                }
+                else b+='<span class="badge badge-success" title="稼働ツリーと関所が一致">✔ 関所と一致</span> ';
+            }
+            $(`.card-badges[data-app="${name}"]`).html(b);
+        });
+        gitStatusBar();
+        const $p=$('#pub-bar');
+        if(r.stale){$p.html('⚠️ 正本（DB）に未発行の変更があります．<button class="success btn-sm" style="margin-left:8px" onclick="publishRegistry(false)">📢 発行</button> Blueprint の増減があるときは <button class="secondary btn-sm" onclick="publishRegistry(true)">📢 発行＋Reload</button>').show();}
+        else $p.hide();
+    }});
+}
+function gitStatusBar(){
+    $.ajax({url:'/app_share/api/git/status',success(r){
+        const $b=$('#btn-push');if(!r.success||!r.ok){$b.text('🚀 push（関所なし）').prop('disabled',true);return}
+        $b.text(`🚀 push（未push ${r.ahead==null?'?':r.ahead}）`).prop('disabled',!r.ahead);
+    }});
+}
+function gitPushAll(){
+    $.ajax({url:'/app_share/api/git/status',success(s){
+        if(!s.success||!s.ok){showResult(s.error||'関所なし',true);return}
+        if(!s.ahead){showResult('未 push のコミットはありません',false);return}
+        if(!confirm(`GitHub（origin/${s.branch}）へ push します．\n\n${s.unpushed.join('\n')}\n\nよろしいですか？`))return;
+        $.ajax({url:'/app_share/api/git/push',method:'POST',contentType:'application/json',data:'{}',
+            success(r){if(r.pushed)showResult('🚀 push しました（残り '+r.ahead+' 件）',false);else showResult('push 失敗: '+(r.error||'')+(r.manual?'　手動: '+r.manual:''),true);gitStatusBar();},
+            error(x){showResult('push 失敗: '+((x.responseJSON&&x.responseJSON.error)||x.statusText),true)}});
+    }});
+}
+function publishRegistry(withReload){
+    if(withReload&&!confirm('発行してから Web アプリを Reload します．数秒〜十数秒つながらなくなります．よろしいですか？'))return;
+    $.ajax({url:'/app_share/api/publish',method:'POST',contentType:'application/json',data:JSON.stringify({reload:withReload}),
+        success(r){
+            if(!r.success){showResult('発行失敗: '+r.error,true);return}
+            let m=`📢 発行しました（apps ${r.apps}／Blueprint ${r.blueprints}）`;
+            if(r.need_reload&&!withReload)m+='．Blueprint の構成が起動中と違います．「発行＋Reload」を押してください';
+            if(withReload)m+=r.reloaded?'．Reload を要求しました':'．Reload の要求に失敗（Web タブから手動で）';
+            showResult(m,r.need_reload&&!withReload);loadSummary();
+        },
+        error(x){showResult('発行失敗: '+((x.responseJSON&&x.responseJSON.error)||x.statusText),true)}});
+}
+
+// ========== 非公開 ⇄ 公開（admin のみ） ==========
+function toggleDisclose(id,cur,ev){
+    ev.stopPropagation();
+    const to=cur?0:1;
+    if(to===1&&!confirm('このアプリのアプシャ情報（一覧・マニュアル・仕様書）を admin 以外にも表示します。よろしいですか？'))return;
+    $.ajax({url:'/app_share/registry/disclose/'+id,method:'POST',contentType:'application/json',
+        data:JSON.stringify({disclosed:to}),
+        success(r){if(r.success){showResult(r.app_name+' を'+(to?'公開':'非公開')+'にしました'+(r.published?'（発行済み．ランチャにも反映）':'（発行は失敗．📢発行を押してください）'),false);loadLocalApps()}else showResult(r.error||'切り替えに失敗しました',true)},
+        error(x){showResult('切り替えに失敗しました: '+(x.responseJSON&&x.responseJSON.error||x.status),true)}});
+}
+
+// ========== アプリ単位エクスポート（全ログインユーザー） ==========
+function exportApp(name){
+    showResult('📦 パッケージを生成しています...',false);
+    location.href='/app_share/package/export/'+encodeURIComponent(name);
+}
+
+// 見出しのエクスポートボタン（生成に時間がかかるので待ち表示を出す）
+function startExport(url,label){
+    showResult('📦 '+label+'を生成しています…（ダウンロードが始まるまでお待ちください）',false);
+    location.href=url;
+}
+
+// ========== admin専用: 並べ替え・削除・登録・編集 ==========
+function moveApp(id,dir,e){
+    e.stopPropagation();
+    $.ajax({url:`/app_share/registry/move/${id}/${dir}`,method:'POST',
+        success(r){if(r.success)loadLocalApps();else showResult(r.message||'移動できません',true)},
+        error(){showResult('移動エラー',true)}});
+}
+function delApp(id,name,e){
+    e.stopPropagation();
+    const appName=$(`.app-card[data-id="${id}"]`).data('name');
+    if(!confirm(`「${name}」をレジストリから削除しますか？\n（文書・台帳・不具合も消えます．ファイルは残ります．削除後は📢発行してください）`))return;
+    $.ajax({url:'/app_share/api/app/'+encodeURIComponent(appName)+'/delete',method:'POST',contentType:'application/json',data:'{}',
+        success(r){if(r.success){showResult(r.message,false);loadLocalApps()}else showResult('エラー: '+r.error,true)},
+        error(){showResult('削除エラー',true)}});
+}
+function openAdd(){$('#add-name,#add-display,#add-desc').val('');$('#add-icon').val('📦');$('#add-modal').addClass('active')}
+function closeAdd(){$('#add-modal').removeClass('active')}
+$('#add-modal').click(function(e){if(e.target===this)closeAdd()});
+function doAdd(){
+    const name=$('#add-name').val().trim(),display=$('#add-display').val().trim(),icon=$('#add-icon').val().trim()||'📦',desc=$('#add-desc').val().trim();
+    if(!name){alert('アプリ名は必須です');return}
+    if(!display){alert('表示名は必須です');return}
+    $.ajax({url:'/app_share/registry/add',method:'POST',contentType:'application/json',
+        data:JSON.stringify({app_name:name,display_name:display,icon:icon,description:desc}),
+        success(r){if(r.success){showResult(r.message,false);closeAdd();loadLocalApps()}else showResult('エラー: '+r.error,true)},
+        error(xhr){showResult('登録エラー: '+(xhr.responseJSON?.error||''),true)}});
+}
+
+let ceId=null,ceOldDir='';
+function openCE(id,e){
+    e.stopPropagation();
+    const $c=$(`.app-card[data-id="${id}"]`);
+    ceId=id; ceOldDir=$c.attr('data-name')||'';
+    $('#ce-i').val($c.find('.card-icon').text().trim()||'📦');
+    $('#ce-n').val($c.find('.card-name').text());
+    $('#ce-a').val(ceOldDir);
+    $('#ce-o').val($c.attr('data-sort')||'');
+    $('#ce-d').val($c.find('.card-desc').text().trim());
+    $('#ce-modal').addClass('active');
+    setTimeout(()=>$('#ce-n').focus(),50);
+}
+function closeCE(){$('#ce-modal').removeClass('active');ceId=null}
+// 背景クリックでは閉じない（誤操作で入力が消えるのを防ぐ）。
+// 閉じるのは × ／ 保存 ／ キャンセル のみ。
+function saveCE(){
+    if(!ceId)return;
+    const display=$('#ce-n').val().trim(),newDir=$('#ce-a').val().trim();
+    if(!display){alert('表示名は必須です');return}
+    if(!newDir){alert('ディレクトリ名は空にできません');return}
+    if(newDir!==ceOldDir&&!confirm(`ディレクトリ名を変更します。\n\n  ${ceOldDir}\n  → ${newDir}\n\nマニュアル・仕様書の紐付けも一緒に付け替わります。よろしいですか？`))return;
+    $.ajax({url:`/app_share/registry/update/${ceId}`,method:'POST',contentType:'application/json',
+        data:JSON.stringify({display_name:display,icon:$('#ce-i').val().trim()||'📦',
+            description:$('#ce-d').val().trim(),sort_order:$('#ce-o').val().trim(),app_name:newDir}),
+        success(r){if(r.success){showResult(r.message||'更新しました',false);closeCE();loadLocalApps()}
+                   else showResult('エラー: '+r.error,true)},
+        error(xhr){showResult('更新エラー: '+(xhr.responseJSON?.error||''),true)}});
+}
+
+// ========== マニュアル閲覧モーダル ==========
+let manApp=null;
+function openManual(name){
+    manApp=name;$('#man-title').text('ユーザマニュアル - '+name);
+    $('#man-body').html('<p style="text-align:center;padding:40px;color:#9ca3af">読み込み中...</p>');
+    $('#man-meta').hide();$('#manual-modal').addClass('active');
+    $.ajax({url:`/app_share/doc/${name}/manual/get`,success(r){
+        if(r.success&&r.doc&&r.doc.content){
+            const d=r.doc;
+            $('#man-body').html('<div class="md-r">'+marked.parse(d.content)+'</div>');
+            if(d.updated_at||d.updated_by_name){$('#man-date').text(d.updated_at||'');$('#man-author').text(d.updated_by_name||'');$('#man-meta').show()}
+        }else{
+            let empty='<div class="man-empty"><div class="me-icon">📖</div><p>まだマニュアルが作成されていません。</p>';
+            if(IS_ADMIN) empty+='<p style="margin-top:12px"><button class="primary" onclick="goEditManual()">📝 マニュアルを作成する</button></p>';
+            empty+='</div>';
+            $('#man-body').html(empty);
+        }
+    },error(){$('#man-body').html('<p style="color:red">読み込みエラー</p>')}});
+}
+function closeManual(){$('#manual-modal').removeClass('active');manApp=null}
+function goEditManual(){if(manApp&&IS_ADMIN)window.location.href=`/app_share/doc/${manApp}/manual/edit`}
+// マニュアル単独ページ（URL直アクセス）: /app_share/manual/<app_name>
+function openManualPage(){if(manApp)window.open('/app_share/manual/'+encodeURIComponent(manApp),'_blank')}
+function copyManualUrl(){if(!manApp)return;const u=location.origin+'/app_share/manual/'+encodeURIComponent(manApp);
+    if(navigator.clipboard){navigator.clipboard.writeText(u).then(()=>showResult('マニュアルURLをコピーしました: '+u,false)).catch(()=>prompt('このURLをコピーしてください',u))}
+    else prompt('このURLをコピーしてください',u)}
+$('#manual-modal').click(function(e){if(e.target===this)closeManual()});
+
+
+// ========== 全アプリパッケージからの取り込み（管理タブ・v3） ==========
+let OV=null, OVROWS=[];
+const ST_BADGE={new:'<span class="badge badge-info">🆕 新規</span>',newer:'<span class="badge badge-warning">⬆ 更新あり</span>',same:'<span class="badge badge-success">同じ</span>',older:'<span class="badge badge-danger">こちらが新しい</span>',unknown:'<span class="badge badge-gray">比較不能</span>'};
+$('#ov-file').on('change',function(){
+    const f=this.files[0];if(!f)return;
+    const rd=new FileReader();
+    rd.onload=function(ev){
+        try{OV=JSON.parse(ev.target.result)}catch(e){showResult('JSON として読めません',true);return}
+        $.ajax({url:'/app_share/package/site/check',method:'POST',contentType:'application/json',data:JSON.stringify(OV),
+            success(r){if(!r.success){showResult(r.error,true);return}OVROWS=r.apps;renderOv(r)},
+            error(x){showResult('検証失敗: '+((x.responseJSON&&x.responseJSON.error)||x.statusText),true)}});
+    };
+    rd.readAsText(f,'utf-8');
+});
+function renderOv(r){
+    $('#ov-meta').html(`出所: ${esc(r.site.site_name||'-')}　${esc(r.site.generated_at||'')}　${esc(r.site.generated_by||'')}　アプリ ${OVROWS.length} 件`).show();
+    const $tb=$('#ov-table tbody').empty();
+    OVROWS.forEach((a,i)=>{
+        const chk=(a.status==='new'||a.status==='newer');
+        $tb.append(`<tr><td><input type="checkbox" class="ov-chk" data-i="${i}" ${chk?'checked':''}></td>
+            <td>${esc(a.icon)} <b>${esc(a.display_name)}</b><br><code>${esc(a.app_name)}</code>${a.dir_exists?'':' <span class="badge badge-gray">ディレクトリなし</span>'}</td>
+            <td><code>${esc(a.package_version||'未確定')}</code><br><span style="font-size:.75rem;color:#64748b">${esc(a.package_updated_at||'')}</span></td>
+            <td><code>${esc(a.local_version||'未登録')}</code><br><span style="font-size:.75rem;color:#64748b">${esc(a.local_updated_at||'')}</span></td>
+            <td>${ST_BADGE[a.status]||esc(a.status)}</td>
+            <td><a href="#" onclick="ovOne(${i});return false" style="font-size:.8rem">個別に検証</a></td></tr>`);
+    });
+    $('#ov-wrap').show();$('#ov-result').hide();ovCount();
+    $('.ov-chk').on('change',ovCount);
+}
+function ovSelect(which){$('.ov-chk').each(function(){const a=OVROWS[+$(this).data('i')];$(this).prop('checked',which==='all'?true:which==='none'?false:(a.status==='new'||a.status==='newer'))});ovCount()}
+function ovCount(){$('#ov-count').text('選択 '+$('.ov-chk:checked').length+' 件')}
+function ovOne(i){
+    // 個別の取り込み画面で検証する（1アプリ分のパッケージを一時的にセッションストレージへ）
+    const pkg=OV.apps.find(p=>p.app_name===OVROWS[i].app_name);
+    try{sessionStorage.setItem('apsha_pkg',JSON.stringify(pkg));location.href='/app_share/package/import?app='+encodeURIComponent(pkg.app_name)+'&from=session'}
+    catch(e){showResult('パッケージが大きすぎます．個別に📦エクスポート→📥取り込みで．',true)}
+}
+async function ovApply(){
+    const sel=$('.ov-chk:checked').map(function(){return +$(this).data('i')}).get();
+    if(!sel.length){showResult('取り込むアプリを選んでください',true);return}
+    if(!confirm(`${sel.length} 件を順に取り込みます（ファイル配置・正本・文書・台帳・テーブル・不具合・発行）．\n既存ディレクトリは import_backups に退避されます．\nよろしいですか？`))return;
+    const applyTables=$('#ov-tables').is(':checked');
+    let h='';let needReload=false;
+    $('#ov-result').html('<p>⏳ 取り込み中…</p>').show();
+    for(const i of sel){
+        const a=OVROWS[i];const pkg=OV.apps.find(p=>p.app_name===a.app_name);
+        try{
+            const r=await fetch('/app_share/package/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({package:pkg,options:{apply_tables:applyTables}})});
+            const j=await r.json();
+            if(j.success){const x=j.result;needReload=needReload||x.need_reload;
+                h+=`<div class="success-box" style="margin-bottom:6px">✅ ${esc(a.display_name)}（${esc(a.app_name)}）ファイル ${x.files.written} 件，テーブル ${x.tables_executed.length} 文，不具合 ${x.issues_added} 件${x.files.errors.length?'　<span style="color:#991b1b">'+x.files.errors.map(esc).join(', ')+'</span>':''}</div>`;}
+            else h+=`<div class="error-box" style="margin-bottom:6px">❌ ${esc(a.app_name)}: ${esc(j.error||'')}</div>`;
+        }catch(e){h+=`<div class="error-box" style="margin-bottom:6px">❌ ${esc(a.app_name)}: ${esc(e.message)}</div>`}
+        $('#ov-result').html(h);
+    }
+    if(needReload)h+='<div class="warning-box">🔄 Reload が必要です（コードの置き換え，または Blueprint の追加）． <button class="primary btn-sm" onclick="reloadSite()">Reload</button></div>';
+    $('#ov-result').html(h);loadLocalApps();
+}
+function reloadSite(){$.ajax({url:'/app_share/api/reload',method:'POST',contentType:'application/json',data:'{}',success(r){showResult(r.reloaded?'Reload を要求しました（数秒〜十数秒お待ちください）':'Reload の要求に失敗（Web タブから手動で）',!r.reloaded)}})}
+
+
+// ========== 初期化 ==========
+$(document).ready(function(){ loadLocalApps(); });
+</script>
+
+</body>
+</html>

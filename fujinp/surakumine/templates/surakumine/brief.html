@@ -1,0 +1,197 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>進行ブリーフ - すらくみね</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+       background: #f4f6f9; color: #222; font-size: 16px; }
+.wrap { max-width: 1600px; margin: 0 auto; padding: 14px; }
+.header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+          background: #fff; border-radius: 10px; padding: 12px 18px; margin-bottom: 12px;
+          box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.header h1 { font-size: 1.15rem; }
+.btn { display: inline-block; padding: 7px 15px; border-radius: 6px; border: 1px solid #c7d2fe;
+       background: #eef2ff; color: #3730a3; cursor: pointer; font-size: .95rem; text-decoration: none; }
+.btn.green { background: #10b981; color: #fff; border-color: #10b981; font-weight: 700; }
+.btn.blue  { background: #4f46e5; color: #fff; border-color: #4f46e5; font-weight: 700; }
+.btn.red   { background: #e74c3c; color: #fff; border-color: #e74c3c; border-radius: 20px; font-weight: 700; }
+.btn:disabled { opacity: .5; cursor: default; }
+select { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: .95rem; background: #fff; }
+.bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+       background: #fff; border-radius: 10px; padding: 12px 18px; margin-bottom: 12px;
+       box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.bar .sp { flex: 1; }
+.stat { color: #666; font-size: .85rem; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+@media (max-width: 1100px) { .cols { grid-template-columns: 1fr; } }
+.card { background: #fff; border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.card h2 { font-size: 1rem; margin-bottom: 10px; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px;
+           display: flex; align-items: center; gap: 10px; }
+.card h2 .sp { flex: 1; }
+.msg { border-bottom: 1px solid #f1f3f5; padding: 9px 0; }
+.msg:last-child { border-bottom: none; }
+.msg .m { font-size: .82rem; color: #6b7280; }
+.msg .who { font-weight: 700; color: #111; font-size: .95rem; }
+.msg .body { margin-top: 3px; white-space: pre-wrap; word-break: break-word; line-height: 1.65; }
+.msg.reply { padding-left: 18px; border-left: 3px solid #dbeafe; background: #fafcff; }
+.msg .rx { margin-top: 4px; font-size: .85rem; color: #6b7280; }
+.new { background: #fffbeb; }
+.note { line-height: 1.8; }
+.note h2 { font-size: 1.02rem; margin: 16px 0 6px; border: none; padding: 0; color: #3730a3; }
+.note h3 { font-size: .98rem; margin: 12px 0 4px; }
+.note ul, .note ol { margin: 4px 0 4px 1.4em; }
+.note li { margin: 3px 0; }
+.note p { margin: 6px 0; }
+.mats:not(:empty) { border-bottom: 1px dashed #e5e7eb; margin-bottom: 8px; padding-bottom: 8px; }
+.mats a { color: #1d4ed8; }
+.empty { color: #9ca3af; text-align: center; padding: 26px; }
+.err { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 8px;
+       padding: 10px 14px; margin-bottom: 10px; font-size: .9rem; }
+.big { font-size: 18px; }
+.big .msg .body { line-height: 1.75; }
+label.ck { font-size: .9rem; color: #374151; display: flex; align-items: center; gap: 5px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <div class="header">
+    <a href="{{ url_for('surakumine.return_to_fujin') }}" class="btn red">🏠 FUJIN-P</a>
+    <a href="{{ url_for('surakumine.index') }}" class="btn">← すらくみね</a>
+    <h1>🤖 進行ブリーフ</h1>
+    <span class="stat">講義中の進行調整用．Slack へは何も投稿しません</span>
+  </div>
+
+  <div class="bar">
+    <select id="ch">
+      {% for c in channels %}
+      <option value="{{ c.channel_id }}">#{{ c.name }}（最終 {{ c.last_at }}）</option>
+      {% else %}
+      <option value="">（アーカイブ済みのチャンネルがありません）</option>
+      {% endfor %}
+    </select>
+    <select id="min">
+      {% for w in windows %}
+      <option value="{{ w }}"{% if w == 30 %} selected{% endif %}>{% if w %}直近 {{ w }} 分{% else %}全部（保存分すべて）{% endif %}</option>
+      {% endfor %}
+    </select>
+    <button class="btn blue" id="sync">🔄 新着を取得</button>
+    <button class="btn green" id="ai">🤖 進行メモを作る</button>
+    <label class="ck"><input type="checkbox" id="auto"> 2分ごとに自動取得</label>
+    <label class="ck"><input type="checkbox" id="bigger"> 大きい文字</label>
+    <span class="sp"></span>
+    <span class="stat" id="stat"></span>
+  </div>
+
+  <div id="err"></div>
+
+  <div class="cols">
+    <div class="card">
+      <h2>💬 発言<span class="sp"></span><button class="btn" id="copy">📋 コピー</button></h2>
+      <div id="list"><div class="empty">「🔄 新着を取得」を押してください</div></div>
+    </div>
+    <div class="card">
+      <h2>📝 進行メモ（AI）</h2>
+      <div id="mats" class="note mats"></div>
+      <div id="note" class="note"><div class="empty">「🤖 進行メモを作る」を押すと，いまの発言をもとに作ります（数十秒かかります）</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
+let lastKeys = new Set(), timer = null, busy = false;
+
+function showErr(m) { $('err').innerHTML = m ? `<div class="err">${esc(m)}</div>` : ''; }
+
+function render(j) {
+  const el = $('list');
+  if (!j.rows.length) {
+    el.innerHTML = `<div class="empty">${j.minutes ? 'この時間内の発言はありません' : 'このチャンネルにはまだ発言が保存されていません'}</div>`;
+    lastKeys = new Set(); return;
+  }
+  const keys = new Set(j.rows.map(r => r.ts));
+  const first = lastKeys.size === 0;
+  el.innerHTML = j.rows.map(r => {
+    const isNew = !first && !lastKeys.has(r.ts) && !r.is_stub;
+    let tag = '';
+    if (r.is_reply) tag = `　<span class="pl">↳ ${r.parent_label.startsWith('（') ? esc(r.parent_label) : esc(r.parent_label) + ' への返信'}</span>`;
+    else if (r.is_stub) tag = '　（対象時間より前の投稿．返信の親として表示）';
+    return `<div class="msg${r.is_reply ? ' reply' : ''}${r.is_stub ? ' stub' : ''}${isNew ? ' new' : ''}">
+      <div class="m"><span class="who">${esc(r.sender)}</span>　${esc(r.time)}${tag}${r.edited ? '　編集済み' : ''}</div>
+      <div class="body">${esc(r.text)}</div>
+      ${r.reactions ? `<div class="rx">${esc(r.reactions)}</div>` : ''}
+    </div>`;
+  }).join('');
+  lastKeys = keys;
+  el.scrollTop = el.scrollHeight;
+}
+
+async function sync(silent) {
+  if (busy) return;
+  const cid = $('ch').value; if (!cid) return;
+  busy = true; $('sync').disabled = true;
+  if (!silent) $('stat').textContent = '取得中…';
+  try {
+    const r = await fetch("{{ url_for('surakumine.api_brief_sync') }}", {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel_id: cid, minutes: +$('min').value })
+    });
+    const j = await r.json();
+    if (!j.success) { showErr(j.error); $('stat').textContent = ''; return; }
+    showErr('');
+    render(j);
+    $('mats').innerHTML = j.materials_html || '';   // ★v1.3 受講者の資料（名寄せ）
+    const c = j.counts || {};
+    $('stat').textContent = `${j.now} 現在　表示 ${j.count != null ? j.count : j.rows.length} 件`
+      + (j.truncated ? '（新しい方から上限まで）' : '')
+      + (c.saved ? `　新規 ${c.saved} 件` : '') + (c.replies ? `　返信 ${c.replies} 件` : '')
+      + (c.files ? `　添付保存 ${c.files} 件` : '');
+  } catch (e) { showErr('通信エラー：' + e.message); }
+  finally { busy = false; $('sync').disabled = false; }
+}
+
+async function makeNote() {
+  const cid = $('ch').value; if (!cid) return;
+  const btn = $('ai'); btn.disabled = true; btn.textContent = '作成中…';
+  $('note').innerHTML = '<div class="empty">AI が読んでいます．数十秒かかります…</div>';
+  try {
+    const r = await fetch("{{ url_for('surakumine.api_brief_note') }}", {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel_id: cid, minutes: +$('min').value })
+    });
+    const j = await r.json();
+    if (!j.success) { $('note').innerHTML = `<div class="err">${esc(j.error)}</div>`; return; }
+    $('note').innerHTML = j.note_html + `<div class="stat" style="margin-top:12px">${esc(j.now)} 時点・${j.count} 件をもとに作成</div>`;
+    $('mats').innerHTML = '';   // ★v1.3 進行メモ本文の末尾に同じ一覧が入る
+  } catch (e) { $('note').innerHTML = `<div class="err">通信エラー：${esc(e.message)}</div>`; }
+  finally { btn.disabled = false; btn.textContent = '🤖 進行メモを作る'; }
+}
+
+$('sync').onclick = () => sync(false);
+$('ai').onclick = makeNote;
+$('ch').onchange = () => { lastKeys = new Set(); sync(false); };
+$('min').onchange = () => { lastKeys = new Set(); sync(false); };
+$('auto').onchange = () => {
+  if (timer) { clearInterval(timer); timer = null; }
+  if ($('auto').checked) timer = setInterval(() => sync(true), 120000);
+};
+$('bigger').onchange = () => $('wrap').classList.toggle('big', $('bigger').checked);
+$('copy').onclick = () => {
+  const t = [...document.querySelectorAll('#list .msg')].map(m =>
+    m.querySelector('.m').textContent.trim() + '\n' + m.querySelector('.body').textContent).join('\n\n');
+  navigator.clipboard.writeText(t).then(() => { $('copy').textContent = '✅ コピーしました'; setTimeout(() => $('copy').textContent = '📋 コピー', 1500); });
+};
+if ($('ch').value) sync(false);
+</script>
+</body>
+</html>
