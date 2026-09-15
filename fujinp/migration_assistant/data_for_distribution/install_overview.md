@@ -37,7 +37,7 @@
 
 ## 用意するもの
 
-PythonAnywhere のアカウント（無料プランで動きます）．Web タブで Flask の Web アプリを1つ作っておきます．Python は 3.10 以上を選びます．
+PythonAnywhere の有料アカウント（Developer プラン以上）．FUJIN-P はデータベース（MySQL）を全面的に使うので，無料プランでは動きません．Web タブで Flask の Web アプリを1つ作っておきます．Python は 3.10 以上を選びます．
 
 `fujinp_kernel_install.py` を1本．この画面からダウンロードできます．
 

@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-09-15 00:33:58",
+  "generated_at": "2026-09-15 11:36:40",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -83,13 +83,13 @@
           "label": "アプシャ",
           "groups": [],
           "params": "",
-          "section": "internal",
+          "section": "admin_support",
           "endpoint": "app_share.dashboard",
           "dashboards": [
             "admin",
             "guest"
           ],
-          "sort_order": 160,
+          "sort_order": 1,
           "visibility": "domestic",
           "description": "アプリの正本管理・発行・パッケージ輸出入",
           "extra_class": ""
@@ -344,12 +344,12 @@
           "label": "まいあし",
           "groups": [],
           "params": "",
-          "section": "sommelier",
+          "section": "admin_support",
           "endpoint": "migration_assistant.index",
           "dashboards": [
             "admin"
           ],
-          "sort_order": 80,
+          "sort_order": 1,
           "visibility": "private",
           "description": "FUJIN-Pマイグレーション支援",
           "extra_class": "clickable"
@@ -364,7 +364,7 @@
           "dashboards": [
             "guest"
           ],
-          "sort_order": 80,
+          "sort_order": 1,
           "visibility": "public",
           "description": "FUJIN-Pマイグレーション支援",
           "extra_class": ""
@@ -374,12 +374,12 @@
           "label": "別サイトへのインストール",
           "groups": [],
           "params": "",
-          "section": "sommelier",
+          "section": "admin_support",
           "endpoint": "migration_assistant.install_guide",
           "dashboards": [
             "admin"
           ],
-          "sort_order": 81,
+          "sort_order": 1,
           "visibility": "private",
           "description": "種の導入スクリプトと2段階の手引き",
           "extra_class": ""
@@ -394,7 +394,7 @@
           "dashboards": [
             "guest"
           ],
-          "sort_order": 81,
+          "sort_order": 1,
           "visibility": "domestic",
           "description": "種の導入スクリプトと2段階の手引き",
           "extra_class": ""
@@ -970,7 +970,7 @@
             "admin",
             "guest"
           ],
-          "sort_order": 240,
+          "sort_order": 1,
           "visibility": "open",
           "description": "文書アーカイブの閲覧と管理",
           "extra_class": ""

@@ -8,7 +8,7 @@
 
 ## 用意するもの
 
-PythonAnywhere のアカウント（無料プランで動きます）．Web タブで Flask の Web アプリを1つ作っておいてください．Python は 3.10 以上を選びます．
+PythonAnywhere の有料アカウント（Developer プラン以上）．FUJIN-P はデータベース（MySQL）を全面的に使うので，無料プランでは動きません．Web タブで Flask の Web アプリを1つ作っておいてください．Python は 3.10 以上を選びます．
 
 `fujinp_kernel_install.py` を1本，手元にダウンロードしておきます．
 
@@ -47,8 +47,10 @@ PythonAnywhere の Databases タブで，データベースを作ります．
 
 ```bash
 cd ~
-pip3 install --user -r requirements.txt
+pip3.13 install --user -r requirements.txt
 ```
+
+`pip3.13` の数字は，Web タブに出ている Python の版に合わせます．版が違うと，サイトを開いたときに `ModuleNotFoundError` になります．
 
 ## 5. config.py を書く
 
