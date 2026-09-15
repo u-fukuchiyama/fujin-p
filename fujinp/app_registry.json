@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-09-15 11:36:40",
+  "generated_at": "2026-09-15 15:37:42",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -90,7 +90,7 @@
             "guest"
           ],
           "sort_order": 1,
-          "visibility": "domestic",
+          "visibility": "public",
           "description": "アプリの正本管理・発行・パッケージ輸出入",
           "extra_class": ""
         }

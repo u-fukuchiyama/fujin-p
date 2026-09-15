@@ -25,7 +25,7 @@ app_share.package — アプリパッケージの輸出入（段階6c，format_v
 パッケージ＝正本レコード（基本・起動・ランチャ・台帳・目録・版）＋文書＋不具合（open）＋ files[]．
 app_info.json／version.json／manifest.json は含めない（情報は正本にある）．
 
-  GET  /app_share/package/export/<app_name>     輸出（?docs= 無しなら確認ゲートを表示）
+  GET  /app_share/package/export/<app_name>     輸出（?docs= 無しなら確認ゲートを表示．admin 以外はゲートなしでそのまま書き出す）
   GET  /app_share/package/export/<app_name>?docs=ok|later|draft|final
        ok=文書は最新（更新不要）／later=更新せず書き出す／draft=文書作成用の暫定版／final=文書を添付した最終版
   POST /app_share/api/app/<app_name>/docs/attach  Claude が書いたマニュアル・仕様書を保存（ゲートの「完了」）
@@ -36,7 +36,9 @@ app_info.json／version.json／manifest.json は含めない（情報は正本�
   GET  /app_share/package/export_all            全アプリの文書の点検ページ（1本ずつ確認してから書き出す）
   POST /app_share/package/export_all            確認済みの選択を受けて全アプリパッケージ（fujinp_apps_overview）を返す
   GET  /app_share/api/docs/status_all           全アプリの文書の新旧（点検ページの再確認用）
+  GET  /app_share/package/export_all/public     全アプリパッケージをそのまま書き出す（ログインした全員）
   POST /app_share/package/site/check            全アプリパッケージの一覧検証（新規／更新／同じ／古い）
+書き出し（GET の3本）はログインした全員に開いている．それ以外は admin．
 
 format_version 2（旧形式）のパッケージも読める（正本部分は推定して candidate 扱い）．
 """
@@ -66,6 +68,21 @@ FORMAT_VERSION = 3
 EXPORT_TYPE = 'fujinp_app_package'
 MAX_FILE = 5 * 1024 * 1024
 BACKUP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'import_backups')
+
+# 書き出しはログインした全員に開く（routes.py の before_request の admin 既定から外す）．
+# FUJIN-P はオープンソースなので，ほかのサイトのオーナーがアプリを持ち帰れるようにする．
+_m._routes._NON_ADMIN_ENDPOINTS = frozenset(
+    set(_m._routes._NON_ADMIN_ENDPOINTS) | {'package_export', 'package_export_all_public'})
+
+
+def _is_admin():
+    return _m._routes.check_admin_permission(session.get('user_id'))
+
+
+def _public_choice(cur, app_name, files=None):
+    """点検を経ない書き出しの文書の扱い（サーバの判定で ok／later を決める）"""
+    st = _doc_status(cur, app_name, files=files)
+    return 'later' if st['any_stale'] else 'ok'
 
 
 # ============================================================
@@ -254,6 +271,9 @@ def package_export(app_name):
         return "アプリ名が不正です", 400
     choice = (request.args.get('docs') or '').strip().lower()
 
+    if not _is_admin():
+        return _public_export(app_name)
+
     if choice not in ('ok', 'later', 'draft', 'final'):
         with _m._db() as (cur, conn):
             row = _m._load_registry_row(cur, app_name)
@@ -285,6 +305,27 @@ def package_export(app_name):
     if token:
         resp.set_cookie('fujinp_export', f'{token}|{fn}', max_age=180, path='/', samesite='Lax')
     return resp
+
+
+def _public_export(app_name):
+    """admin 以外の書き出し．非公開（disclosed=0）のアプリは出さない．
+    文書の点検ゲートは通さず，文書の新旧はサーバの判定を doc_update に記録する．"""
+    with _m._db() as (cur, conn):
+        row = _m._load_registry_row(cur, app_name)
+        if not row or (row.get('disclosed') is not None and not int(row.get('disclosed') or 0)):
+            return "レジストリにありません", 404
+        if app_name == _m.PLATFORM_ROW:
+            return "カーネルは ⚙ カーネルの書き出しを使ってください", 400
+        cur.execute("SELECT full_name FROM users WHERE id=%s", (session.get('user_id'),))
+        u = cur.fetchone()
+        choice = _public_choice(cur, app_name)
+        pkg = build_package(cur, app_name, generated_by=(u or {}).get('full_name'), docs_choice=choice)
+    if not pkg:
+        return "レジストリにありません", 404
+    pkg['doc_update']['public_download'] = True
+    fn = f'app_package_{app_name}_{_m._now().strftime("%Y%m%d_%H%M%S")}.json'
+    return Response(json.dumps(pkg, ensure_ascii=False, indent=2), mimetype='application/json',
+                    headers={'Content-Disposition': f'attachment; filename="{fn}"'})
 
 
 # ============================================================
@@ -873,6 +914,47 @@ def package_export_all_download():
                           'current': len(apps) - n_later, 'deferred': n_later,
                           'deferred_apps': [a['app_name'] for a in status
                                             if (decisions.get(a['app_name']) or '').lower() == 'later']}}
+    fn = f'fujinp_apps_overview_{_m._now().strftime("%Y%m%d_%H%M%S")}.json'
+    return Response(json.dumps(out, ensure_ascii=False, indent=2), mimetype='application/json',
+                    headers={'Content-Disposition': f'attachment; filename="{fn}"'})
+
+
+@app_share_bp.route('/package/export_all/public', methods=['GET'])
+@login_required
+def package_export_all_public():
+    """全アプリパッケージを点検なしでそのまま書き出す（ログインした全員）．
+    非公開（disclosed=0）のアプリは含めない．文書の新旧はサーバの判定で ok／later を付ける．"""
+    with _m._db() as (cur, conn):
+        cur.execute("SELECT full_name FROM users WHERE id=%s", (session.get('user_id'),))
+        u = cur.fetchone()
+        by = (u or {}).get('full_name')
+        try:
+            cur.execute("SELECT app_name FROM app_share_registry WHERE kind='app' AND COALESCE(disclosed,1)=1")
+        except Exception:
+            cur.execute("SELECT app_name FROM app_share_registry WHERE kind='app'")
+        disclosed = {r['app_name'] for r in cur.fetchall()}
+        status = [a for a in _all_app_doc_status(cur) if a['app_name'] in disclosed]
+        excluded = _excluded_apps(cur)
+        apps, deferred = [], []
+        for a in status:
+            choice = 'later' if a['stale'] else 'ok'
+            pkg = build_package(cur, a['app_name'], generated_by=by, docs_choice=choice)
+            if pkg:
+                pkg['doc_update']['public_download'] = True
+                apps.append(pkg)
+                if choice == 'later':
+                    deferred.append(a['app_name'])
+    out = {'export_type': OVERVIEW_TYPE, 'format_version': FORMAT_VERSION,
+           'site_name': getattr(Config, 'DB_ACCOUNT', ''),
+           'site_url': request.host_url.rstrip('/'),
+           'generated_at': _m._fmt(_m._now()), 'generated_by': by,
+           'app_count': len(apps), 'apps': apps,
+           'excluded': excluded, 'excluded_note': EXCLUDED_NOTE,
+           'public_download': True,
+           'doc_review': {'reviewed': False, 'reviewed_at': None,
+                          'note': '点検を経ずに書き出した版．文書の新旧はサーバの判定による．',
+                          'current': len(apps) - len(deferred), 'deferred': len(deferred),
+                          'deferred_apps': deferred}}
     fn = f'fujinp_apps_overview_{_m._now().strftime("%Y%m%d_%H%M%S")}.json'
     return Response(json.dumps(out, ensure_ascii=False, indent=2), mimetype='application/json',
                     headers={'Content-Disposition': f'attachment; filename="{fn}"'})
