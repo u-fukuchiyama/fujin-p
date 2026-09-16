@@ -45,7 +45,7 @@ PythonAnywhere の有料アカウント（Developer プラン以上）．FUJIN-P
 
 ## 何が入っていて，何が入っていないか
 
-`fujinp_kernel_install.py` には，カーネル（`app.py`・認証・データベース接続・共通テンプレート・アカウント管理・ゲストダッシュボード）とアプシャが入っています．51 ファイルです．
+`fujinp_kernel_install.py` には，カーネル（`app.py`・認証・データベース接続・共通テンプレート・アカウント管理・ゲストダッシュボード）とアプシャが入っています．ファイルの数と中身は `python3 fujinp_kernel_install.py --list` で確かめられます．
 
 `config.py` は入っていません．秘密情報を持つファイルなので，各サイトで書きます．代わりに `config_template.py` が入っていて，埋める場所は6か所です．
 
