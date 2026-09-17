@@ -176,7 +176,18 @@
             display: block; text-align: center; margin-top: 3px;
             font-size: 0.5rem; color: rgba(255,255,255,0.9); opacity: .85;
         }
-        .app-card:not(.admin-function):not(.sommelier):not(.admin-support):not(.highlight):not(.open-sky):not(.legacy) .vis-badge { color: #666; }
+        /* ★2026-09-17 登録申請状況：4枚並び・アイコン左揃え・登録ユーザの内訳は右カラム */
+        .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        @media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 500px) { .stats-grid { grid-template-columns: 1fr; } }
+        .stat-card { justify-content: flex-start; gap: 10px; }
+        .stat-icon { flex-shrink: 0; }
+        .stat-users .stat-icon { background: #dbeafe; color: #1e40af; }
+        .stat-breakdown {
+            margin-left: auto; display: grid; grid-template-columns: auto auto;
+            column-gap: 6px; row-gap: 1px; font-size: 0.55rem; color: #666;
+        }
+        .stat-breakdown .v { text-align: right; font-weight: 600; color: #333; }
     </style>
 </head>
 <body>
@@ -202,17 +213,27 @@
         <!-- 登録申請統計 -->
         <h3 class="section-separator">📊 登録申請状況</h3>
         <div class="stats-grid">
+            {% set uc = user_category_counts() %}
+            <div class="stat-card stat-users">
+                <div class="stat-icon">👤</div>
+                <div class="stat-info"><h3>登録ユーザ</h3><div class="number">{{ uc.total }}</div></div>
+                <div class="stat-breakdown">
+                    <span>admin</span><span class="v">{{ uc.admin }}</span>
+                    <span>regular</span><span class="v">{{ uc.regular }}</span>
+                    <span>guest</span><span class="v">{{ uc.guest }}</span>
+                </div>
+            </div>
             <a href="{{ url_for('admin.pending_requests') }}" class="stat-card stat-pending">
-                <div class="stat-info"><h3>承認待ち</h3><div class="number">{{ statistics.pending_count if statistics else 0 }}</div></div>
                 <div class="stat-icon">⏳</div>
+                <div class="stat-info"><h3>承認待ち</h3><div class="number">{{ statistics.pending_count if statistics else 0 }}</div></div>
             </a>
             <a href="{{ url_for('admin.approved_users_list') }}" class="stat-card stat-approved">
-                <div class="stat-info"><h3>承認済み（未設定）</h3><div class="number">{{ statistics.approved_count if statistics else 0 }}</div></div>
                 <div class="stat-icon">✓</div>
+                <div class="stat-info"><h3>承認済み（未設定）</h3><div class="number">{{ statistics.approved_count if statistics else 0 }}</div></div>
             </a>
             <a href="{{ url_for('admin.blacklisted_users') }}" class="stat-card stat-blacklist">
-                <div class="stat-info"><h3>ブラックリスト</h3><div class="number">{{ statistics.blacklisted_count if statistics else 0 }}</div></div>
                 <div class="stat-icon">🚫</div>
+                <div class="stat-info"><h3>ブラックリスト</h3><div class="number">{{ statistics.blacklisted_count if statistics else 0 }}</div></div>
             </a>
         </div>
 

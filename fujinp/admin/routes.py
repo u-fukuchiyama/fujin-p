@@ -903,3 +903,28 @@ def delete_app_permission_label(app_id, perm_id):
 def return_to_fujin():
     """FUJIN-Pダッシュボードに戻る"""
     return redirect_to_dashboard()
+
+@admin_bp.app_template_global('user_category_counts')
+def user_category_counts():
+    """管理者ダッシュボード用：登録ユーザ数（論理削除を除く）の合計とカテゴリ別内訳"""
+    counts = {'total': 0, 'admin': 0, 'regular': 0, 'guest': 0}
+    try:
+        with get_db_cursor() as (cursor, conn):
+            cursor.execute("""
+                SELECT category, COUNT(*) AS n
+                FROM users
+                WHERE deleted_at IS NULL
+                GROUP BY category
+            """)
+            for row in cursor.fetchall():
+                if isinstance(row, dict):
+                    cat, n = row['category'], row['n']
+                else:
+                    cat, n = row[0], row[1]
+                n = int(n or 0)
+                counts['total'] += n
+                if cat in counts:
+                    counts[cat] += n
+    except Exception as e:
+        print(f"[admin] user_category_counts error: {e}")
+    return counts
