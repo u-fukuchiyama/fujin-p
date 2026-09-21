@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-09-17 08:37:08",
+  "generated_at": "2026-09-17 16:00:30",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -14,8 +14,8 @@
       "disclosed": true,
       "blueprints": [],
       "launchers": [],
-      "version_id": "v20260914.215237-da39a3",
-      "version_confirmed_at": "2026-09-14 21:52:37"
+      "version_id": null,
+      "version_confirmed_at": null
     },
     {
       "app_name": "admin",
@@ -95,8 +95,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260915.162107-ec4d52",
-      "version_confirmed_at": "2026-09-15 16:21:08"
+      "version_id": "v20260917.153832-40fd8e",
+      "version_confirmed_at": "2026-09-17 15:38:33"
     },
     {
       "app_name": "table_cycle",
@@ -132,8 +132,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.130621-05e507",
-      "version_confirmed_at": "2026-07-31 13:06:21"
+      "version_id": "v20260917.153749-b446d7",
+      "version_confirmed_at": "2026-09-17 15:37:50"
     },
     {
       "app_name": "table_master",
@@ -169,8 +169,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.133950-0df1eb",
-      "version_confirmed_at": "2026-07-31 13:39:50"
+      "version_id": "v20260917.153719-d4c320",
+      "version_confirmed_at": "2026-09-17 15:37:19"
     },
     {
       "app_name": "sql_saver",
@@ -206,8 +206,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.134922-69dca2",
-      "version_confirmed_at": "2026-07-31 13:49:22"
+      "version_id": "v20260917.153652-817c55",
+      "version_confirmed_at": "2026-09-17 15:36:52"
     },
     {
       "app_name": "strm",
@@ -243,8 +243,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140501-f92cbd",
-      "version_confirmed_at": "2026-07-31 14:05:01"
+      "version_id": "v20260917.153613-953533",
+      "version_confirmed_at": "2026-09-17 15:36:13"
     },
     {
       "app_name": "slack_minutes",
@@ -281,8 +281,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260902.140152-ec8395",
-      "version_confirmed_at": "2026-09-02 14:01:52"
+      "version_id": "v20260917.153545-ba34e1",
+      "version_confirmed_at": "2026-09-17 15:35:46"
     },
     {
       "app_name": "fukko",
@@ -318,8 +318,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140509-e899a2",
-      "version_confirmed_at": "2026-07-31 14:05:09"
+      "version_id": "v20260917.153521-c87d41",
+      "version_confirmed_at": "2026-09-17 15:35:22"
     },
     {
       "app_name": "migration_assistant",
@@ -400,8 +400,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260917.083655-f7b555",
-      "version_confirmed_at": "2026-09-17 08:36:56"
+      "version_id": "v20260917.153501-823e6d",
+      "version_confirmed_at": "2026-09-17 15:35:02"
     },
     {
       "app_name": "table_share",
@@ -440,8 +440,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140516-5bc285",
-      "version_confirmed_at": "2026-07-31 14:05:16"
+      "version_id": "v20260917.153431-274a03",
+      "version_confirmed_at": "2026-09-17 15:34:32"
     },
     {
       "app_name": "user_migration",
@@ -480,8 +480,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140521-262bfe",
-      "version_confirmed_at": "2026-07-31 14:05:21"
+      "version_id": "v20260917.153356-9279f6",
+      "version_confirmed_at": "2026-09-17 15:33:56"
     },
     {
       "app_name": "migrate_fujinp_scions",
@@ -535,8 +535,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140524-e84ca5",
-      "version_confirmed_at": "2026-07-31 14:05:24"
+      "version_id": "v20260917.153329-8a9a0d",
+      "version_confirmed_at": "2026-09-17 15:33:30"
     },
     {
       "app_name": "my_md_notes",
@@ -575,8 +575,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260905.103222-bda890",
-      "version_confirmed_at": "2026-09-05 10:32:22"
+      "version_id": "v20260917.153259-8165b1",
+      "version_confirmed_at": "2026-09-17 15:33:00"
     },
     {
       "app_name": "user_groups",
@@ -642,8 +642,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140531-c9c597",
-      "version_confirmed_at": "2026-07-31 14:05:31"
+      "version_id": "v20260917.153150-29dacc",
+      "version_confirmed_at": "2026-09-17 15:31:50"
     },
     {
       "app_name": "colrep",
@@ -710,8 +710,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260824.150317-6eb81a",
-      "version_confirmed_at": "2026-08-24 15:03:17"
+      "version_id": "v20260917.153111-06bf65",
+      "version_confirmed_at": "2026-09-17 15:31:11"
     },
     {
       "app_name": "table_post",
@@ -748,8 +748,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140538-425cf9",
-      "version_confirmed_at": "2026-07-31 14:05:38"
+      "version_id": "v20260917.153033-9cc4e9",
+      "version_confirmed_at": "2026-09-17 15:30:33"
     },
     {
       "app_name": "official_data_archive",
@@ -786,8 +786,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140547-6c525a",
-      "version_confirmed_at": "2026-07-31 14:05:47"
+      "version_id": "v20260917.152916-a6d556",
+      "version_confirmed_at": "2026-09-17 15:29:16"
     },
     {
       "app_name": "data_center",
@@ -824,8 +824,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140549-104341",
-      "version_confirmed_at": "2026-07-31 14:05:49"
+      "version_id": "v20260917.152653-40223a",
+      "version_confirmed_at": "2026-09-17 15:26:53"
     },
     {
       "app_name": "index_review",
@@ -862,8 +862,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140555-c2ef51",
-      "version_confirmed_at": "2026-07-31 14:05:55"
+      "version_id": "v20260917.152619-30c33e",
+      "version_confirmed_at": "2026-09-17 15:26:20"
     },
     {
       "app_name": "stats",
@@ -900,8 +900,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140558-e11295",
-      "version_confirmed_at": "2026-07-31 14:05:58"
+      "version_id": "v20260917.152548-67a060",
+      "version_confirmed_at": "2026-09-17 15:25:48"
     },
     {
       "app_name": "awami",
@@ -938,8 +938,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140601-231f06",
-      "version_confirmed_at": "2026-07-31 14:06:01"
+      "version_id": "v20260917.152521-851390",
+      "version_confirmed_at": "2026-09-17 15:25:21"
     },
     {
       "app_name": "document_archive",
@@ -976,8 +976,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140606-85aae3",
-      "version_confirmed_at": "2026-07-31 14:06:06"
+      "version_id": "v20260917.152156-f4ccc3",
+      "version_confirmed_at": "2026-09-17 15:21:57"
     },
     {
       "app_name": "free_hand_curve",
@@ -1014,8 +1014,8 @@
           "extra_class": "clickable"
         }
       ],
-      "version_id": "v20260731.140608-94bfc0",
-      "version_confirmed_at": "2026-07-31 14:06:08"
+      "version_id": "v20260917.152120-bc087b",
+      "version_confirmed_at": "2026-09-17 15:21:21"
     },
     {
       "app_name": "ts_solvers",
@@ -1052,8 +1052,8 @@
           "extra_class": "clickable"
         }
       ],
-      "version_id": "v20260731.140611-ab6e47",
-      "version_confirmed_at": "2026-07-31 14:06:11"
+      "version_id": "v20260917.152045-e8e8b7",
+      "version_confirmed_at": "2026-09-17 15:20:46"
     },
     {
       "app_name": "solar_gl",
@@ -1090,8 +1090,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140616-474f74",
-      "version_confirmed_at": "2026-07-31 14:06:16"
+      "version_id": "v20260917.152011-7b37cc",
+      "version_confirmed_at": "2026-09-17 15:20:11"
     },
     {
       "app_name": "sorakara",
@@ -1128,8 +1128,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140619-628144",
-      "version_confirmed_at": "2026-07-31 14:06:19"
+      "version_id": "v20260917.151935-dd2ac7",
+      "version_confirmed_at": "2026-09-17 15:19:36"
     },
     {
       "app_name": "window_shopping",
@@ -1166,8 +1166,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140623-88fa23",
-      "version_confirmed_at": "2026-07-31 14:06:23"
+      "version_id": "v20260917.151653-d200e1",
+      "version_confirmed_at": "2026-09-17 15:16:54"
     },
     {
       "app_name": "tag_chase",
@@ -1204,8 +1204,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140627-1f8eaa",
-      "version_confirmed_at": "2026-07-31 14:06:27"
+      "version_id": "v20260917.151620-8af312",
+      "version_confirmed_at": "2026-09-17 15:16:20"
     },
     {
       "app_name": "block_breaker",
@@ -1242,8 +1242,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140630-64c32c",
-      "version_confirmed_at": "2026-07-31 14:06:30"
+      "version_id": "v20260917.151526-77fbf6",
+      "version_confirmed_at": "2026-09-17 15:15:26"
     },
     {
       "app_name": "lookout",
@@ -1280,8 +1280,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260816.004034-d9f501",
-      "version_confirmed_at": "2026-08-16 00:40:34"
+      "version_id": "v20260917.151500-854816",
+      "version_confirmed_at": "2026-09-17 15:15:00"
     },
     {
       "app_name": "kataribe",
@@ -1318,8 +1318,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260905.102937-89d754",
-      "version_confirmed_at": "2026-09-05 10:29:38"
+      "version_id": "v20260917.151417-fadd81",
+      "version_confirmed_at": "2026-09-17 15:14:18"
     },
     {
       "app_name": "fujin_forum",
@@ -1356,8 +1356,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260905.102751-3b4594",
-      "version_confirmed_at": "2026-09-05 10:27:51"
+      "version_id": "v20260917.151338-455563",
+      "version_confirmed_at": "2026-09-17 15:13:38"
     },
     {
       "app_name": "cqm",
@@ -1393,8 +1393,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260905.102458-4a21ab",
-      "version_confirmed_at": "2026-09-05 10:24:59"
+      "version_id": "v20260917.151204-ebf861",
+      "version_confirmed_at": "2026-09-17 15:12:04"
     },
     {
       "app_name": "table_converter",
@@ -1430,8 +1430,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260905.213958-1c8ec2",
-      "version_confirmed_at": "2026-09-05 21:39:58"
+      "version_id": "v20260917.151134-333e62",
+      "version_confirmed_at": "2026-09-17 15:11:35"
     },
     {
       "app_name": "surakumine",
@@ -1468,8 +1468,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": null,
-      "version_confirmed_at": null
+      "version_id": "v20260917.151050-5f8172",
+      "version_confirmed_at": "2026-09-17 15:10:50"
     },
     {
       "app_name": "fujin_forum_ne",
@@ -1506,8 +1506,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": null,
-      "version_confirmed_at": null
+      "version_id": "v20260917.151020-31bf1b",
+      "version_confirmed_at": "2026-09-17 15:10:21"
     }
   ],
   "sections": [

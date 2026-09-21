@@ -1151,10 +1151,22 @@ def ledger_group_sync():
             cursor.execute("SELECT COUNT(*) AS n FROM user_group_memberships WHERE group_id=%s", (gid,))
             nm = cursor.fetchone()['n']
             extras.append({'name': name, 'rules': nr, 'direct': nm})
+        # 控えてある永続IDを，できあがった users／user_groups に付け直す（永続IDは元帳に従う）
+        pids_linked = {'person': 0, 'group': 0}
+        try:
+            from .pids import link_pending
+            cursor.execute("SAVEPOINT before_pids")
+            pids_linked = link_pending(cursor)
+        except Exception as e:
+            logging.warning("link_pending skipped: %s", e)
+            try:
+                cursor.execute("ROLLBACK TO SAVEPOINT before_pids")
+            except Exception:
+                pass
         conn.commit()
         return jsonify({'success': True, 'groups_created': created, 'rules_added': added,
                         'from_ledger': len(from_ledger), 'extras': sorted(extras, key=lambda x: x['name']),
-                        'roster': roster})
+                        'roster': roster, 'pids_linked': pids_linked})
     except Exception as e:
         conn.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1514,13 +1526,23 @@ def ledger_roster():
                           'user_inactive': bool(u and not u['deleted_at'] and not u['is_active']),
                           'has_password': bool(u and u.get('password_hash')),
                           'approved': bool(em) and em in approved})
+        # 台帳未登録の users（名簿にメールが無いアカウント．立ち上げ時に手で作った admin など）
+        listed = {(p['email'] or '').strip().lower() for p in persons if p['email']}
+        cursor.execute("""SELECT id, full_name, email, category, affiliation, is_active
+                          FROM users WHERE deleted_at IS NULL ORDER BY id""")
+        unregistered = [{'user_id': r['id'], 'full_name': r['full_name'] or '', 'email': r['email'] or '',
+                         'category': r['category'] or '', 'affiliation': r['affiliation'] or '',
+                         'inactive': not r['is_active']}
+                        for r in cursor.fetchall()
+                        if (r['email'] or '').strip().lower() not in listed]
         n_users = sum(1 for i in items if i['user_id'])
         n_appr = sum(1 for i in items if i['approved'])
         n_pending = sum(1 for i in items if i['active'] and i['email'] and not i['user_id'] and not i['approved'])
         n_noemail = sum(1 for i in items if not i['email'])
-        return jsonify({'success': True, 'items': items,
+        return jsonify({'success': True, 'items': items, 'unregistered': unregistered,
                         'counts': {'total': len(items), 'active': sum(1 for i in items if i['active']),
-                                   'users': n_users, 'approved': n_appr, 'pending': n_pending, 'no_email': n_noemail}})
+                                   'users': n_users, 'approved': n_appr, 'pending': n_pending, 'no_email': n_noemail,
+                                   'unregistered': len(unregistered)}})
     finally:
         cursor.close()
         conn.close()
@@ -1695,6 +1717,56 @@ def _relink_name(cursor, name):
     for aid in ids:
         cursor.execute("UPDATE ug_appointments SET user_id=%s WHERE id=%s", (uid, aid))
     return len(ids)
+
+
+@user_groups_bp.route('/api/ledger/roster/adopt', methods=['POST'])
+@login_required
+def ledger_roster_adopt():
+    """
+    台帳未登録の users を名簿に載せる（台帳登録）．
+    body: {user_ids: [..]}．users の氏名・メール・区分・所属をそのまま名簿に写す．users は触らない．
+    """
+    if not _is_admin():
+        return _deny()
+    data = request.get_json(silent=True) or {}
+    try:
+        ids = [int(x) for x in (data.get('user_ids') or [])]
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'error': 'user_ids が不正です'}), 400
+    if not ids:
+        return jsonify({'success': False, 'error': '登録するユーザがありません'}), 400
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        adopted, skipped, linked = [], [], 0
+        for uid in ids:
+            cursor.execute("""SELECT id, full_name, email, category, affiliation FROM users
+                              WHERE id=%s AND deleted_at IS NULL""", (uid,))
+            u = cursor.fetchone()
+            em = ((u or {}).get('email') or '').strip().lower()
+            if not u or not em:
+                skipped.append({'user_id': uid, 'reason': 'users に無いかメールが空'})
+                continue
+            cursor.execute("SELECT id FROM ug_persons WHERE email=%s", (em,))
+            if cursor.fetchone():
+                skipped.append({'user_id': uid, 'reason': '名簿に既にある'})
+                continue
+            fn = _s(u['full_name']) or em
+            cat = u['category'] if u['category'] in PERSON_CATEGORIES else 'regular'
+            cursor.execute("""INSERT INTO ug_persons (full_name, email, category, affiliation, note)
+                              VALUES (%s,%s,%s,%s,%s)""",
+                           (fn, em, cat, u['affiliation'] or None, '台帳未登録のアカウントを台帳登録'))
+            _drop_ignore_alias(cursor, fn)
+            linked += _relink_name(cursor, fn)
+            adopted.append(uid)
+        conn.commit()
+        return jsonify({'success': True, 'adopted': adopted, 'skipped': skipped, 'linked': linked})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 
 @user_groups_bp.route('/api/ledger/roster', methods=['POST'])
@@ -2320,6 +2392,24 @@ def ledger_import():
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        # admin の扱い：外から来た admin は，このサイトの現 admin とメールが一致しない限り regular にする
+        cursor.execute("SELECT email FROM users WHERE category='admin' AND is_active=TRUE AND deleted_at IS NULL")
+        local_admins = {(r['email'] or '').strip().lower() for r in cursor.fetchall() if r['email']}
+        admin_kept, admin_demoted = [], []
+        for x in parsed['persons']:
+            if x['category'] != 'admin':
+                continue
+            label = f"{x['full_name']}（{x['email'] or 'メール未記入'}）"
+            if x['email'] and x['email'] in local_admins:
+                admin_kept.append(label)
+            else:
+                x['category'] = 'regular'
+                admin_demoted.append(label)
+        if admin_demoted:
+            parsed['warnings'].append(
+                f"区分 admin の {len(admin_demoted)} 人は，このサイトの admin と一致しないので regular として取り込みます："
+                + '，'.join(admin_demoted))
+
         # 役割の突合
         cursor.execute("SELECT id, kind, name FROM ug_roles")
         role_db = {(r['kind'], r['name']): r['id'] for r in cursor.fetchall()}
@@ -2367,6 +2457,7 @@ def ledger_import():
                                         if a['person_name'] and not a['user_id']
                                         and rs.resolve(a['person_name'])[1] not in ('ignore', 'post')})[:30],
             'replace_source': replace_source,
+            'admin_kept': admin_kept, 'admin_demoted': admin_demoted,
         }
         if mode != 'apply':
             return jsonify({'success': True, 'mode': 'check', 'summary': summary})

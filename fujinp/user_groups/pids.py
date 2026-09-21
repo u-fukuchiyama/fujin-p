@@ -31,8 +31,10 @@ FUJIN-P のサイトをまたいでアカウントとグループを突合する
   ・同一サイト内で複数行が同じ永続IDを指すことはない
   ・発番するのは源泉サイトだけ（config.py の PID_ISSUER で切り替える）
   ・配布は XLSX．受け取った側は写し取るだけで，常時同期はしない
-  ・取り込みは追加のみ．配布物に載っていない所属を「消えた」とはみなさない
-  ・ユーザ区分は受け入れ側を優先する．新規に作る人だけ，admin は regular に格下げする
+  ・元帳（台帳・users・user_groups）が優先する．永続IDは元帳にいる人とグループに
+    「グローバルにはこれです」と付与するだけで，ローカルの行を作ることも書き換えることもしない
+  ・相手がまだ無い永続IDは控えておき，元帳に現れたら付け直す（台帳の反映のあとに自動で行う）
+  ・所属は書き込まない．配布物の所属とローカルの構成員を突き合わせて報告するだけ
 
 テーブル（default DB）
   ug_pids         永続IDとローカルIDの対応（源泉サイトでは発行台帳を兼ねる）
@@ -461,7 +463,7 @@ def pids_import():
     """
     multipart: file=xlsx, mode=check|apply
       check … DB に触れず，何が起きるかを数えて返す
-      apply … 追加のみ．既存の users の区分・氏名・所属は書き換えない．所属の削除もしない
+      apply … 永続IDの付与だけ．users／user_groups／所属は作らず，書き換えない
     """
     if not _is_admin():
         return _deny()
@@ -480,95 +482,57 @@ def pids_import():
     now = _now()
     me_id = session.get('user_id')
     apply_ = (mode == 'apply')
-    st = {'persons_known': 0, 'persons_linked': 0, 'persons_created': 0,
-          'persons_pending': 0, 'persons_demoted': 0,
-          'groups_known': 0, 'groups_linked': 0, 'groups_created': 0,
-          'memberships_added': 0, 'memberships_exists': 0, 'memberships_skipped': 0}
+    st = {'persons_known': 0, 'persons_linked': 0, 'persons_pending': 0, 'persons_conflict': 0,
+          'groups_known': 0, 'groups_linked': 0, 'groups_pending': 0, 'groups_conflict': 0,
+          'members_match': 0, 'members_only_dist': 0, 'members_unresolved': 0}
     notes = list(parsed['warnings'])
     try:
-        pmap = _pid_map(cursor, 'person')
-        gmap = _pid_map(cursor, 'group')
-
-        # ── 人 ──
+        # ── 人：メールの一致でローカルの users に永続IDを付けるだけ．users は作らない ──
         for p in parsed['persons']:
-            local = pmap.get(p['pid'])
-            if local:
-                st['persons_known'] += 1
-                continue
-            u = None
-            if p['email']:
-                cursor.execute("SELECT id, category FROM users WHERE email=%s AND deleted_at IS NULL", (p['email'],))
-                u = cursor.fetchone()
-            if u:
-                st['persons_linked'] += 1
-                if apply_:
-                    _upsert_pid(cursor, 'person', p['pid'], u['id'], p['email'], p['full_name'], now, parsed['meta'])
-                pmap[p['pid']] = u['id']
-                continue
-            if not p['email']:
-                st['persons_pending'] += 1
-                notes.append(f"{p['pid']}：メールが空なのでユーザは作らず，永続IDだけ控えます")
-                if apply_:
-                    _upsert_pid(cursor, 'person', p['pid'], None, '', p['full_name'], now, parsed['meta'])
-                continue
-            cat = 'regular' if p['category'] == 'admin' else p['category']
-            if cat != p['category']:
-                st['persons_demoted'] += 1
-            st['persons_created'] += 1
-            if apply_:
-                cursor.execute("""INSERT INTO users (email, full_name, category, affiliation,
-                                                     is_active, created_at, updated_at)
-                                  VALUES (%s,%s,%s,%s,TRUE,%s,%s)""",
-                               (p['email'], p['full_name'], cat, p['affiliation'] or None, now, now))
-                uid = cursor.lastrowid
-                _upsert_pid(cursor, 'person', p['pid'], uid, p['email'], p['full_name'], now, parsed['meta'])
-                pmap[p['pid']] = uid
-            else:
-                pmap[p['pid']] = -1   # 確認モード：これから作る人（所属の件数を数えるための仮の印）
+            r = _link_one(cursor, 'person', p['pid'], p['email'], p['full_name'], now, parsed['meta'], apply_)
+            st['persons_' + r['result']] += 1
+            if r.get('note'):
+                notes.append(r['note'])
 
-        # ── グループ ──
+        # ── グループ：名前が一意に一致すれば永続IDを付けるだけ．user_groups は作らない ──
         for g in parsed['groups']:
-            if gmap.get(g['pid']):
-                st['groups_known'] += 1
-                continue
-            cursor.execute("SELECT id FROM user_groups WHERE name=%s ORDER BY id LIMIT 1", (g['name'],))
-            row = cursor.fetchone()
-            if row:
-                st['groups_linked'] += 1
-                if apply_:
-                    _upsert_pid(cursor, 'group', g['pid'], row['id'], '', g['name'], now, parsed['meta'])
-                gmap[g['pid']] = row['id']
-                continue
-            st['groups_created'] += 1
-            if apply_:
-                cursor.execute("""INSERT INTO user_groups (name, description, manager_user_id, created_at, updated_at)
-                                  VALUES (%s,%s,%s,%s,%s)""",
-                               (g['name'], g['description'] or None, me_id, now, now))
-                gid = cursor.lastrowid
-                _upsert_pid(cursor, 'group', g['pid'], gid, '', g['name'], now, parsed['meta'])
-                gmap[g['pid']] = gid
-            else:
-                gmap[g['pid']] = -1   # 確認モード：これから作るグループ
+            r = _link_one(cursor, 'group', g['pid'], '', g['name'], now, parsed['meta'], apply_)
+            st['groups_' + r['result']] += 1
+            if r.get('note'):
+                notes.append(r['note'])
 
-        # ── 所属（追加のみ） ──
+        # ── 所属：書き込まない．ローカル（元帳）の構成員と突き合わせて報告するだけ ──
+        pmap, gmap = _pid_map(cursor, 'person'), _pid_map(cursor, 'group')
+        if not apply_:
+            # 確認モードでは紐づけを書いていないので，いまの判定結果で補う
+            for p in parsed['persons']:
+                if not pmap.get(p['pid']):
+                    pmap[p['pid']] = _find_local(cursor, 'person', p['email'], p['full_name'])[0]
+            for g in parsed['groups']:
+                if not gmap.get(g['pid']):
+                    gmap[g['pid']] = _find_local(cursor, 'group', '', g['name'])[0]
+        from .utils import _group_member_ids
+        cache, only_dist = {}, []
         for m in parsed['members']:
             uid, gid = pmap.get(m['person_pid']), gmap.get(m['group_pid'])
             if not uid or not gid:
-                st['memberships_skipped'] += 1
+                st['members_unresolved'] += 1
                 continue
-            if uid > 0 and gid > 0:
-                cursor.execute("SELECT id FROM user_group_memberships WHERE group_id=%s AND user_id=%s LIMIT 1",
-                               (gid, uid))
-                exists = cursor.fetchone()
+            if gid not in cache:
+                try:
+                    cache[gid] = set(_group_member_ids(cursor, gid, now))
+                except Exception as e:
+                    logging.warning("group %s expand failed: %s", gid, e)
+                    cache[gid] = set()
+            if uid in cache[gid]:
+                st['members_match'] += 1
             else:
-                exists = None       # まだ無いものなので所属も無い
-            if exists:
-                st['memberships_exists'] += 1
-                continue
-            st['memberships_added'] += 1
-            if apply_:
-                cursor.execute("""INSERT INTO user_group_memberships (group_id, user_id, created_at)
-                                  VALUES (%s,%s,%s)""", (gid, uid, now))
+                st['members_only_dist'] += 1
+                if len(only_dist) < 20:
+                    only_dist.append(f"{m['person_pid']} × {m['group_pid']}")
+        if only_dist:
+            notes.append('配布元にあってこのサイトに無い所属（書き込みません．必要なら台帳で発令してください）：'
+                         + '，'.join(only_dist) + (' ほか' if st['members_only_dist'] > len(only_dist) else ''))
 
         if apply_:
             try:
@@ -577,9 +541,9 @@ def pids_import():
                                    groups_linked, groups_created, memberships_added, imported_by, imported_at)
                                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                                (parsed['meta'].get('版', ''), parsed['meta'].get('発行元サイト', ''), fname,
-                                st['persons_linked'], st['persons_created'],
-                                st['groups_linked'], st['groups_created'],
-                                st['memberships_added'], _me_label(), now))
+                                st['persons_linked'], 0,
+                                st['groups_linked'], 0,
+                                0, _me_label(), now))
             except Exception as e:
                 logging.warning("ug_pid_imports unavailable: %s", e)
             conn.commit()
@@ -595,6 +559,78 @@ def pids_import():
 
     return jsonify({'success': True, 'mode': 'apply' if apply_ else 'check',
                     'meta': parsed['meta'], 'summary': st, 'warnings': notes[:40]})
+
+
+def _find_local(cursor, kind, email, name):
+    """
+    永続IDを付ける相手をローカル（元帳）から探す．
+      人     … users のメール完全一致（削除済みを除く）
+      グループ … user_groups の名前完全一致．同名が複数あれば決めない
+    戻り値 (local_id or None, 理由)
+    """
+    if kind == 'person':
+        if not email:
+            return None, 'メールが空'
+        cursor.execute("SELECT id FROM users WHERE email=%s AND deleted_at IS NULL", (email,))
+        rows = cursor.fetchall()
+    else:
+        if not name:
+            return None, '名前が空'
+        cursor.execute("SELECT id FROM user_groups WHERE name=%s", (name,))
+        rows = cursor.fetchall()
+    if not rows:
+        return None, 'このサイトに無い'
+    if len(rows) > 1:
+        return None, f'同じ{"メール" if kind == "person" else "名前"}が {len(rows)} 件ある'
+    return rows[0]['id'], ''
+
+
+def _link_one(cursor, kind, pid, email, name, now, meta, apply_):
+    """
+    永続IDを1件，ローカルの行に付ける（元帳優先：ローカルの行は作らない・書き換えない）．
+    result: known（付与済み）／linked（今回付与）／pending（相手がまだ無いので控えるだけ）／
+            conflict（相手の行に別の永続IDが付いている，または相手が一意に決まらない）
+    """
+    label = 'person' if kind == 'person' else 'group'
+    cursor.execute("SELECT local_id FROM ug_pids WHERE pid=%s", (pid,))
+    row = cursor.fetchone()
+    if row and row['local_id']:
+        return {'result': 'known'}
+    local, why = _find_local(cursor, kind, email, name)
+    shown = email or name
+    if not local:
+        if why.startswith('同じ'):
+            res = {'result': 'conflict', 'note': f"{pid}（{shown}）：{why}ので付与を見送り，控えだけ残します"}
+        else:
+            res = {'result': 'pending'}
+        if apply_:
+            _upsert_pid(cursor, label, pid, None, email, name, now, meta)
+        return res
+    cursor.execute("SELECT pid FROM ug_pids WHERE kind=%s AND local_id=%s AND pid<>%s", (label, local, pid))
+    other = cursor.fetchone()
+    if other:
+        return {'result': 'conflict',
+                'note': f"{pid}（{shown}）：このサイトの行には既に {other['pid']} が付いているので付与しません"}
+    if apply_:
+        _upsert_pid(cursor, label, pid, local, email, name, now, meta)
+    return {'result': 'linked'}
+
+
+def link_pending(cursor):
+    """
+    控えてある（ローカル未対応の）永続IDを，いまのローカルの行に付け直す．
+    台帳の反映で users／user_groups ができたあとに呼ぶ．戻り値 {'person': n, 'group': n}
+    """
+    now = _now()
+    out = {'person': 0, 'group': 0}
+    cursor.execute("SELECT pid, kind, email, display_name FROM ug_pids WHERE local_id IS NULL")
+    for r in cursor.fetchall():
+        k = 'person' if r['kind'] == 'person' else 'group'
+        res = _link_one(cursor, k, r['pid'], (r['email'] or '').lower() if k == 'person' else '',
+                        r['display_name'] or '', now, {}, True)
+        if res['result'] == 'linked':
+            out[k] += 1
+    return out
 
 
 def _upsert_pid(cursor, kind, pid, local_id, email, name, now, meta):
@@ -680,8 +716,9 @@ PAGE = """
   <div class="card">
     <h2>配布物を取り込む</h2>
     <div class="muted">
-      追加のみです．ここに載っていない所属を消すことはありません．<br>
-      すでにあるユーザの区分・氏名・所属は書き換えません．新しく作る人だけ，admin は regular にします．
+      元帳（このサイトの台帳・ユーザ・グループ）が優先します．ここでは，このサイトにいる人（メールの一致）と<br>
+      グループ（名前の一致）に永続IDを付けるだけで，ユーザやグループや所属を作ったり書き換えたりはしません．<br>
+      まだこのサイトにいない相手の永続IDは控えておき，台帳を反映したときに自動で付け直します．
     </div>
     <div class="grid">
       <input type="file" id="file" accept=".xlsx">
@@ -714,11 +751,11 @@ async function load(){
   if(j.issuer) $('#issue-card').style.display = '';
   const im = j.imports || [];
   $('#imports').innerHTML = im.length ? (
-    '<table><tr><th>版</th><th>発行元</th><th>日時</th><th>人（紐づけ/作成）</th>'
-    + '<th>グループ（紐づけ/作成）</th><th>所属追加</th></tr>' +
+    '<table><tr><th>版</th><th>発行元</th><th>日時</th><th>人（紐づけ）</th>'
+    + '<th>グループ（紐づけ）</th><th>所属追加</th></tr>' +
     im.map(r => '<tr><td>' + esc(r.version) + '</td><td>' + esc(r.source_site) + '</td><td>'
-      + esc(r.imported_at) + '</td><td>' + r.persons_linked + ' / ' + r.persons_created
-      + '</td><td>' + r.groups_linked + ' / ' + r.groups_created + '</td><td>'
+      + esc(r.imported_at) + '</td><td>' + r.persons_linked + (r.persons_created ? ' / 作成 ' + r.persons_created : '')
+      + '</td><td>' + r.groups_linked + (r.groups_created ? ' / 作成 ' + r.groups_created : '') + '</td><td>'
       + r.memberships_added + '</td></tr>').join('') + '</table>') : 'まだありません';
 }
 const stat = (n,l) => '<div class="stat"><b>'+n+'</b><span>'+l+'</span></div>';
@@ -751,13 +788,12 @@ async function send(mode){
     (mode === 'apply' ? '── 取り込みました ──' : '── 確認（まだ書き込んでいません） ──'),
     '版: ' + (j.meta['版'] || '(不明)') + '　発行元: ' + (j.meta['発行元サイト'] || '(不明)'),
     '',
-    '人　　　 既知 ' + s.persons_known + '／メールで紐づけ ' + s.persons_linked
-      + '／新規作成 ' + s.persons_created + '（うち admin→regular ' + s.persons_demoted + '）'
-      + '／保留 ' + s.persons_pending,
-    'グループ 既知 ' + s.groups_known + '／名前で紐づけ ' + s.groups_linked
-      + '／新規作成 ' + s.groups_created,
-    '所属　　 追加 ' + s.memberships_added + '／すでにある ' + s.memberships_exists
-      + '／永続IDが解決できず飛ばした ' + s.memberships_skipped,
+    '人　　　 付与済み ' + s.persons_known + '／今回付与 ' + s.persons_linked
+      + '／相手なし（控え） ' + s.persons_pending + '／見送り ' + s.persons_conflict,
+    'グループ 付与済み ' + s.groups_known + '／今回付与 ' + s.groups_linked
+      + '／相手なし（控え） ' + s.groups_pending + '／見送り ' + s.groups_conflict,
+    '所属（照合のみ） 一致 ' + s.members_match + '／配布元にだけある ' + s.members_only_dist
+      + '／相手が決まらない ' + s.members_unresolved,
   ];
   if(j.warnings && j.warnings.length) lines.push('', '注意:', ...j.warnings.map(w => '  ' + w));
   $('#imp-out').textContent = lines.join('\\n');
@@ -765,7 +801,7 @@ async function send(mode){
   if(mode === 'apply') load();
 }
 $('#btn-check').onclick = () => send('check');
-$('#btn-apply').onclick = () => { if(confirm('取り込みます．追加のみで，既存のものは消しません．')) send('apply'); };
+$('#btn-apply').onclick = () => { if(confirm('永続IDを付与します．ユーザ・グループ・所属は作らず，書き換えません．')) send('apply'); };
 $('#file').onchange = () => { $('#btn-apply').disabled = false; };
 load();
 </script></body></html>

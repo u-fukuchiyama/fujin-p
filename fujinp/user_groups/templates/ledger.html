@@ -158,7 +158,7 @@
 <!-- 取込 -->
 <div class="ov" id="ovImp"><div class="md imp">
   <h2>Excel取込</h2>
-  <p style="font-size:12px;color:var(--sub);margin:0 0 8px">シート「単位」「役割」「発令」「人」を読みます（「雛形」の形式）．先に「検証」でDBに触れずに内容を確かめ，それから「適用」してください．</p>
+  <p style="font-size:12px;color:var(--sub);margin:0 0 8px">シート「単位」「役割」「発令」「人」を読みます（「雛形」の形式）．先に「検証」でDBに触れずに内容を確かめ，それから「適用」してください．「人」シートで区分が admin の人は，このサイトの admin とメールが一致するときだけ admin のまま入り，それ以外は regular になります．</p>
   <input type="file" id="impFile" accept=".xlsx">
   <label style="display:block;margin-top:8px"><input type="checkbox" id="impReplace" checked> 同じ「出典」の既存発令を消してから入れる（年度表の入れ替え向き）</label>
   <pre id="impOut" style="display:none"></pre>
@@ -456,6 +456,8 @@ if (IS_ADMIN){
       t += `氏名の照合：users と一致 ${s.resolved}（完全一致 ${s.resolved_by.exact}・名簿経由 ${s.resolved_by.person}）・対象外 ${s.resolved_by.ignore}・充て職 ${s.resolved_by.post}・一致なし ${s.unresolved}・空席 ${s.vacant}\n`;
       if (s.unresolved_names && s.unresolved_names.length) t += `未解決のまま入る氏名（名寄せ画面で選んでください）：${s.unresolved_names.join('，')}\n`;
       for (const x of s.sources) t += `出典「${x.source || '（なし）'}」：新規 ${x.new}件` + (s.replace_source ? `（既存 ${x.existing}件を置き換え）` : `（既存 ${x.existing}件に追加）`) + '\n';
+      if (s.admin_kept && s.admin_kept.length) t += `admin のまま入る人（このサイトの admin と一致）：${s.admin_kept.join('，')}\n`;
+      if (s.admin_demoted && s.admin_demoted.length) t += `admin → regular に格下げして入る人：${s.admin_demoted.join('，')}\n`;
       if (s.roles_auto_created.length) t += `役割シートに無く自動作成される役割：${s.roles_auto_created.join('，')}\n`;
       if (mode==='apply'){ t += `作成した単位 ${s.units_created.length}件・削除した発令 ${s.appointments_deleted}件\n`; }
       if (s.warnings.length) t += '\n注意：\n' + s.warnings.map(w => '・'+w).join('\n');
@@ -509,7 +511,7 @@ if (IS_ADMIN){
   });
 
   // 名簿
-  let rosterItems = [];
+  let rosterItems = [], rosterUnreg = [];
   $('btnRoster').onclick = () => { show('ovRoster'); loadRoster(); };
   let rosterSort = {key:'default', dir:1};
   function renderRoster(){
@@ -527,9 +529,13 @@ if (IS_ADMIN){
     const arrow = k => rosterSort.key===k ? (rosterSort.dir===1 ? ' ▲' : ' ▼') : '';
     const th = (k,label) => `<th data-sort="${k}" style="cursor:pointer;white-space:nowrap" title="クリックで並べ替え">${label}${arrow(k)}</th>`;
     const st = i => !i.email ? '<span style="color:var(--bad)">メール未記入</span>' : !i.active ? '<span style="color:var(--sub)">期限外</span>' : i.user_id ? (i.user_inactive ? '<span style="color:var(--bad)">users（停止中）</span>' : `<span style="color:var(--acc)">users #${i.user_id}</span>${i.has_password ? '' : '<small style="color:var(--sub)">（パスワード未設定）</small>'}`) : i.approved ? '発行済（初回ログイン待ち）' : '<span style="color:var(--warn)">未発行</span>';
-    $('rosterList').innerHTML = rows.length ? `<table class="nm-table"><tr>${th('name','氏名')}${th('email','メール')}<th>区分</th><th>所属</th><th>期間</th>${th('user','状態（users ID）')}<th>備考</th><th></th></tr>` +
+    const uq = rosterUnreg.filter(u => !q || (u.full_name+' '+u.email+' '+u.affiliation).toLowerCase().includes(q));
+    const unregHtml = uq.length ? `<div style="border:1px solid var(--warn);background:#fff7ed;border-radius:6px;padding:8px 10px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="color:var(--warn)">台帳未登録のアカウント ${uq.length} 件</b><span style="font-size:12px;color:var(--sub)">users にあって名簿に無い人です．台帳が正なので，台帳登録してください（users の氏名・メール・区分・所属をそのまま名簿に写します．users は変わりません）．</span><span style="flex:1"></span>${uq.length > 1 ? `<button class="btn pri" data-padoptall="1">すべて台帳登録</button>` : ''}</div>
+      <table class="nm-table">${uq.map(u => `<tr><td><b>${esc(u.full_name)}</b></td><td>${esc(u.email) || '<span style="color:var(--bad)">メール空（登録不可）</span>'}</td><td>${esc(u.category)}</td><td>${esc(u.affiliation)}</td><td><span style="color:var(--acc)">users #${u.user_id}</span>${u.inactive ? '<small style="color:var(--bad)">（停止中）</small>' : ''}</td><td style="white-space:nowrap">${u.email ? `<button class="btn pri" data-padopt="${u.user_id}">台帳登録</button>` : ''}</td></tr>`).join('')}</table></div>` : '';
+    $('rosterList').innerHTML = unregHtml + (rows.length ? `<table class="nm-table"><tr>${th('name','氏名')}${th('email','メール')}<th>区分</th><th>所属</th><th>期間</th>${th('user','状態（users ID）')}<th>備考</th><th></th></tr>` +
       rows.map(i => `<tr><td><b>${esc(i.full_name)}</b></td><td>${esc(i.email)}</td><td>${esc(i.category)}</td><td>${esc(i.affiliation)}</td><td>${esc(i.from)}〜${esc(i.until)}</td><td>${st(i)}</td><td>${esc(i.note)}</td><td style="white-space:nowrap"><button class="btn" data-pedit="${i.id}" title="この行を編集（氏名・メール・区分・所属・期間・備考）">編集</button> ${i.user_id && !i.user_inactive ? `<button class="btn" data-pmail="${i.id}" title="パスワード設定メールを送る">🔑</button> ` : ''}<button class="btn" data-pdel="${i.id}">削除</button></td></tr>`).join('') + '</table>'
-      : '<div class="empty">名簿が空です．Excel の「人」シートから取り込んでください．</div>';
+      : '<div class="empty">名簿が空です．Excel の「人」シートから取り込んでください．</div>');
     $('rosterList').querySelectorAll('th[data-sort]').forEach(h => h.onclick = () => {
       const k = h.dataset.sort;
       if (rosterSort.key === k) rosterSort.dir = -rosterSort.dir; else rosterSort = {key:k, dir:1};
@@ -538,8 +544,8 @@ if (IS_ADMIN){
   }
   async function loadRoster(){
     $('rosterList').innerHTML = '読み込み中…';
-    try{ const r = await api(`${API}/roster`); rosterItems = r.items; const c = r.counts;
-      $('rosterSummary').textContent = `名簿 ${c.total} 人（有効 ${c.active}）｜users あり ${c.users}・発行済 ${c.approved}・未発行 ${c.pending}・メール未記入 ${c.no_email}`; renderRoster();
+    try{ const r = await api(`${API}/roster`); rosterItems = r.items; rosterUnreg = r.unregistered || []; const c = r.counts;
+      $('rosterSummary').textContent = `名簿 ${c.total} 人（有効 ${c.active}）｜users あり ${c.users}・発行済 ${c.approved}・未発行 ${c.pending}・メール未記入 ${c.no_email}` + (c.unregistered ? `｜台帳未登録 ${c.unregistered}` : ''); renderRoster();
     }catch(e){ $('rosterList').innerHTML = '失敗：' + esc(e.message) + '<br><small>ug_persons が未作成なら，先に作成してください．</small>'; }
   }
   $('rosterFilter').oninput = renderRoster;
@@ -549,6 +555,12 @@ if (IS_ADMIN){
     try{ const r = await api(`${API}/roster/publish`, 'POST', {create_users: cu, deactivate_expired: $('rosterDeactivate').checked});
       toast(`発行：users作成 ${r.users_created}・users更新 ${r.users_updated}・無効化 ${r.users_deactivated}・approved追加 ${r.added}・更新 ${r.updated}・削除 ${r.removed}｜名寄せ ${r.linked}件` + (r.warnings.length ? '｜' + r.warnings.join('，') : ''), 8000); loadRoster(); load(); }catch(e){ toast('失敗：'+e.message, 4000); } };
   $('ovRoster').addEventListener('click', async ev => { const t = ev.target;
+    if (t.dataset.padopt !== undefined || t.dataset.padoptall !== undefined){
+      const ids = t.dataset.padopt !== undefined ? [Number(t.dataset.padopt)] : rosterUnreg.filter(u => u.email).map(u => u.user_id);
+      const who = ids.length === 1 ? (() => { const u = rosterUnreg.find(x => x.user_id === ids[0]); return `${u.full_name}（${u.email}，${u.category}）`; })() : `${ids.length} 人`;
+      if (!confirm(`${who} を台帳（名簿）に登録します．よろしいですか`)) return;
+      try{ const r = await api(`${API}/roster/adopt`, 'POST', {user_ids: ids}); toast(`台帳登録 ${r.adopted.length} 件` + (r.skipped.length ? `・見送り ${r.skipped.length} 件` : '') + (r.linked ? `｜名寄せ ${r.linked}件` : ''), 5000); loadRoster(); load(); }catch(e){ toast('失敗：'+e.message, 5000); }
+      return; }
     if (t.dataset.pedit !== undefined){ openPerson(rosterItems.find(x => x.id == t.dataset.pedit)); return; }
     if (t.dataset.pmail !== undefined){ const i = rosterItems.find(x => x.id == t.dataset.pmail); if (!confirm(`${i.full_name}（${i.email}）にパスワード設定メールを送りますか`)) return; try{ await api(`${API}/roster/${t.dataset.pmail}/password_mail`, 'POST', {}); toast('送信しました'); }catch(e){ toast('失敗：'+e.message, 5000); } return; }
     if (t.dataset.pdel !== undefined){ const i = rosterItems.find(x => x.id == t.dataset.pdel);
@@ -602,6 +614,7 @@ if (IS_ADMIN){
     try{ const r = await api(`${API}/groups/sync`, 'POST', {});
       const u = r.roster || {};
       let msg = `users：作成 ${u.users_created||0}・更新 ${u.users_updated||0}｜名寄せ ${u.linked||0}件｜グループ：台帳の ${r.from_ledger} 件に対して新規 ${r.groups_created}・ルール追加 ${r.rules_added}`;
+      if (r.pids_linked && (r.pids_linked.person || r.pids_linked.group)) msg += `｜永続IDの付け直し 人 ${r.pids_linked.person}・グループ ${r.pids_linked.group}`;
       if (r.extras.length) msg += `｜台帳に対応の無いグループ ${r.extras.length} 件（${r.extras.slice(0,5).map(x=>x.name).join('，')}${r.extras.length>5?' ほか':''}）`;
       toast(msg, 9000); loadGrp();
     }catch(e){ toast('失敗：'+e.message, 5000); }
