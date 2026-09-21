@@ -56,6 +56,7 @@ from flask import render_template, request, jsonify, session, Response
 from . import app_share_bp
 from . import manage as _m
 from . import gitsync as _g
+from . import tidy as _t
 from config import Config
 from db import DatabaseConfig
 from decorators import login_required
@@ -115,12 +116,16 @@ def build_package(cur, app_name, generated_by=None, site_url=None, docs_choice=N
     cur.execute("""SELECT table_name, db_target, ddl, status, note, sort_order
                    FROM app_share_tables WHERE app_name=%s ORDER BY sort_order, table_name""", (app_name,))
     tables = [dict(r) for r in cur.fetchall()]
-    cur.execute("""SELECT doc_type, title, content, updated_at FROM app_share_documents
+    fp_col = ', code_fingerprint' if _t.fp_column_ready(cur) else ''
+    cur.execute(f"""SELECT doc_type, title, content, updated_at{fp_col} FROM app_share_documents
                    WHERE app_name=%s AND doc_type IN ('manual','spec')""", (app_name,))
     docs = {}
     for r in cur.fetchall():
         docs[r['doc_type']] = {'title': r['title'] or '', 'content': r['content'] or '',
                                'updated_at': _m._fmt(r['updated_at'])}
+        fp = _t.parse_fp(r.get('code_fingerprint'))
+        if fp:
+            docs[r['doc_type']]['code_fingerprint'] = fp
     cur.execute("""SELECT title, detail, reported_at, note FROM app_share_issues
                    WHERE app_name=%s AND status='open' ORDER BY id""", (app_name,))
     issues = [{'title': r['title'], 'detail': r['detail'] or '', 'reported_at': _m._fmt(r['reported_at']),
@@ -135,6 +140,12 @@ def build_package(cur, app_name, generated_by=None, site_url=None, docs_choice=N
         'spec_updated_at': st['docs']['spec']['updated_at'],
         'latest_file_mtime': st['latest_file_mtime'],
         'stale': st['any_stale'],
+        # 2026-09-17：指紋による判定．code_diff は文書を書いた時点のコードからの変化
+        'judged_by': st['judged_by'],
+        'manual_state': st['docs']['manual'].get('state'),
+        'spec_state': st['docs']['spec'].get('state'),
+        'code_diff': st['diff'],
+        'code_fingerprint': st['fingerprint'],
         # 旧 v3 ゲート互換（final=True は「文書が最新」）
         'final': True if docs_choice in ('ok', 'final') else (False if docs_choice in ('later', 'draft') else None),
     }
@@ -221,31 +232,13 @@ def _db_clock_skew(cur):
     return 0.0
 
 
-def _doc_status(cur, app_name, files=None, skew=None):
-    """マニュアル／仕様書の登録状況と，コードとの新旧．
-    files に _collect_files の結果を渡せば，アプリ配下を歩き直さずに最終更新を求める．
-    skew（秒）を渡せば SELECT NOW() を省く（全アプリをまとめて見るとき用）."""
-    try:
-        cur.execute("""SELECT doc_type, title, updated_at, CHAR_LENGTH(content) AS clen
-                       FROM app_share_documents
-                       WHERE app_name=%s AND doc_type IN ('manual','spec')""", (app_name,))
-        rows = {r['doc_type']: r for r in cur.fetchall()}
-    except Exception:
-        rows = {}
-    latest = None
-    if files is not None:
-        mts = [f.get('mtime') for f in files if f.get('mtime')]
-        if mts:
-            latest = datetime.datetime.strptime(max(mts), '%Y-%m-%d %H:%M:%S')
-    else:
-        latest = _latest_file_mtime(app_name)
-    skew = datetime.timedelta(seconds=round(_db_clock_skew(cur) if skew is None else skew))
-    out = {'latest_file_mtime': _m._fmt(latest), 'skew_seconds': int(skew.total_seconds()), 'docs': {}}
+def _doc_status_by_time(rows, latest, skew, out):
+    """指紋の列が無いときの判定（旧方式：更新日時の比較）"""
     for dt_, label in (('manual', 'マニュアル'), ('spec', '仕様書')):
         r = rows.get(dt_)
         if not r:
-            out['docs'][dt_] = {'label': label, 'exists': False, 'title': '', 'chars': 0,
-                                'updated_at': None, 'stale': True, 'verdict': '未登録'}
+            out['docs'][dt_] = {'label': label, 'exists': False, 'title': '', 'chars': 0, 'state': 'missing',
+                                'updated_at': None, 'stale': True, 'verdict': '未登録', 'diff': None}
             continue
         u = r.get('updated_at')
         stale, verdict = False, 'コードより新しい'
@@ -256,8 +249,75 @@ def _doc_status(cur, app_name, files=None, skew=None):
             verdict = ''
         out['docs'][dt_] = {'label': label, 'exists': True, 'title': r.get('title') or '',
                             'chars': r.get('clen') or 0, 'updated_at': _m._fmt(u),
-                            'stale': stale, 'verdict': verdict}
+                            'state': 'changed' if stale else 'match',
+                            'stale': stale, 'verdict': verdict + '（時刻で判定）', 'diff': None}
+
+
+def _merge_diffs(diffs):
+    added, removed, changed = set(), set(), {}
+    for d in diffs:
+        if not d:
+            continue
+        added.update(d['added'])
+        removed.update(d['removed'])
+        for c in d['changed']:
+            changed.setdefault(c['path'], c)
+    return {'added': sorted(added), 'removed': sorted(removed),
+            'changed': [changed[k] for k in sorted(changed)],
+            'same': not (added or removed or changed)}
+
+
+def _doc_status(cur, app_name, files=None, skew=None):
+    """マニュアル／仕様書の登録状況と，コードとの整合（2026-09-17 改訂）．
+
+    文書を保存したときに記録したコードの指紋（.py とテンプレートの本数とサイズ）と，
+    いまのコードの指紋を比べる．state は次のいずれか．
+      match     … 一致（更新不要）
+      changed   … 文書を書いた後にコードが変わった（更新を促す）
+      unchecked … 指紋の記録が無い（照合されていない．更新を促す）
+      missing   … 文書が未登録
+    code_fingerprint 列が無いサイトでは旧方式（更新日時の比較）で判定する．
+    files と skew は旧呼び出しとの互換のために受け取るだけで使わない（旧方式の判定を除く）．"""
+    fp_ready = _t.fp_column_ready(cur)
+    try:
+        cur.execute(f"""SELECT doc_type, title, updated_at, CHAR_LENGTH(content) AS clen
+                               {', code_fingerprint' if fp_ready else ''}
+                        FROM app_share_documents
+                        WHERE app_name=%s AND doc_type IN ('manual','spec')""", (app_name,))
+        rows = {r['doc_type']: r for r in cur.fetchall()}
+    except Exception:
+        rows = {}
+    now_files, latest = _t.scan(app_name)
+    out = {'latest_file_mtime': _m._fmt(latest), 'code_files': len(now_files),
+           'code_bytes': sum(now_files.values()), 'fingerprint': _t.make_fp(now_files),
+           'judged_by': 'fingerprint' if fp_ready else 'time', 'docs': {}}
+    if not fp_ready:
+        sk = datetime.timedelta(seconds=round(_db_clock_skew(cur) if skew is None else skew))
+        _doc_status_by_time(rows, latest, sk, out)
+    else:
+        for dt_, label in (('manual', 'マニュアル'), ('spec', '仕様書')):
+            r = rows.get(dt_)
+            if not r:
+                out['docs'][dt_] = {'label': label, 'exists': False, 'title': '', 'chars': 0,
+                                    'updated_at': None, 'stale': True, 'state': 'missing',
+                                    'verdict': '未登録', 'diff': None, 'checked_at': None}
+                continue
+            fp = _t.parse_fp(r.get('code_fingerprint'))
+            if fp is None:
+                state, verdict, diff = 'unchecked', '未照合', None
+            else:
+                diff = _t.compare(fp['files'], now_files)
+                state, verdict = ('match', 'コードと一致') if diff['same'] else ('changed', 'コードが変わっています')
+            out['docs'][dt_] = {'label': label, 'exists': True, 'title': r.get('title') or '',
+                                'chars': r.get('clen') or 0, 'updated_at': _m._fmt(r.get('updated_at')),
+                                'stale': state != 'match', 'state': state, 'verdict': verdict,
+                                'diff': diff, 'checked_at': (fp or {}).get('taken_at')}
     out['any_stale'] = any(d['stale'] for d in out['docs'].values())
+    out['diff'] = _merge_diffs([d.get('diff') for d in out['docs'].values()])
+    states = {d['state'] for d in out['docs'].values()}
+    out['any_changed'] = 'changed' in states
+    out['any_unchecked'] = 'unchecked' in states
+    out['both_exist'] = all(d['exists'] for d in out['docs'].values())
     miss = [d['label'] for d in out['docs'].values() if not d['exists']]
     out['missing'] = 'と'.join(miss) if miss else ''
     return out
@@ -274,6 +334,9 @@ def package_export(app_name):
     if not _is_admin():
         return _public_export(app_name)
 
+    # 点検と書き出しの前に必ず整形する（2026-09-17）
+    tidied = _t.tidy_app(app_name)
+
     if choice not in ('ok', 'later', 'draft', 'final'):
         with _m._db() as (cur, conn):
             row = _m._load_registry_row(cur, app_name)
@@ -286,7 +349,7 @@ def package_export(app_name):
                                icon=row.get('icon') or '📦',
                                version_id=row.get('version_id'),
                                version_confirmed_at=_m._fmt(row.get('version_confirmed_at')),
-                               st=st,
+                               st=st, tidied=tidied,
                                prompt_text=_docgen_prompt(),
                                prompt_source=_docgen_prompt_source())
 
@@ -339,6 +402,7 @@ _DOCGEN_PROMPT_DEFAULT = """# FUJIN-P アプリの文書作成依頼
 添付の JSON はアプシャでエクスポートしたアプリ1つ分のパッケージです．この中身だけを根拠に，
 ユーザマニュアルと技術仕様書を日本語（句読点は全角「．」「，」）の Markdown で書いてください．
 documents に現行の文書があれば改訂，無ければ新規に書いてください．
+doc_update.code_diff に，文書を書いた後に変わったファイルが載っていれば，そこを重点的に見直してください．
 
 出力は次の区切り記号のまま，この順に，前後に説明を付けずに返してください．
 
@@ -382,6 +446,12 @@ def api_docs_attach(app_name):
     st_ = (d.get('spec_title') or '').strip() or f'{app_name} 技術仕様書'
     user_id = session.get('user_id')
     saved = []
+    # 文書が対応するコードの指紋：暫定パッケージを書き出した時点のもの（無ければいま）
+    _t.tidy_app(app_name)
+    now_fp = _t.fingerprint(app_name)
+    draft_fp = _t.parse_fp(d.get('fingerprint'))
+    fp = draft_fp or now_fp
+    since_draft = _t.compare(draft_fp['files'], now_fp['files']) if draft_fp else None
     with _m._db() as (cur, conn):
         row = _m._load_registry_row(cur, app_name)
         if not row:
@@ -395,10 +465,12 @@ def api_docs_attach(app_name):
                                updated_by=VALUES(updated_by), updated_at=CURRENT_TIMESTAMP""",
                         (app_name, doc_type, title[:500], content, user_id))
             saved.append({'doc_type': doc_type, 'title': title, 'chars': len(content)})
+        _t.record_fp(cur, app_name, [x['doc_type'] for x in saved], fp)
         cur.execute("UPDATE app_share_registry SET updated_at=%s WHERE app_name=%s", (_m._now(), app_name))
         conn.commit()
         st = _doc_status(cur, app_name)
-    return _m._ok(saved=saved, status=st)
+    return _m._ok(saved=saved, status=st,
+                  changed_since_draft=(since_draft if since_draft and not since_draft['same'] else None))
 
 
 # ============================================================
@@ -680,6 +752,12 @@ def _apply_registry(cur, app_name, pkg, user_id):
             ON DUPLICATE KEY UPDATE title=VALUES(title), content=VALUES(content),
                 updated_by=VALUES(updated_by), updated_at=VALUES(updated_at)""",
             (app_name, doc_type, d.get('title') or '', d.get('content') or '', user_id, dts))
+        # 文書が対応するコードの指紋も運ぶ（無ければ未照合として NULL に戻す）
+        if _t.fp_column_ready(cur):
+            fp = _t.parse_fp(d.get('code_fingerprint'))
+            cur.execute("""UPDATE app_share_documents SET code_fingerprint=%s, updated_at=updated_at
+                           WHERE app_name=%s AND doc_type=%s""",
+                        (json.dumps(fp, ensure_ascii=False) if fp else None, app_name, doc_type))
     for i, t in enumerate(pkg.get('tables') or []):
         if not re.match(r'^[\w$]+$', t.get('table_name') or ''):
             continue
@@ -817,19 +895,24 @@ def api_app_delete(app_name):
 OVERVIEW_TYPE = 'fujinp_apps_overview'
 
 
-def _all_app_doc_status(cur):
-    """kind='app' の全アプリについて，文書の新旧を並べる（点検ページ用）"""
+def _all_app_doc_status(cur, tidy=False):
+    """kind='app' の全アプリについて，文書とコードの整合を並べる（点検ページ用）．
+    tidy=True なら判定の前に各アプリを整形する（admin の点検ページから呼ぶとき）"""
     cur.execute("""SELECT app_name, display_name, icon, enabled, version_id
                    FROM app_share_registry WHERE kind='app' ORDER BY sort_order, id""")
     rows = cur.fetchall()
     skew = _db_clock_skew(cur)
     out = []
     for r in rows:
+        if tidy:
+            _t.tidy_app(r['app_name'])
         st = _doc_status(cur, r['app_name'], skew=skew)
         out.append({'app_name': r['app_name'], 'display_name': r.get('display_name') or r['app_name'],
                     'icon': r.get('icon') or '📦', 'enabled': int(r.get('enabled') or 0),
                     'version_id': r.get('version_id'),
                     'latest_file_mtime': st['latest_file_mtime'],
+                    'code_files': st['code_files'], 'judged_by': st['judged_by'],
+                    'diff_count': len(st['diff']['added']) + len(st['diff']['removed']) + len(st['diff']['changed']),
                     'manual': st['docs']['manual'], 'spec': st['docs']['spec'],
                     'missing': st['missing'], 'stale': st['any_stale']})
     return out
@@ -853,7 +936,7 @@ def _excluded_apps(cur):
 @login_required
 def api_docs_status_all():
     with _m._db() as (cur, conn):
-        apps = _all_app_doc_status(cur)
+        apps = _all_app_doc_status(cur, tidy=_is_admin())
     return _m._ok(apps=apps, checked_at=_m._fmt(_m._now()))
 
 
@@ -862,7 +945,7 @@ def api_docs_status_all():
 def package_export_all():
     """全アプリの文書を1本ずつ点検するページ．書き出しは POST（点検済みの選択を添える）."""
     with _m._db() as (cur, conn):
-        apps = _all_app_doc_status(cur)
+        apps = _all_app_doc_status(cur, tidy=True)
         excluded = _excluded_apps(cur)
     return render_template('app_share_export_all_gate.html', apps=apps,
                            excluded=excluded, excluded_note=EXCLUDED_NOTE,
@@ -874,7 +957,7 @@ def package_export_all():
 def package_export_all_download():
     """decisions={app_name: 'ok'|'later'} を受け，全アプリについて確認済みであることを
     サーバ側でも検めてから fujinp_apps_overview を返す．
-      ok    … 文書がコードより新しい（サーバの判定と一致していること）
+      ok    … 文書がコードと一致（サーバの判定と一致していること）
       later … 古い／未登録のまま出すことを人が選んだ
     未確認のアプリ，または ok と申告されたのに古いアプリがあれば書き出さない．"""
     body = request.get_json(silent=True) or {}
@@ -885,7 +968,7 @@ def package_export_all_download():
         cur.execute("SELECT full_name FROM users WHERE id=%s", (session.get('user_id'),))
         u = cur.fetchone()
         by = (u or {}).get('full_name')
-        status = _all_app_doc_status(cur)
+        status = _all_app_doc_status(cur, tidy=True)
         excluded = _excluded_apps(cur)
         problems = []
         for a in status:
@@ -893,7 +976,7 @@ def package_export_all_download():
             if d not in ('ok', 'later'):
                 problems.append({'app_name': a['app_name'], 'reason': '未確認'})
             elif d == 'ok' and a['stale']:
-                problems.append({'app_name': a['app_name'], 'reason': '「最新」と申告されたが文書が古い／未登録'})
+                problems.append({'app_name': a['app_name'], 'reason': '「一致」と申告されたが文書がコードと合っていない／未登録'})
         if problems:
             return jsonify({'success': False, 'error': '点検が済んでいないアプリがあります',
                             'problems': problems}), 409

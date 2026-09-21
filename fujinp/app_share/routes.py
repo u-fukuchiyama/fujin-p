@@ -550,6 +550,11 @@ def save_document(app_name, doc_type):
                 title = VALUES(title), content = VALUES(content),
                 updated_by = VALUES(updated_by), updated_at = CURRENT_TIMESTAMP
         """, (app_name, doc_type, title, content, user_id))
+        # マニュアル／仕様書は，保存した時点のコードの指紋を記録する（2026-09-17）
+        if doc_type in ('manual', 'spec'):
+            from . import tidy as _t
+            _t.tidy_app(app_name)
+            _t.record_fp(cursor, app_name, (doc_type,), _t.fingerprint(app_name))
         conn.commit()
         # アプリ説明のバージョン（更新日時）を記録
         touch_registry_timestamp(app_name)
