@@ -47,6 +47,7 @@
     P0-6 /debug_session を削除
     P1   検索結果の権限表示・作成者氏名・公開範囲バッジ・next付きログイン誘導・権限モジュール分離
     P2   デッドコード削除・N+1解消・一時ファイル掃除・ログ整理・ZIP名の日本語対応
+  2026-09-21  コンテンツのダウンロード（/download/<doc_id>．種類に応じた拡張子で保存）
 """
 
 import hmac
@@ -987,6 +988,80 @@ def plain_view(doc_id):
     if not document.get('content'):
         return "No Content", 404
     return Response(document['content'], mimetype='text/html; charset=utf-8')
+
+
+# ダウンロード時の拡張子（MIMEタイプ → Windows 標準の拡張子）
+DOWNLOAD_EXTENSIONS = {
+    'application/pdf': 'pdf',
+    'image/svg+xml': 'svg',
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'image/bmp': 'bmp',
+    'image/x-icon': 'ico',
+    'video/mp4': 'mp4',
+    'text/plain': 'txt',
+    'text/html': 'html',
+}
+
+_HTML_CHARSET_RE = re.compile(r'<meta[^>]+charset', re.IGNORECASE)
+
+
+def download_filename(title, ext):
+    """タイトルから Windows で使えるファイル名を作る（拡張子の二重付けを避ける）"""
+    base = str(title or '').strip()
+    aliases = {'jpg': ('jpg', 'jpeg'), 'html': ('html', 'htm')}.get(ext, (ext,))
+    for known in aliases:
+        if base.lower().endswith('.' + known):
+            base = base[:-(len(known) + 1)]
+            break
+    return zip_safe_name(base, '', '.' + ext)
+
+
+@document_archive_bp.route('/download/<int:doc_id>')
+def download_document(doc_id):
+    """コンテンツを種類に応じた拡張子のファイルとしてダウンロードさせる"""
+    document = get_document_by_id(doc_id)
+
+    if not document:
+        return "文書が見つかりません", 404
+
+    if not check_view_permission(document):
+        if not current_user_id():
+            flash('このページを閲覧するにはログインが必要です', 'info')
+            return redirect(url_for('auth.login', next=request.url))
+        return "権限がありません", 403
+
+    # バイナリ文書：保存ファイルをそのまま渡す
+    if document.get('file_path'):
+        abs_path = storage_path(document['file_path'])
+        if not abs_path or not os.path.exists(abs_path):
+            logger.error(f"実ファイルが見つかりません: doc_id={doc_id} path={document['file_path']!r}")
+            return "ファイルが見つかりません", 404
+        mime = (document.get('file_type') or '').split(';')[0].strip().lower()
+        ext = file_extension(document['file_path'])
+        if ext == 'jpeg':
+            ext = 'jpg'
+        if not ext:
+            ext = DOWNLOAD_EXTENSIONS.get(mime, 'bin')
+        return send_file(abs_path,
+                         mimetype=document.get('file_type') or 'application/octet-stream',
+                         as_attachment=True,
+                         download_name=download_filename(document.get('title'), ext))
+
+    # HTML文書：DBの content を .html として渡す
+    content = document.get('content')
+    if not content:
+        return "No Content", 404
+    data = content.encode('utf-8')
+    if not _HTML_CHARSET_RE.search(content[:4096]):
+        # 文字コード宣言の無いHTMLは，ローカルで開いたとき文字化けしないようBOMを付ける
+        data = b'\xef\xbb\xbf' + data
+    return send_file(io.BytesIO(data),
+                     mimetype='text/html; charset=utf-8',
+                     as_attachment=True,
+                     download_name=download_filename(document.get('title'), 'html'))
 
 
 @document_archive_bp.route('/search')

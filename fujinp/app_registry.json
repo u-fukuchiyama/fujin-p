@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-09-17 16:00:30",
+  "generated_at": "2026-09-21 23:43:05",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -642,8 +642,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260917.153150-29dacc",
-      "version_confirmed_at": "2026-09-17 15:31:50"
+      "version_id": "v20260921.233710-29dacc",
+      "version_confirmed_at": "2026-09-21 23:37:11"
     },
     {
       "app_name": "colrep",
