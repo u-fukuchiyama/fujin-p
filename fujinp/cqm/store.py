@@ -990,38 +990,13 @@ def group_names(ids):
         return {i: '#%s' % i for i in ids}
 
 
-# 構成員の判定はまいぐるの公開APIに任せる。台帳のルールから作られたグループ
-# （総務課など）は user_group_memberships に行を持たないため、このテーブルを
-# 直接引くと構成員が0人になる。取り込みは初回の呼び出し時に行う
-# （起動時の読み込み順に左右されないようにするため）。
-_UG_UTILS = None
-
-
 def _ug(name):
-    """まいぐるの utils から関数を取り出す。無ければ None（呼び出し元が従来処理に落ちる）"""
-    global _UG_UTILS
-    if _UG_UTILS is None:
-        try:
-            from fujinp.user_groups import utils as _u
-        except Exception:
-            _u = False
-        _UG_UTILS = _u
-    return getattr(_UG_UTILS, name, None) if _UG_UTILS else None
-
-
-def _my_group_ids_and_names(user_id):
-    """いま有効な所属を (IDの集合, 名前の集合) で返す。まいぐる経由。
-
-    使えないときは (None, None) を返し、呼び出し元が従来の直接照会に落ちる。
-    """
-    fn_ids = _ug('get_user_group_ids')
-    if fn_ids is None:
-        return None, None
+    """まいぐる（ユーザとグループ）の公開APIを遅延取得する。無ければ None（従来の直読みに戻る）。"""
     try:
-        ids = list(fn_ids(user_id))
+        from fujinp.user_groups import utils as _ug_utils
+        return getattr(_ug_utils, name, None)
     except Exception:
-        return None, None
-    return ids, set(group_names(ids).values())
+        return None
 
 
 def principals(user_id):
@@ -1031,12 +1006,6 @@ def principals(user_id):
     if not user_id:
         return names
     names.add('user:%s' % user_id)
-    # まいぐるに聞ける環境ならここで所属を決める（接続を入れ子にしないため先に呼ぶ）
-    gids, gnames = _my_group_ids_and_names(user_id)
-    if gids is not None:
-        for gid in gids:
-            names.add('group:%s' % gid)
-        names |= {str(n) for n in gnames if n}
     try:
         with _db('default') as (cur, conn):
             cur.execute("SELECT full_name, email FROM users WHERE id = %s", (user_id,))
@@ -1045,9 +1014,16 @@ def principals(user_id):
                 for k in ('full_name', 'email'):
                     if r.get(k):
                         names.add(str(r[k]))
-            if gids is not None:
-                return names
             now = _now()
+            fn = _ug('get_user_group_ids')
+            if fn:
+                gids = [int(g) for g in (fn(user_id) or [])]
+                for gid in gids:
+                    names.add('group:%s' % gid)
+                for nm in group_names(gids).values() if gids else []:
+                    if nm:
+                        names.add(str(nm))
+                return names
             cur.execute(
                 "SELECT m.group_id, g.name FROM user_group_memberships m "
                 "JOIN user_groups g ON g.id = m.group_id WHERE m.user_id = %s "
