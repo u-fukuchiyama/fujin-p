@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-09-21 23:43:05",
+  "generated_at": "2026-09-23 08:44:26",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -1318,8 +1318,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260917.151417-fadd81",
-      "version_confirmed_at": "2026-09-17 15:14:18"
+      "version_id": "v20260923.083909-81ea97",
+      "version_confirmed_at": "2026-09-23 08:39:10"
     },
     {
       "app_name": "fujin_forum",

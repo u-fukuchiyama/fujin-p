@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with FUJIN-P.  If not, see <https://www.gnu.org/licenses/>.
 #
-# Source: https://github.com/u-fukuchiyama/fujin-p
+# Source: https://github.com/nishida-toyoaki/fujin-p
 
 """かたりべ (kataribe) - ルート定義（v1はClaude連携を依頼文コピー方式で行うため，AI呼び出しAPIは持たない）"""
 import datetime
@@ -134,39 +134,11 @@ def normalize_share_key(value, current='private'):
     return current if current in SHARE_KEYS else 'private'
 
 
-# まいぐる（user_groups）の公開API．構成員の判定はここに任せる．
-# 台帳のルールから作られたグループ（総務課など）は user_group_memberships に
-# 行を持たないため，このテーブルを直接引くと構成員が0人になる．
-# 取り込みは初回の呼び出し時に行う（起動時の読み込み順に左右されないようにするため）．
-_UG_UTILS = None
-
-
-def _ug(name):
-    """まいぐるの utils から関数を取り出す．無ければ None（呼び出し元が従来処理に落ちる）"""
-    global _UG_UTILS
-    if _UG_UTILS is None:
-        try:
-            from fujinp.user_groups import utils as _u
-        except Exception:
-            _u = False
-        _UG_UTILS = _u
-    return getattr(_UG_UTILS, name, None) if _UG_UTILS else None
-
-
 def get_user_active_group_ids(user_id):
     """ユーザーが現在有効に所属しているグループIDのリスト
-
-    まいぐるの get_user_group_ids に委ねる（直接メンバー ∪ 台帳のルール由来 − 除外）．
-    それが使えない環境では，従来どおり user_group_memberships を直接引く
-    （この場合，台帳のルールで作られたグループは効かない）．"""
+    （user_groups / user_group_memberships を参照，有効期間チェック付き）"""
     if not user_id:
         return []
-    _fn = _ug('get_user_group_ids')
-    if _fn is not None:
-        try:
-            return list(_fn(user_id))
-        except Exception as e:
-            logging.error("kataribe user_groups.get_user_group_ids error: %s", e)
     try:
         now = get_jst_now()
         with mysql.connector.connect(**DatabaseConfig.default()) as conn:

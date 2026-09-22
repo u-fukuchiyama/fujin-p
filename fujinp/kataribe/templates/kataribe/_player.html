@@ -2,7 +2,7 @@
   This file is part of FUJIN-P.
   SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
   SPDX-License-Identifier: AGPL-3.0-or-later
-  Source: https://github.com/u-fukuchiyama/fujin-p
+  Source: https://github.com/nishida-toyoaki/fujin-p
 #}
 
 <!-- かたりべ 共通プレイヤー部品（index.html / play.html から include） -->
@@ -270,7 +270,7 @@ var KtbPlayer = (function(){
     // 自分のサイトにアップロードしたHTMLを指す iframe だけは残す（花火などの作品を埋め込むため）
     [].slice.call(box.querySelectorAll('iframe')).forEach(function(f){
       if (isOwnAsset(f.getAttribute('src'))){
-        f.setAttribute('sandbox', 'allow-scripts');   // 同一オリジン権限は与えない
+        f.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox');
         f.setAttribute('loading', 'eager');
       } else {
         f.parentNode.removeChild(f);
