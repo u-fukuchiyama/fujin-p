@@ -118,6 +118,11 @@ def dashboard():
     # 区画・カードの表示条件（require_groups / require_categories）はここで評価される．
     from fujinp.registry import launcher_sections
     sections = launcher_sections('guest', user_category, user_group_names)
+    try:  # 旧いカーネル（registry.py）には無い．その場合は CSS の既定の背景
+        from fujinp.registry import dashboard_background
+        dashboard_bg = dashboard_background('guest')
+    except ImportError:
+        dashboard_bg = None
 
     return render_template('admin/guest_dashboard.html',
                             user_name=user_name,
@@ -125,6 +130,7 @@ def dashboard():
                             # feature_codes=feature_codes,
                             user_group_names=user_group_names,
                             launcher_sections=sections,
+                            dashboard_bg=dashboard_bg,
                             site_url=Config.BASE_URL,
                             user_category=user_category)
 

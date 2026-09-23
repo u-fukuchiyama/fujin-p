@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-09-23 08:44:26",
+  "generated_at": "2026-09-23 13:02:29",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -19,7 +19,7 @@
     },
     {
       "app_name": "admin",
-      "display_name": "アカウント管理",
+      "display_name": "admin",
       "icon": "📦",
       "description": "ユーザアカウントの登録・更新・削除と登録申請の審査（管理者専用）。管理者ダッシュボードとゲストダッシュボードも持ち、カードは正本から描く。",
       "sort_order": 10.0,
@@ -57,8 +57,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": null,
-      "version_confirmed_at": null
+      "version_id": "v20260923.114037-dd6c03",
+      "version_confirmed_at": "2026-09-23 11:40:38"
     },
     {
       "app_name": "app_share",
@@ -344,7 +344,7 @@
           "label": "まいあし",
           "groups": [],
           "params": "",
-          "section": "admin_support",
+          "section": "sommelier",
           "endpoint": "migration_assistant.index",
           "dashboards": [
             "admin"
@@ -359,7 +359,7 @@
           "label": "まいあし",
           "groups": [],
           "params": "",
-          "section": "admin_support",
+          "section": "sommelier",
           "endpoint": "migration_assistant.index",
           "dashboards": [
             "guest"
@@ -374,7 +374,7 @@
           "label": "別サイトへのインストール",
           "groups": [],
           "params": "",
-          "section": "admin_support",
+          "section": "sommelier",
           "endpoint": "migration_assistant.install_guide",
           "dashboards": [
             "admin"
@@ -389,7 +389,7 @@
           "label": "別サイトへのインストール",
           "groups": [],
           "params": "",
-          "section": "admin_support",
+          "section": "sommelier",
           "endpoint": "migration_assistant.install_guide",
           "dashboards": [
             "guest"

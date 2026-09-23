@@ -66,7 +66,13 @@ def dashboard():
     # アプリのランチャは正本（fujinp/app_registry.json）から組み立てる．
     # 管理者ダッシュボードでは表示条件（グループ・カテゴリ）を評価しない．
     from fujinp.registry import launcher_sections
+    try:  # 旧いカーネル（registry.py）には無い．その場合は CSS の既定の背景
+        from fujinp.registry import dashboard_background
+        dashboard_bg = dashboard_background('admin')
+    except ImportError:
+        dashboard_bg = None
     return render_template('admin/admin_dashboard.html',
+                        dashboard_bg=dashboard_bg,
                         user_name=session.get('user_name'),
                         user_email=session.get('user_email'),
                         site_url=Config.BASE_URL,
