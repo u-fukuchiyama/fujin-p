@@ -193,7 +193,6 @@
                 <button class="secondary" onclick="location.href='{{ url_for('app_share.api_diag_site') }}'" title="Claude向けのサイト診断JSON">🩺 サイト診断</button>
                 <button class="secondary" id="btn-push" onclick="gitPushAll()" title="関所の未 push コミットを GitHub へ">🚀 push</button>
                 {% endif %}
-                <button class="secondary" onclick="startExport('{{ url_for('app_share.export_kernel_package') }}','カーネル')">⚙ カーネルエクスポート</button>
                 <button class="primary" onclick="startExport('{{ url_for('app_share.package_export_all') }}','全アプリパッケージ')">⬇ 全アプリパッケージエクスポート</button>
             </span>
         </h2>
