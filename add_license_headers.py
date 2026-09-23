@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with FUJIN-P.  If not, see <https://www.gnu.org/licenses/>.
 #
-# Source: https://github.com/u-fukuchiyama/fujin-p
+# Source: https://github.com/nishida-toyoaki/fujin-p
 
 """FUJIN-P ライセンスヘッダ一括挿入スクリプト（拡張子別対応版）
 
@@ -40,7 +40,7 @@ from pathlib import Path
 MARKER = "This file is part of FUJIN-P."
 YEARS = "2024-2026"
 HOLDER = "Toyoaki Nishida"
-SOURCE = "https://github.com/u-fukuchiyama/fujin-p"
+SOURCE = "https://github.com/nishida-toyoaki/fujin-p"
 
 FULL_NOTICE_PY = f"""\
 # SPDX-FileCopyrightText: {YEARS} {HOLDER}

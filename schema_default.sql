@@ -1,6 +1,6 @@
 -- ============================================================
 -- FUJIN-P Migration Schema : default
--- Generated : 2026-09-07 00:42 JST
+-- Generated : 2026-07-30 12:46 JST
 -- Source    : nishida4fujinp$default (nishida4fujinp / PythonAnywhere)
 -- ============================================================
 --
@@ -86,22 +86,6 @@ CREATE TABLE IF NOT EXISTS `app_share_install_history` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS `app_share_issues` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `app_name` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'app_share_registry.app_name',
-  `title` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '件名（1行）',
-  `detail` longtext COLLATE utf8mb4_unicode_ci COMMENT '詳細（Markdown・任意）',
-  `status` enum('open','fixed','wontfix') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open',
-  `reported_at` datetime DEFAULT NULL COMMENT '登録日時（JST）',
-  `reported_by` int DEFAULT NULL COMMENT 'users.id',
-  `fixed_at` datetime DEFAULT NULL COMMENT '直った日時（JST）',
-  `fixed_version_id` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '直した版',
-  `note` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `idx_issue_app` (`app_name`),
-  KEY `idx_issue_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='アプシャ：既知の不具合';
-
 CREATE TABLE IF NOT EXISTS `app_share_published` (
   `id` int NOT NULL AUTO_INCREMENT,
   `site_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'サイト識別子',
@@ -131,52 +115,10 @@ CREATE TABLE IF NOT EXISTS `app_share_registry` (
   `sort_order` double NOT NULL DEFAULT '0' COMMENT '表示順（小さい順・実数可）',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `kind` enum('app','kernel') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'app' COMMENT 'app=正本からBlueprint登録 / kernel=app.pyに固定登録（ランチャ等の情報だけ持つ）',
-  `enabled` tinyint(1) NOT NULL DEFAULT '1' COMMENT '1=有効（起動時に登録・ダッシュボードに表示）',
-  `disclosed` tinyint(1) NOT NULL DEFAULT '1',
-  `blueprints` json DEFAULT NULL COMMENT 'Blueprint登録情報 [{module, attr, name, url_prefix}]',
-  `launchers` json DEFAULT NULL COMMENT 'ランチャ [{dashboards, section, endpoint, label, icon, description, sort_order, require_groups, require_categories, extra_class}]',
-  `libraries` json DEFAULT NULL COMMENT 'ライブラリ目録 [{name, import, kind(pip|local), status, note}]',
-  `config_keys` json DEFAULT NULL COMMENT '定数目録 [{name, required, status, note}]（値は持たない）',
-  `version_id` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '版確定ID',
-  `version_confirmed_at` datetime DEFAULT NULL,
-  `version_confirmed_by` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `published_at` datetime DEFAULT NULL COMMENT '最後に app_registry.json へ発行した日時',
-  `git_commit` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '最後に commit したハッシュ',
-  `git_committed_at` datetime DEFAULT NULL COMMENT 'commit 日時（JST）',
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_app_name` (`app_name`),
   KEY `idx_sort_order` (`sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `app_share_sections` (
-  `section_key` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `title` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '見出し（絵文字込み）',
-  `css_class` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'カードの色クラス',
-  `sort_order` double NOT NULL DEFAULT '0',
-  `show_admin` tinyint(1) NOT NULL DEFAULT '1',
-  `show_guest` tinyint(1) NOT NULL DEFAULT '1',
-  `require_groups` json DEFAULT NULL COMMENT 'guest側の表示条件：いずれかのグループに所属',
-  `require_categories` json DEFAULT NULL COMMENT 'guest側の表示条件：user_category がこの中',
-  PRIMARY KEY (`section_key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='アプシャ：ダッシュボードの区画定義';
-
-CREATE TABLE IF NOT EXISTS `app_share_tables` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `app_name` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'app_share_registry.app_name',
-  `table_name` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `db_target` enum('default','fujinp','public') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'default' COMMENT '配置先DB（接尾辞）',
-  `ddl` longtext COLLATE utf8mb4_unicode_ci COMMENT 'SHOW CREATE TABLE の結果（アプシャが取り込む）',
-  `captured_at` datetime DEFAULT NULL COMMENT 'DDLを実物から取り込んだ日時',
-  `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'candidate' COMMENT 'candidate=自動検出（要確認） / confirmed=帰属確定',
-  `note` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `sort_order` int NOT NULL DEFAULT '0',
-  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_app_table` (`app_name`,`table_name`),
-  KEY `idx_table_name` (`table_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='アプシャ：アプリ所有テーブルの台帳';
 
 CREATE TABLE IF NOT EXISTS `approved_users` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -479,44 +421,6 @@ CREATE TABLE IF NOT EXISTS `block_breaker_scores` (
   KEY `idx_played` (`played_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `colrep_XXXXXXXXXXXX` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `更新日時` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `カラム名` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `担当者アカウント` int NOT NULL,
-  `説明` text COLLATE utf8mb4_unicode_ci COMMENT '管理者から入力者への説明',
-  `content` longtext COLLATE utf8mb4_unicode_ci COMMENT '入力内容',
-  `備考` text COLLATE utf8mb4_unicode_ci COMMENT '入力者から管理者への説明',
-  `status` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT '作業中' COMMENT '進捗状況：作業中/改訂中/完了',
-  PRIMARY KEY (`id`),
-  KEY `idx_担当者` (`担当者アカウント`),
-  KEY `idx_カラム名` (`カラム名`),
-  KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='CoRePoプロジェクト用データテーブル';
-
-CREATE TABLE IF NOT EXISTS `colrep_access_groups` (
-  `project_id` int NOT NULL,
-  `group_id` int NOT NULL,
-  PRIMARY KEY (`project_id`,`group_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-CREATE TABLE IF NOT EXISTS `colrep_projects` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `プロジェクト名` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `更新日時` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `責任者` int NOT NULL,
-  `テーブル名` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `Composer` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `is_public` tinyint(1) DEFAULT '0',
-  `access_policy` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'private',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_project_name` (`プロジェクト名`),
-  UNIQUE KEY `uk_table_name` (`テーブル名`),
-  KEY `idx_updated` (`更新日時`),
-  KEY `idx_responsible` (`責任者`),
-  KEY `idx_public` (`is_public`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS `course_enrollments` (
   `id` int NOT NULL AUTO_INCREMENT,
   `student_user_id` int NOT NULL,
@@ -595,61 +499,6 @@ CREATE TABLE IF NOT EXISTS `courses` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `cqm_links` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `parent_id` bigint NOT NULL,
-  `child_id` bigint NOT NULL,
-  `ord` int NOT NULL DEFAULT '0',
-  PRIMARY KEY (`id`),
-  KEY `ix_cqm_links_parent` (`parent_id`,`ord`),
-  KEY `ix_cqm_links_child` (`child_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-CREATE TABLE IF NOT EXISTS `cqm_log` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `quantum_id` bigint NOT NULL,
-  `verb` varchar(32) NOT NULL,
-  `params` json DEFAULT NULL,
-  `status` varchar(16) NOT NULL,
-  `note` varchar(500) DEFAULT NULL,
-  `actor_id` int DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `ix_cqm_log_q` (`quantum_id`,`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-CREATE TABLE IF NOT EXISTS `cqm_quanta` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `kind` varchar(16) NOT NULL,
-  `key_path` varchar(255) DEFAULT NULL,
-  `title` varchar(255) DEFAULT NULL,
-  `body` mediumtext,
-  `recipe` varchar(32) DEFAULT NULL,
-  `attrs` json DEFAULT NULL,
-  `owner_id` int DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_cqm_key` (`key_path`),
-  KEY `ix_cqm_kind` (`kind`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-CREATE TABLE IF NOT EXISTS `cqm_requests` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `box_id` bigint NOT NULL,
-  `addressee` varchar(120) DEFAULT NULL,
-  `message` text,
-  `due_on` date DEFAULT NULL,
-  `status` varchar(16) NOT NULL DEFAULT 'open',
-  `created_by` int DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `answered_at` datetime DEFAULT NULL,
-  `persons` text,
-  `grps` text,
-  PRIMARY KEY (`id`),
-  KEY `ix_cqm_req_box` (`box_id`,`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
 CREATE TABLE IF NOT EXISTS `dc_nodes` (
   `id` int NOT NULL AUTO_INCREMENT,
   `story_id` int NOT NULL,
@@ -693,84 +542,6 @@ CREATE TABLE IF NOT EXISTS `features` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `feature_code` (`feature_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='フィーチャー（権限）マスタ';
-
-CREATE TABLE IF NOT EXISTS `fujin_forum_access_groups` (
-  `channel_id` int NOT NULL,
-  `group_id` int NOT NULL COMMENT 'user_groups.id',
-  PRIMARY KEY (`channel_id`,`group_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='えふえふ：許可グループ';
-
-CREATE TABLE IF NOT EXISTS `fujin_forum_attachments` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `post_id` int DEFAULT NULL COMMENT '本文が参照する記事（投稿前は NULL）',
-  `channel_id` int NOT NULL DEFAULT '0' COMMENT 'アクセス権の判定に使うチャンネル',
-  `name` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `mimetype` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `size` bigint DEFAULT NULL,
-  `local_path` varchar(600) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '保護領域 data/files/ からの相対パス（原本）',
-  `public_path` varchar(600) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '公開複製の URL パス．未公開は NULL',
-  `uploaded_by` int DEFAULT NULL COMMENT 'users.id（Slack 由来は NULL）',
-  `source` enum('user','slack') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'user',
-  `created_at` datetime NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `idx_post` (`post_id`),
-  KEY `idx_channel` (`channel_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='えふえふ：添付（取込・記録用）';
-
-CREATE TABLE IF NOT EXISTS `fujin_forum_channels` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'チャンネル名（# なし）',
-  `description` text COLLATE utf8mb4_unicode_ci COMMENT '説明',
-  `share_key` enum('private','public','domestic','group','domestic_group') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'private' COMMENT '公開範囲：private=作成者と admin / public=ゲストにも / domestic=構成員だけ / group / domestic_group',
-  `created_by` int DEFAULT NULL COMMENT 'users.id',
-  `created_at` datetime NOT NULL COMMENT 'JST',
-  `updated_at` datetime NOT NULL COMMENT 'JST',
-  `is_archived` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1=読み取り専用',
-  `sort_order` double NOT NULL DEFAULT '0',
-  `slack_channel_id` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '取込元の Slack チャンネル ID（すらくみ）',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_name` (`name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='えふえふ：チャンネル';
-
-CREATE TABLE IF NOT EXISTS `fujin_forum_posts` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `channel_id` int NOT NULL,
-  `parent_id` int DEFAULT NULL COMMENT '返信なら親記事の id（1段）',
-  `user_id` int DEFAULT NULL COMMENT 'users.id（Slack 由来で対応づかない場合は NULL）',
-  `author_name` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT '表示名（投稿時点）',
-  `body_md` mediumtext COLLATE utf8mb4_unicode_ci COMMENT 'Markdown 本文',
-  `created_at` datetime NOT NULL COMMENT 'JST（Slack 由来は元の投稿日時）',
-  `updated_at` datetime NOT NULL COMMENT 'JST',
-  `edited_at` datetime DEFAULT NULL COMMENT '本文を編集した日時',
-  `deleted_at` datetime DEFAULT NULL COMMENT '論理削除',
-  `source` enum('user','slack') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'user',
-  `slack_ts` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '取込元の Slack ts（冪等取込の照合キー）',
-  `reply_count` int NOT NULL DEFAULT '0',
-  `last_reply_at` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_slack` (`channel_id`,`slack_ts`),
-  KEY `idx_channel_parent` (`channel_id`,`parent_id`,`created_at`),
-  KEY `idx_parent` (`parent_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='えふえふ：記事と返信';
-
-CREATE TABLE IF NOT EXISTS `fujin_forum_reactions` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `post_id` int NOT NULL,
-  `user_id` int DEFAULT NULL COMMENT 'users.id（Slack 由来は NULL）',
-  `reactor_name` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
-  `emoji` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `created_at` datetime NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_user_emoji` (`post_id`,`user_id`,`emoji`),
-  KEY `idx_post` (`post_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='えふえふ：リアクション';
-
-CREATE TABLE IF NOT EXISTS `fujin_forum_reads` (
-  `user_id` int NOT NULL,
-  `channel_id` int NOT NULL,
-  `last_read_at` datetime NOT NULL,
-  PRIMARY KEY (`user_id`,`channel_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='えふえふ：既読';
 
 CREATE TABLE IF NOT EXISTS `fujinp_helper_entries` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -896,41 +667,6 @@ CREATE TABLE IF NOT EXISTS `ir_table_sets` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS `kataribe_access_groups` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `pres_id` int NOT NULL COMMENT 'kataribe_presentations.id',
-  `group_id` int NOT NULL COMMENT 'user_groups.id',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_kataribe_access_groups` (`pres_id`,`group_id`),
-  KEY `idx_kataribe_access_groups_group` (`group_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='かたりべ：グループ公開の許可グループ';
-
-CREATE TABLE IF NOT EXISTS `kataribe_presentations` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `user_id` int NOT NULL COMMENT 'ユーザーID（users.id）',
-  `title` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'プレゼン題名',
-  `spec_json` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'スペック（シーン・ブロック・語り）のJSON',
-  `share_key` enum('private','public','domestic','group','domestic_group') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'private' COMMENT '公開範囲（マイノート・コレポと同区分）',
-  `created_at` datetime DEFAULT NULL COMMENT '作成日時（JST）',
-  `updated_at` datetime DEFAULT NULL COMMENT '更新日時（JST）',
-  PRIMARY KEY (`id`),
-  KEY `idx_user` (`user_id`),
-  KEY `idx_updated` (`updated_at`),
-  KEY `idx_share` (`share_key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `lookout_history` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `user_id` int NOT NULL COMMENT 'ユーザーID（users.id）',
-  `lat` double NOT NULL COMMENT '緯度（十進度）',
-  `lon` double NOT NULL COMMENT '経度（十進度）',
-  `ground_elev` double DEFAULT NULL COMMENT '地表標高（m，10m DEM由来）',
-  `created_at` datetime DEFAULT NULL COMMENT '閲覧日時（JST）',
-  PRIMARY KEY (`id`),
-  KEY `idx_user` (`user_id`),
-  KEY `idx_created` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS `migrate_fujinp_scions_packages` (
   `id` int NOT NULL AUTO_INCREMENT,
   `filename` varchar(255) NOT NULL,
@@ -1038,30 +774,6 @@ CREATE TABLE IF NOT EXISTS `migration_assistant_step_contents` (
   KEY `idx_stage` (`phase_id`,`stage_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='師匠が編集するStepタイトルと詳細';
 
-CREATE TABLE IF NOT EXISTS `my_md_notes_access_groups` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `ノートID` int NOT NULL COMMENT 'my_md_notes_notes.id',
-  `group_id` int NOT NULL COMMENT 'user_groups.id',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_my_md_notes_access_groups` (`ノートID`,`group_id`),
-  KEY `idx_my_md_notes_access_groups_group` (`group_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='マイノート：グループ公開の許可グループ';
-
-CREATE TABLE IF NOT EXISTS `my_md_notes_attachments` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `ノートID` int NOT NULL COMMENT 'my_md_notes_notes.id',
-  `name` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '元のファイル名（表示用）',
-  `mimetype` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `size` int NOT NULL DEFAULT '0' COMMENT 'バイト数',
-  `local_path` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '保護領域内の相対パス（<ノートID>/<保存名>）',
-  `public_path` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '公開複製のURL（/static/mdimgs/...）。NULL＝非公開',
-  `uploaded_by` int DEFAULT NULL COMMENT 'users.id',
-  `作成日時` datetime NOT NULL COMMENT 'JST',
-  PRIMARY KEY (`id`),
-  KEY `idx_my_md_notes_attachments_note` (`ノートID`),
-  KEY `idx_my_md_notes_attachments_public` (`public_path`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='マイノート：添付ファイルの台帳（原本は保護領域、公開複製は static/mdimgs/）';
-
 CREATE TABLE IF NOT EXISTS `my_md_notes_contents` (
   `id` int NOT NULL AUTO_INCREMENT,
   `ノートID` int NOT NULL COMMENT 'my_md_notes_notes.id（1対1）',
@@ -1076,7 +788,7 @@ CREATE TABLE IF NOT EXISTS `my_md_notes_notes` (
   `id` int NOT NULL AUTO_INCREMENT,
   `オーナーID` int NOT NULL COMMENT '作成者（users.id）',
   `名前` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'ノート名',
-  `共有キー` enum('private','public','domestic','group','domestic_group') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'private' COMMENT '公開範囲（コレポと同区分）',
+  `共有キー` enum('private','public','shared') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'private' COMMENT '共有設定',
   `序列` int NOT NULL DEFAULT '0' COMMENT '表示順（小さいほど先）',
   `作成日時` datetime NOT NULL COMMENT 'JST',
   `更新日時` datetime NOT NULL COMMENT 'JST',
@@ -1202,25 +914,6 @@ CREATE TABLE IF NOT EXISTS `password_reset_tokens` (
   KEY `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS `public_documents` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `public_description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `owner_memo` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `content` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `corepo_source_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'CoRePoプロジェクトのソース(JSON)。',
-  `created_by` int DEFAULT NULL,
-  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `access_policy` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'public',
-  `file_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'MIMEタイプ（バイナリアップロード用）',
-  `file_path` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ストレージ上の相対パス',
-  PRIMARY KEY (`id`),
-  KEY `idx_title` (`title`),
-  KEY `idx_created_at` (`created_at`),
-  KEY `idx_created_by` (`created_by`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS `registration_requests` (
   `id` int NOT NULL AUTO_INCREMENT,
   `email` varchar(255) NOT NULL COMMENT 'メールアドレス',
@@ -1239,47 +932,6 @@ CREATE TABLE IF NOT EXISTS `registration_requests` (
   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='外部ユー';
 
-CREATE TABLE IF NOT EXISTS `slack_minutes_access_groups` (
-  `channel_id` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'slack_minutes_channels.channel_id',
-  `group_id` int NOT NULL COMMENT 'user_groups.id',
-  PRIMARY KEY (`channel_id`,`group_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `slack_minutes_channels` (
-  `channel_id` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Slack チャンネル ID',
-  `name` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'チャンネル名',
-  `is_private` tinyint(1) NOT NULL DEFAULT '0',
-  `visibility` enum('private','public','domestic','group','domestic_group') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'private' COMMENT '公開範囲：private=adminのみ / public=ゲストにも / domestic=構成員だけ / group=グループ / domestic_group=構成員＋グループ',
-  `topic` text COLLATE utf8mb4_unicode_ci,
-  `purpose` text COLLATE utf8mb4_unicode_ci,
-  `slack_created_at` datetime DEFAULT NULL COMMENT 'Slack 上の作成日時（JST）',
-  `last_archived_at` datetime DEFAULT NULL COMMENT '完全アーカイブ取得の最終完了日時（JST）',
-  `updated_at` datetime NOT NULL COMMENT 'レコード更新日時（JST）',
-  PRIMARY KEY (`channel_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `slack_minutes_files` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `file_id` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Slack ファイル ID',
-  `channel_id` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `slack_ts` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '添付元メッセージの ts',
-  `name` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `title` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `mimetype` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `filetype` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `size` bigint DEFAULT NULL COMMENT 'バイト数（Slack の申告値）',
-  `url_private` text COLLATE utf8mb4_unicode_ci COMMENT 'url_private_download（要 Bot Token）',
-  `local_path` varchar(600) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'data/files/ からの相対パス',
-  `status` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending' COMMENT 'pending/done/error/expired',
-  `error` text COLLATE utf8mb4_unicode_ci,
-  `created_at` datetime NOT NULL COMMENT '登録日時（JST）',
-  `downloaded_at` datetime DEFAULT NULL COMMENT '保存完了日時（JST）',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_file_msg` (`file_id`,`channel_id`,`slack_ts`),
-  KEY `idx_channel_ts` (`channel_id`,`slack_ts`),
-  KEY `idx_status` (`channel_id`,`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS `slack_minutes_messages` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `session_id` int NOT NULL COMMENT 'slack_minutes_sessions.id',
@@ -1291,19 +943,12 @@ CREATE TABLE IF NOT EXISTS `slack_minutes_messages` (
   `text` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'メッセージ本文',
   `posted_at` datetime DEFAULT NULL COMMENT '投稿日時（JST）',
   `thread_ts` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'スレッド親 ts（スレッド投稿の場合）',
-  `subtype` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Slack subtype（thread_broadcast 等）',
-  `reply_count` int NOT NULL DEFAULT '0' COMMENT 'Slack が返す返信数（親のみ）',
-  `edited_at` datetime DEFAULT NULL COMMENT '最終編集日時（JST）',
-  `reactions_json` text COLLATE utf8mb4_unicode_ci COMMENT 'リアクション [{name,count,users:[表示名]}]',
-  `raw_json` mediumtext COLLATE utf8mb4_unicode_ci COMMENT 'Slack API が返したメッセージの生データ',
   `created_at` datetime NOT NULL COMMENT 'レコード作成日時（JST）',
-  `updated_at` datetime DEFAULT NULL COMMENT '最終同期日時（JST）',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_channel_ts` (`channel_id`,`slack_ts`),
   KEY `idx_session` (`session_id`),
   KEY `idx_posted` (`posted_at`),
-  KEY `idx_channel` (`channel_id`),
-  KEY `idx_thread` (`channel_id`,`thread_ts`)
+  KEY `idx_channel` (`channel_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `slack_minutes_sessions` (
@@ -1313,29 +958,12 @@ CREATE TABLE IF NOT EXISTS `slack_minutes_sessions` (
   `channel_name` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'チャンネル名',
   `fetched_at` datetime NOT NULL COMMENT '取得実行日時（JST）',
   `status` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'running' COMMENT 'running / done / error',
-  `mode` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'diff' COMMENT 'diff（差分）/ archive（完全アーカイブ）',
-  `phase` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'archive の進行段階 history/threads/files/done',
-  `state_json` text COLLATE utf8mb4_unicode_ci COMMENT 'archive の再開用状態',
   `fetched_count` int DEFAULT NULL COMMENT '取得メッセージ総数',
   `saved_count` int DEFAULT NULL COMMENT '新規保存数（重複除く）',
-  `updated_count` int DEFAULT NULL COMMENT '再同期（上書き）した件数',
-  `reply_count` int DEFAULT NULL COMMENT '取り込んだスレッド返信数',
-  `file_count` int DEFAULT NULL COMMENT '処理した添付ファイル数',
   PRIMARY KEY (`id`),
   KEY `idx_channel` (`channel_id`),
   KEY `idx_fetched` (`fetched_at`),
   KEY `idx_user` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `slack_minutes_users` (
-  `user_id` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Slack ユーザー ID',
-  `name` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ハンドル名（user.name）',
-  `display_name` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '表示名（profile.display_name）',
-  `real_name` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '本名（profile.real_name）',
-  `is_bot` tinyint(1) NOT NULL DEFAULT '0',
-  `deleted` tinyint(1) NOT NULL DEFAULT '0',
-  `fetched_at` datetime NOT NULL COMMENT '取得日時（JST）',
-  PRIMARY KEY (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `sorakara_regions` (
@@ -1379,17 +1007,6 @@ CREATE TABLE IF NOT EXISTS `strm_reservations` (
   KEY `idx_resource_time` (`resource_id`,`start_at`),
   KEY `idx_user` (`user_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `strm_resource_groups` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `resource_id` int NOT NULL COMMENT '資源ID（strm_resources.id）',
-  `group_id` int NOT NULL COMMENT 'グループID（user_groups.id）',
-  `role` enum('applicant','approver','privileged') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'ロール',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_resource_group_role` (`resource_id`,`group_id`,`role`),
-  KEY `idx_resource` (`resource_id`),
-  KEY `idx_group` (`group_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `strm_resources` (
@@ -1677,76 +1294,6 @@ CREATE TABLE IF NOT EXISTS `table_snapshots` (
   `upload_timestamp` datetime DEFAULT NULL,
   `upload_snapshot` longtext,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-CREATE TABLE IF NOT EXISTS `tcv_paint` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `sample_id` int NOT NULL,
-  `sheet` varchar(120) NOT NULL DEFAULT '',
-  `marks_json` mediumtext,
-  `note` text,
-  `owner_id` int DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_tcv_paint` (`sample_id`,`sheet`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-CREATE TABLE IF NOT EXISTS `tcv_residue` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `spec_id` int NOT NULL,
-  `dataset` varchar(64) NOT NULL DEFAULT '',
-  `mode` varchar(8) NOT NULL,
-  `band` varchar(64) DEFAULT NULL,
-  `ord_no` int NOT NULL DEFAULT '0',
-  `dr` int NOT NULL DEFAULT '0',
-  `r_no` int NOT NULL DEFAULT '0',
-  `c_no` int NOT NULL DEFAULT '0',
-  `rs` int NOT NULL DEFAULT '1',
-  `cs` int NOT NULL DEFAULT '1',
-  `v` mediumtext,
-  PRIMARY KEY (`id`),
-  KEY `ix_tcv_res` (`spec_id`,`dataset`,`band`,`ord_no`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-CREATE TABLE IF NOT EXISTS `tcv_runs` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `spec_id` int DEFAULT NULL,
-  `dataset` varchar(64) DEFAULT NULL,
-  `direction` varchar(16) NOT NULL,
-  `summary` text,
-  `actor_id` int DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `ix_tcv_run_spec` (`spec_id`,`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-CREATE TABLE IF NOT EXISTS `tcv_samples` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `spec_id` int DEFAULT NULL,
-  `title` varchar(200) DEFAULT NULL,
-  `filename` varchar(255) DEFAULT NULL,
-  `sheet` varchar(120) DEFAULT NULL,
-  `note` text,
-  `owner_id` int DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `ix_tcv_sample_spec` (`spec_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-CREATE TABLE IF NOT EXISTS `tcv_specs` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `name` varchar(64) NOT NULL,
-  `title` varchar(200) DEFAULT NULL,
-  `sheet` varchar(120) DEFAULT NULL,
-  `spec_json` mediumtext,
-  `note` text,
-  `status` varchar(16) NOT NULL DEFAULT 'draft',
-  `owner_id` int DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_tcv_spec_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS `ura_boxes` (

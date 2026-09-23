@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # This file is part of FUJIN-P.
-# Source: https://github.com/u-fukuchiyama/fujin-p
+# Source: https://github.com/nishida-toyoaki/fujin-p
 
 """
 migrate_launcher_visibility.py — ランチャの使用区分（使用コントローラー）への移行

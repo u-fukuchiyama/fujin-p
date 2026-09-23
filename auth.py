@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with FUJIN-P.  If not, see <https://www.gnu.org/licenses/>.
 #
-# Source: https://github.com/u-fukuchiyama/fujin-p
+# Source: https://github.com/nishida-toyoaki/fujin-p
 
 from flask import Blueprint, render_template, request, session, flash, redirect, url_for
 import secrets
@@ -166,8 +166,7 @@ def login():
                 return render_template('login.html')
 
             if not user['password_hash']:
-                flash('このアカウントはまだパスワードが設定されていません。Googleアカウントの方はGoogleでログインしてください。'
-                      'パスワードでログインする方は「パスワードを忘れた方」からパスワードを設定してください。', 'error')
+                flash('このアカウントはGoogle認証専用です', 'error')
                 return render_template('login.html')
 
             if not verify_password(password, user['password_hash']):
@@ -206,7 +205,7 @@ def google_login():
 
 @auth_bp.route('/google_callback')
 def google_callback():
-    """Google認証コールバック（users → approved_users（名簿）→ 外部登録申請）"""
+    """Google認証コールバック（改修版：ドメインパターン対応）"""
     try:
         token = oauth.google.authorize_access_token()
         nonce = session.pop('google_auth_nonce', None)
@@ -252,8 +251,7 @@ def google_callback():
             approved_user = cursor.fetchone()
 
             if approved_user:
-                # 名簿（approved_users）にある人：アカウントを作ってそのままログインさせる
-                # 名簿の行は消さない（名簿はまいぐる台帳から発行される正本の写しであり，使い切りではない）
+                # 承認済みユーザー：ユーザー作成してログイン画面に誘導（パスワード不要）
                 try:
                     user_id = create_user_from_approved(
                         email,
@@ -261,26 +259,12 @@ def google_callback():
                         approved_user['category'],
                         approved_user.get('affiliation')
                     )
-                    cursor.execute("""
-                        SELECT * FROM users
-                        WHERE id = %s AND is_active = TRUE AND deleted_at IS NULL
-                    """, (user_id,))
-                    user = cursor.fetchone()
-                    if not user:
-                        flash('アカウントの作成に失敗しました', 'error')
-                        return redirect(url_for('auth.login'))
 
-                    set_user_session(user)
-                    record_user_event(user['id'], 'login', {'method': 'google', 'first_login': True})
+                    cursor.execute("DELETE FROM approved_users WHERE email = %s", (email,))
+                    conn.commit()
 
-                    next_url = session.pop('login_next_url', None)
-                    if next_url:
-                        from urllib.parse import urlparse
-                        parsed = urlparse(next_url)
-                        if not parsed.netloc or parsed.netloc == request.host:
-                            return redirect(next_url)
-
-                    return redirect_to_dashboard()
+                    flash('アカウントが作成されました。Googleアカウントで再度ログインしてください。', 'success')
+                    return redirect(url_for('auth.login'))
 
                 except Exception as e:
                     print(f"承認済みユーザー処理エラー: {str(e)}")
@@ -317,7 +301,7 @@ def logout():
 
 @auth_bp.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
-    """パスワードリセット申請（users → approved_users（名簿）→ 外部登録申請）"""
+    """パスワードリセット申請（改修版：ドメインパターン対応）"""
     if request.method == 'POST':
         email = request.form.get('email')
 
@@ -362,7 +346,9 @@ def forgot_password():
                     )
                     token = create_password_reset_token(user_id)
                     send_password_reset_email(email, token)
-                    # 名簿（approved_users）の行は消さない
+
+                    cursor.execute("DELETE FROM approved_users WHERE email = %s", (email,))
+                    conn.commit()
 
                     flash('パスワード設定メールを送信しました', 'success')
                     return redirect(url_for('auth.login'))
