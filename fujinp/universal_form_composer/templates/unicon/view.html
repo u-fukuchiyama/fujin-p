@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ sel.title if sel else p.title }} — ゆにこん</title>
+{% include 'unicon/_style.html' %}
+<style>
+ .cols{display:grid;grid-template-columns:260px minmax(0,1fr);gap:14px;align-items:start}
+ .side{position:sticky;top:8px;max-height:calc(100vh - 16px);overflow:auto}
+ .side .card{padding:10px 12px}
+ .side h3{font-size:13px;margin:0 0 4px;color:var(--sub);font-weight:600}
+ .side ul{list-style:none;margin:0 0 6px;padding:0}
+ .side li a{display:block;padding:3px 6px;border-radius:5px;color:var(--ink)}
+ .side li a:hover{background:var(--acc2);text-decoration:none}
+ .side li a.on{background:var(--acc);color:#fff}
+ .side li .id{font-size:11px;color:var(--sub)}
+ .side li a.on .id{color:#e6defa}
+ @media(max-width:900px){
+   .wrap{padding:8px 10px 30px}
+   .cols{grid-template-columns:1fr;gap:10px}
+   .side{position:static;max-height:none}
+   .side ul{max-height:30vh;overflow:auto}
+   .side .meta{display:none}
+ }
+ .head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+ .head h1{font-size:16px;margin:0}
+ .main{min-width:0}
+ /* 横スクロールバーは本体の下に置き，縦に長いときも画面の下端に留めて常に見せる */
+ .hscroll{position:sticky;bottom:0;z-index:5;overflow-x:scroll;overflow-y:hidden;height:16px;
+          background:#fff;border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px}
+ .hscroll>div{height:1px}
+ .viewer{overflow-x:auto;overflow-y:visible;background:#fff;border:1px solid var(--line);border-bottom:none;
+         border-radius:10px 10px 0 0;padding:12px;scrollbar-width:none}
+ .viewer::-webkit-scrollbar{display:none}
+ @media(max-width:600px){.viewer{padding:6px}.tb{padding:4px 6px}}
+ /* 部品の組み立て（こんかの横並び・縦並び） */
+ .stage{display:flex;width:100%}
+ .row{display:flex;flex-direction:row;gap:6px;flex:1 1 auto;min-width:0}
+ .col{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
+ .col>*{flex:0 0 auto}
+ .row>*{align-self:stretch;min-width:0}
+ .row.a-center{justify-content:center}.row.a-right{justify-content:flex-end}
+ .col.a-middle{justify-content:center}.col.a-bottom{justify-content:flex-end}
+ .tb{border:1px solid #dcd9e8;border-radius:4px;padding:6px 8px;background:#fdfcff;min-width:60px;flex:1 1 auto}
+ .tb.ng{background:#fbeceb;border-color:#e6b9b4}
+ .emb{display:flex;flex-direction:column;flex:1 1 auto;min-width:0}
+ .emb>.row,.emb>.col{flex:1 1 auto}
+ .lb{font-size:11px;color:var(--sub);margin-bottom:2px}
+ .tb ul{margin:0;padding-left:1.1em}
+ .tb .rich p{margin:0 0 .4em}
+ .tb .fld{margin-bottom:3px}.tb .fl{font-size:11px;color:var(--sub);margin-right:6px}
+ .tb .num{font-size:18px;font-weight:600}
+ .empty{color:#a39fb5;font-size:12px}
+ .miss{color:var(--ng);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <span class="ttl">🦄 {{ p.title }}</span>
+    <div><a href="{{ url_for('unicon.index') }}">← ゆにこん</a>　<a href="{{ url_for('unicon.return_to_fujin') }}">🏠 FUJIN</a></div>
+  </div>
+  {% include 'unicon/_flash.html' %}
+  <div class="cols">
+    <div class="side">
+      <div class="card">
+        <h3>作品</h3>
+        <ul>{% for a in works %}<li><a href="{{ url_for('unicon.view', pid=p.id, w=a.id) }}" class="{{ 'on' if sel and sel.id == a.id else '' }}">{{ a.title or '（無題）' }} <span class="id">#{{ a.id }}</span></a></li>
+        {% else %}<li class="small">作品はありません</li>{% endfor %}</ul>
+        <details{% if level == 'part' %} open{% endif %}><summary class="small">複合部品 {{ parts|length }} 件</summary>
+          <ul style="max-height:320px;overflow:auto;margin-top:4px">{% for a in parts %}<li><a href="{{ url_for('unicon.view', pid=p.id, w=a.id) }}" class="{{ 'on' if sel and sel.id == a.id else '' }}">{{ a.title or '（無題）' }} <span class="id">#{{ a.id }}</span></a></li>{% endfor %}</ul>
+        </details>
+        <div class="small" style="margin-top:6px">倉庫部品 {{ n_boxes }} 件</div>
+      </div>
+      <div class="small meta">編集者：{{ p.editor_name or '—' }}<br>最終変更：{{ p.updated_at_s }}</div>
+    </div>
+    <div class="main">
+      {% if sel %}
+      <div class="head"><h1>{{ '🏛' if level == 'work' else '🧱' }} {{ sel.title or '（無題）' }}</h1>
+        {% if can_manage %}<a class="btn" href="{{ url_for('unicon.export', pid=p.id) }}">⬇ プロジェクトをエクスポート</a>{% endif %}</div>
+      <div class="viewer" id="vw">{{ html }}</div>
+      <div class="hscroll" id="hs" aria-hidden="true"><div id="hsin"></div></div>
+      {% else %}
+      <div class="card small">表示できる作品がありません．プロジェクトの中身をインポートしてください．</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var hs=document.getElementById('hs'), inn=document.getElementById('hsin'), vw=document.getElementById('vw');
+  if(!hs||!vw) return;
+  function fit(){ inn.style.width=vw.scrollWidth+'px'; }
+  hs.addEventListener('scroll',function(){ if(vw.scrollLeft!==hs.scrollLeft) vw.scrollLeft=hs.scrollLeft; });
+  vw.addEventListener('scroll',function(){ if(hs.scrollLeft!==vw.scrollLeft) hs.scrollLeft=vw.scrollLeft; });
+  window.addEventListener('resize',fit);
+  if(window.ResizeObserver){ new ResizeObserver(fit).observe(vw); var st=vw.firstElementChild; if(st) new ResizeObserver(fit).observe(st); }
+  fit();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>テーブルとの対応付け — {{ p.title }} — ゆにこん</title>
+{% include 'unicon/_style.html' %}
+<style>
+ .tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+ .tools form{display:inline}
+ .tabs{display:flex;gap:4px;margin:6px 0 0}
+ .tabs button{border:1px solid var(--line);border-bottom:none;background:#faf9fd;padding:5px 14px;border-radius:8px 8px 0 0;
+              font-family:inherit;font-size:13px;cursor:pointer;color:var(--sub)}
+ .tabs button.on{background:#fff;color:var(--ink);font-weight:600}
+ .pane{display:none;background:#fff;border:1px solid var(--line);border-radius:0 10px 10px 10px;padding:8px}
+ .pane.on{display:block}
+ .gridwrap{overflow:auto;max-height:70vh}
+ table.g{border-collapse:collapse;font-size:12px}
+ table.g th{position:sticky;top:0;z-index:2;background:#faf9fd;color:var(--sub);font-weight:600;padding:4px 6px;
+            border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+ table.g th small{display:block;font-weight:400;font-size:10px;color:#a39fb5}
+ table.g td{padding:2px 3px;border-bottom:1px solid #f0eff5}
+ table.g input{width:100%;padding:3px 5px;font-size:12px;border:1px solid #e1dfea;border-radius:4px;font-family:inherit}
+ table.g td.k input{width:4.2em;text-align:right;background:#f8f7fc;font-variant-numeric:tabular-nums}
+ table.g td.v input{width:9em}
+ table.g td.c input{width:9.5em}
+ table.g td.c input.bad{border-color:#e6a39b;background:#fdf1ef}
+ table.g td.x button{border:none;background:none;color:#c9c5d8;cursor:pointer;font-size:14px}
+ table.g td.x button:hover{color:var(--ng)}
+ table.g tr.hide{display:none}
+ .rep{font-size:12px}
+ .rep ul{margin:4px 0 0;padding-left:1.2em;max-height:220px;overflow:auto}
+ .rep .e{color:var(--ng)} .rep .w{color:#8a5a00} .rep .i{color:var(--sub)}
+ .dirty{color:var(--ng);font-size:12px;margin-left:6px}
+ #flt{width:14em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <span class="ttl">🔗 テーブルとの対応付け<small>{{ p.title }}</small></span>
+    <div><a href="{{ url_for('unicon.view', pid=p.id) }}">👁 閲覧</a>　<a href="{{ url_for('unicon.index') }}">← ゆにこん</a></div>
+  </div>
+  {% include 'unicon/_flash.html' %}
+
+  <div class="tools">
+    <button class="btn pri" id="save" type="button" disabled>💾 保存</button><span class="dirty" id="dirty"></span>
+    <a class="btn" href="{{ url_for('unicon.mapping_xlsx', pid=p.id) }}">⬇ xlsx に書き出す</a>
+    <form method="post" action="{{ url_for('unicon.mapping_import', pid=p.id) }}" enctype="multipart/form-data">
+      <label class="btn">📥 xlsx から取り込む
+        <input class="hidden-file" type="file" name="file" accept=".xlsx"
+          onchange='if(confirm("xlsx にあるシート（細目／計画番号）の対応付けを置き換えます．よろしいですか？")){this.form.submit()}else{this.value=""}'></label>
+    </form>
+    <form method="post" action="{{ url_for('unicon.sync_to_table', pid=p.id) }}" class="sync"
+          onsubmit='return confirm("部品の中身を，対応付けに従って常設テーブル（T_ann_plan_details など4表）へ書き込みます．対応付けで部品が指定された欄だけを書き換えます．よろしいですか？")'>
+      <button class="btn" type="submit">📤 テーブルへ書き込む</button></form>
+    <form method="post" action="{{ url_for('unicon.sync_from_table', pid=p.id) }}" class="sync"
+          onsubmit='return confirm("テーブルの中身を，対応付けに従って部品へ書き込みます．正本はテーブルなので，テーブルの欄が空（または行が無い）なら部品も空になります．よろしいですか？")'>
+      <button class="btn" type="submit">📥 テーブルから読み出す</button></form>
+    <input type="text" id="flt" placeholder="番号で絞り込み（例 2024-3）" aria-label="絞り込み">
+    <span class="small">細目 {{ rep.n_details }}・計画番号 {{ rep.n_plans }}・中期細目 {{ rep.n_mid_details }}・中期評価 {{ rep.n_mid_evals }} 行・部品 {{ rep.n_parts }} 個{% if m.updated_at %}　最終保存 {{ m.updated_at[:16] }} {{ updated_by_name }}{% endif %}</span>
+  </div>
+
+  <div class="card rep">
+    <b>点検</b>　誤り {{ rep.errors|length }}・注意 {{ rep.warnings|length }}・参考 {{ rep.infos|length }}
+    {% if rep.errors or rep.warnings or rep.infos %}
+    <ul>
+      {% for t in rep.errors %}<li class="e">{{ t }}</li>{% endfor %}
+      {% for t in rep.warnings %}<li class="w">{{ t }}</li>{% endfor %}
+      {% for t in rep.infos %}<li class="i">{{ t }}</li>{% endfor %}
+    </ul>
+    {% else %}<span class="small">　指摘はありません．</span>{% endif %}
+    <div class="small" style="margin-top:4px">セルには部品 ID（または key_path）を書きます．細目の欄は「1203, 1204」のように複数並べられ，本文の k 番目の「・」が k 番目の部品に対応します．計画番号・中期評価の欄は1つです．中期評価の時期は progress（4年終了時）か result（全期間終了時）です．セルにマウスを置くと部品の書き出しが出ます．</div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    {% for kind, tab, sp, rows, tips in grids %}<button type="button" class="{{ 'on' if loop.first else '' }}" data-pane="{{ kind }}">{{ tab }}（{{ rows|length }}）</button>{% endfor %}
+  </div>
+
+  {% for kind, tab, sp, rows, tips in grids %}
+  {% set keys, vals, cells = sp %}
+  <div class="pane{{ ' on' if loop.first else '' }}" id="pane-{{ kind }}" data-kind="{{ kind }}">
+    <div class="gridwrap">
+    <table class="g">
+      <thead><tr>
+        {% for k, lb in keys %}<th data-cls="k" data-f="{{ k }}"{% if k in str_keys %} data-str="1"{% endif %}>{{ lb }}<small>{{ k }}</small></th>{% endfor %}
+        {% for k, lb in vals %}<th data-cls="v" data-f="{{ k }}">{{ lb }}<small>{{ k }}</small></th>{% endfor %}
+        {% for k, lb in cells %}<th data-cls="c" data-f="{{ k }}">{{ lb }}<small>{{ k }}</small></th>{% endfor %}
+        <th></th>
+      </tr></thead>
+      <tbody>
+      {% for r in rows %}{% set rt = tips[loop.index0] %}
+        <tr>
+          {% for k, lb in keys %}{% set v = r[k] %}<td class="k"><input data-f="{{ k }}" value="{{ (v[4:] if (v is string and v.startswith('bad:')) else v) if v is not none else '' }}"></td>{% endfor %}
+          {% for k, lb in vals %}{% set v = r[k] %}<td class="v"><input data-f="{{ k }}" value="{{ (v[4:] if (v is string and v.startswith('bad:')) else v) if v is not none else '' }}"></td>{% endfor %}
+          {% for k, lb in cells %}{% set ids = r.cells[k] or [] %}
+          <td class="c"><input data-f="{{ k }}" data-cell="1" value="{{ ids|join(', ') }}" title="{{ rt[k].tip }}" class="{{ 'bad' if rt[k].bad else '' }}"></td>{% endfor %}
+          <td class="x"><button type="button" title="この行を消す" aria-label="この行を消す">×</button></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <div style="margin-top:6px"><button class="btn add" type="button">＋ 行を足す</button></div>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+(function(){
+  var dirty=false, saveBtn=document.getElementById('save'), dmark=document.getElementById('dirty');
+  function mark(){ dirty=true; saveBtn.disabled=false; dmark.textContent='保存していない変更があります';
+    document.querySelectorAll('form.sync button').forEach(function(b){ b.disabled=true; b.title='先に対応付けを保存してください'; }); }
+  document.querySelectorAll('.tabs button').forEach(function(b){
+    b.addEventListener('click',function(){
+      document.querySelectorAll('.tabs button').forEach(function(x){x.classList.toggle('on',x===b);});
+      document.querySelectorAll('.pane').forEach(function(p){p.classList.toggle('on',p.id==='pane-'+b.dataset.pane);});
+    });
+  });
+  document.addEventListener('input',function(e){ if(e.target.closest('table.g')) mark(); });
+  document.addEventListener('click',function(e){
+    var x=e.target.closest('td.x button');
+    if(x){ x.closest('tr').remove(); mark(); return; }
+    var a=e.target.closest('button.add');
+    if(a){
+      var tb=a.closest('.pane').querySelector('tbody'), last=tb.lastElementChild;
+      var tpl=a.closest('.pane').querySelector('thead tr'), tr=document.createElement('tr');
+      var heads=[].slice.call(tpl.children,0,-1);
+      var lastInt=null;
+      heads.forEach(function(th){ if(th.dataset.cls==='k' && !th.dataset.str) lastInt=th.dataset.f; });
+      heads.forEach(function(th){
+        var f=th.dataset.f, cls=th.dataset.cls, td=document.createElement('td'), inp=document.createElement('input');
+        inp.dataset.f=f; td.className=cls; if(cls==='c') inp.dataset.cell='1';
+        if(last && (cls==='k' || f==='mid_goal_no')){ var pv=last.querySelector('input[data-f="'+f+'"]'); inp.value=pv?pv.value:''; }
+        if(last && f===lastInt && /^\d+$/.test(inp.value)) inp.value=String(+inp.value+1);
+        td.appendChild(inp); tr.appendChild(td);
+      });
+      var tdx=document.createElement('td'); tdx.className='x'; tdx.innerHTML='<button type="button" title="この行を消す">×</button>'; tr.appendChild(tdx);
+      tb.appendChild(tr); tr.querySelector('input').focus(); mark();
+    }
+  });
+  function collect(kind){
+    var rows=[];
+    document.querySelectorAll('#pane-'+kind+' tbody tr').forEach(function(tr){
+      var r={cells:{}};
+      tr.querySelectorAll('input').forEach(function(i){ if(i.dataset.cell) r.cells[i.dataset.f]=i.value; else r[i.dataset.f]=i.value; });
+      rows.push(r);
+    });
+    return rows;
+  }
+  saveBtn.addEventListener('click',function(){
+    saveBtn.disabled=true; dmark.textContent='保存しています…';
+    fetch('{{ url_for('unicon.mapping_save', pid=p.id) }}',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({details:collect('details'),plans:collect('plans'),mid_details:collect('mid_details'),mid_evals:collect('mid_evals')})})
+    .then(function(r){return r.json();})
+    .then(function(j){ dirty=false; location.reload(); })
+    .catch(function(e){ saveBtn.disabled=false; dmark.textContent='保存できませんでした：'+e; });
+  });
+  window.addEventListener('beforeunload',function(e){ if(dirty){ e.preventDefault(); e.returnValue=''; } });
+  var flt=document.getElementById('flt');
+  flt.addEventListener('input',function(){
+    var q=flt.value.trim().split(/[-－\s]+/).filter(Boolean);
+    document.querySelectorAll('table.g tbody tr').forEach(function(tr){
+      var ks=[].map.call(tr.querySelectorAll('td.k input'),function(i){return i.value.trim();});
+      var ok=q.every(function(t,ix){ return ks[ix]===t; });
+      tr.classList.toggle('hide',!ok);
+    });
+  });
+})();
+</script>
+</body>
+</html>

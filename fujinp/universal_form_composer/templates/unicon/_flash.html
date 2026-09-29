@@ -1,0 +1,2 @@
+{% with msgs = get_flashed_messages(with_categories=true) %}{% for cat, m in msgs %}
+<div class="msg {{ 'ng' if cat == 'ng' else 'ok' }}">{{ m }}</div>{% endfor %}{% endwith %}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ゆにこん</title>
+{% include 'unicon/_style.html' %}
+<style>
+ .tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+ .tools form{display:flex;gap:6px;align-items:center}
+ .tools input[type=text]{width:18em}
+ .scroll{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:10px}
+ table.pj{width:100%;border-collapse:collapse;font-size:13px}
+ table.pj th{text-align:left;font-weight:600;color:var(--sub);font-size:12px;padding:8px 10px;border-bottom:1px solid var(--line);background:#faf9fd;white-space:nowrap}
+ table.pj td{padding:8px 10px;border-bottom:1px solid #f0eff5;vertical-align:middle}
+ table.pj tr:last-child td{border-bottom:none}
+ table.pj td.t{font-weight:600;min-width:14em}
+ table.pj td.t .small{font-weight:400;display:block}
+ table.pj td.d{white-space:nowrap;font-variant-numeric:tabular-nums}
+ .ops{display:flex;gap:5px;flex-wrap:wrap}
+ .ops form{display:inline}
+ .empty{padding:28px 16px;text-align:center;color:var(--sub)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <span class="ttl">🦄 ゆにこん<small>部品群から文書をつくり，書き手に依頼する</small></span>
+    <a href="{{ url_for('unicon.return_to_fujin') }}">🏠 FUJIN ダッシュボードに戻る</a>
+  </div>
+  {% include 'unicon/_flash.html' %}
+  {% if db_error %}<div class="msg ng">プロジェクトの表を読めません：{{ db_error }}（unicon_projects が作られているか確認してください）</div>{% endif %}
+
+  {% if editor %}
+  <div class="tools">
+    <form method="post" action="{{ url_for('unicon.new_project') }}">
+      <input type="text" name="title" placeholder="新しいプロジェクトの題目" aria-label="新しいプロジェクトの題目">
+      <button class="btn pri" type="submit">＋ 空で作る</button>
+    </form>
+    <form method="post" action="{{ url_for('unicon.import_new') }}" enctype="multipart/form-data">
+      <label class="btn">📥 ファイルから作る
+        <input class="hidden-file" type="file" name="file" accept=".json" onchange="this.form.submit()"></label>
+    </form>
+    <span class="small">こんかの「ゆにこんへ書き出す」で作った JSON，またはゆにこんのエクスポートを読み込めます．各行のインポートは .json（中身の差し替え）と .xlsx（テーブルとの対応付け）の両方を受け付けます．</span>
+  </div>
+  {% endif %}
+
+  <div class="scroll">
+  <table class="pj">
+    <thead><tr><th>題目</th><th>編集者</th><th>最終変更</th><th>規模</th><th>操作</th></tr></thead>
+    <tbody>
+    {% for p in projects %}
+      <tr>
+        <td class="t"><a href="{{ url_for('unicon.view', pid=p.id) }}">{{ p.title }}</a>
+          {% if p.note %}<span class="small">{{ p.note }}</span>{% endif %}</td>
+        <td>{{ p.editor_name or '—' }}</td>
+        <td class="d">{{ p.updated_at_s }}{% if p.updated_by_name %}<div class="small">{{ p.updated_by_name }}</div>{% endif %}</td>
+        <td class="small">作品 {{ p.summary.works or 0 }}・複合 {{ p.summary.parts or 0 }}・倉庫 {{ p.summary.boxes or 0 }}<br>{{ ((p.data_bytes or 0)/1024)|round(0)|int }} KB</td>
+        <td><div class="ops">
+          <a class="btn" href="{{ url_for('unicon.view', pid=p.id) }}">👁 閲覧</a>
+          {% if p.can_manage %}
+          <a class="btn" href="{{ url_for('unicon.edit', pid=p.id) }}">✏ 編集</a>
+          <a class="btn" href="{{ url_for('unicon.mapping_page', pid=p.id) }}">🔗 テーブルとの対応付け</a>
+          <a class="btn" href="{{ url_for('unicon.export', pid=p.id) }}">⬇ エクスポート</a>
+          <form method="post" action="{{ url_for('unicon.import_replace', pid=p.id) }}" enctype="multipart/form-data">
+            <label class="btn">📥 インポート
+              <input class="hidden-file" type="file" name="file" accept=".json,.xlsx"
+                onchange='var x=/\.xlsx$/i.test(this.value);if(confirm(x?{{ ("「%s」のテーブルとの対応付けを，この xlsx で置き換えます．よろしいですか？" % p.title)|tojson }}:{{ ("「%s」の中身をこのファイルで丸ごと差し替えます．よろしいですか？" % p.title)|tojson }})){this.form.submit()}else{this.value=""}'></label>
+          </form>
+          <form method="post" action="{{ url_for('unicon.delete', pid=p.id) }}"
+                onsubmit='return confirm({{ ("「%s」を削除します．よろしいですか？" % p.title)|tojson }})'>
+            <button class="btn del" type="submit">🗑 削除</button>
+          </form>
+          {% endif %}
+        </div></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="empty">プロジェクトはまだありません．{% if editor %}上の「空で作る」か「ファイルから作る」で始めます．{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+</body>
+</html>

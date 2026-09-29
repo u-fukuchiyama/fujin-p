@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>編集 — {{ p.title }} — ゆにこん</title>
+{% include 'unicon/_style.html' %}
+<style>
+ .wrap{max-width:900px}
+ .f{display:grid;grid-template-columns:7em minmax(0,1fr);gap:8px 12px;align-items:center}
+ .f input[type=text],.f select,.f textarea{width:100%}
+ .f textarea{min-height:4.5em}
+ dl.s{display:grid;grid-template-columns:9em auto;gap:2px 12px;margin:0;font-size:13px}
+ dl.s dt{color:var(--sub)} dl.s dd{margin:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <span class="ttl">✏ {{ p.title }}</span>
+    <div><a href="{{ url_for('unicon.view', pid=p.id) }}">👁 閲覧</a>　<a href="{{ url_for('unicon.index') }}">← ゆにこん</a></div>
+  </div>
+  {% include 'unicon/_flash.html' %}
+
+  <div class="card">
+    <h2>基本情報</h2>
+    <form method="post" class="f">
+      <label for="t">題目</label><input id="t" type="text" name="title" value="{{ p.title }}" required>
+      <label for="e">編集者</label>
+      <select id="e" name="editor_user_id">
+        <option value="">（未設定）</option>
+        {% for u in users %}<option value="{{ u.id }}" {{ 'selected' if u.id == p.editor_user_id else '' }}>{{ u.full_name or u.email }}{% if u.affiliation %}（{{ u.affiliation }}）{% endif %}</option>{% endfor %}
+      </select>
+      <label for="n">メモ</label><textarea id="n" name="note">{{ p.note or '' }}</textarea>
+      <span></span><div><button class="btn pri" type="submit">💾 保存</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>中身</h2>
+    <dl class="s">
+      <dt>作品</dt><dd>{{ p.summary.works or 0 }}</dd>
+      <dt>複合部品</dt><dd>{{ p.summary.parts or 0 }}</dd>
+      <dt>倉庫部品</dt><dd>{{ p.summary.boxes or 0 }}</dd>
+      <dt>箇条</dt><dd>{{ p.summary['items'] or 0 }}</dd>
+      <dt>大きさ</dt><dd>{{ ((p.data_bytes or 0)/1024)|round(0)|int }} KB</dd>
+      <dt>最終変更</dt><dd>{{ p.updated_at_s }} {{ p.updated_by_name }}</dd>
+    </dl>
+    <p class="small"><a href="{{ url_for('unicon.mapping_page', pid=p.id) }}">🔗 テーブルとの対応付け</a>　担当表・フォーム構造の編集は，順に加えていきます．</p>
+  </div>
+</div>
+</body>
+</html>
