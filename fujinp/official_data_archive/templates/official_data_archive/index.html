@@ -178,7 +178,7 @@ body{font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;
 .bak-name{font-family:Consolas,Monaco,monospace;font-size:10px;color:#555;
           word-break:break-all}
 
-/* 一括ダウンロード */
+/* データマイグレーション／一括取り出し */
 .bulk-wrap{flex:1;overflow:auto;min-height:0;background:#fff;padding:16px 20px}
 .bulk-intro{font-size:12.5px;color:#555;line-height:1.7;margin:0 0 16px;
             max-width:880px}
@@ -198,6 +198,13 @@ body{font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;
           border-top:1px solid #2c3a44}
 .bulk-pre.b-loading{color:#9fb3c8;font-style:italic}
 .bulk-pre.b-error{color:#ffb4b4}
+.bulk-card.bulk-import,.bulk-card.bulk-export{border-color:#c0392b;background:#fff7f6}
+.bulk-card.bulk-import .bulk-title,.bulk-card.bulk-export .bulk-title{color:#c0392b}
+.mig-h{font-size:14.5px;color:#1a3a5c;margin:4px 0 8px;max-width:980px}
+.mig-section{margin-bottom:26px;padding-bottom:6px;border-bottom:1px dashed #d5dbe1;max-width:980px}
+.bulk-import-body{padding:10px 15px;font-size:12.5px;line-height:1.6}
+.bulk-import-body ul{margin:6px 0 10px;padding-left:20px;max-height:320px;overflow:auto}
+.bulk-import-body .bi-q{font-weight:700;margin:4px 0}
 
 /* ページャー */
 #pager{display:none;align-items:center;gap:6px;padding:6px 12px;
@@ -265,7 +272,7 @@ body{font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;
   <button class="tab active" data-tab="tables">📁 公式テーブル</button>
   <button class="tab" data-tab="indicator-views">📈 単一指標</button>
   <button class="tab" data-tab="composites">📉 複合指標</button>
-  <button class="tab" data-tab="bulk">📦 一括ダウンロード</button>
+  <button class="tab" data-tab="bulk">🚚 データマイグレーション</button>
   <button class="tab" data-tab="updates">🔄 データ更新</button>
 </div>
 
@@ -442,10 +449,43 @@ body{font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;
 </div><!-- /pane-composites -->
 
 <!-- ============================================================
-     タブ：一括ダウンロード
+     タブ：データマイグレーション（上部）＋定義情報の一括取り出し（下部）
 ============================================================ -->
 <div class="tab-pane hidden" id="pane-bulk">
   <div class="bulk-wrap">
+
+    <div class="mig-section hidden" id="mig-section">
+      <h3 class="mig-h">🚚 データマイグレーション（全体管理者のみ）</h3>
+      <p class="bulk-intro">
+        公式テーブル（登録簿・DDL・全行）と単一指標・複合指標を1本のJSON（全部一括）にまとめて書き出し，別のサイトで読み込んで丸ごと再現します．
+        どちらもテーブル単位で少しずつやり取りするので，大きなテーブルがあっても途中で止まりません．
+      </p>
+
+      <div class="bulk-card bulk-export" id="mig-export">
+        <div class="bulk-head">
+          <div class="bulk-title">⬇ 全部一括（JSON）の書き出し</div>
+          <div class="bulk-desc">登録簿に載っている全テーブルの定義と全行，単一指標，複合指標を書き出します</div>
+          <div class="bulk-ops">
+            <button class="btn-toggle" id="mig-export-go">書き出す</button>
+          </div>
+        </div>
+        <div class="bulk-import-body hidden" id="mig-export-body"></div>
+      </div>
+
+      <div class="bulk-card bulk-import" id="bulk-import">
+        <div class="bulk-head">
+          <div class="bulk-title">⬆ 全部一括（JSON）の取り込み</div>
+          <div class="bulk-desc">全部一括（JSON）を読み込み，公式テーブル（DDL・全行）・登録簿・単一指標・複合指標を上書きします</div>
+          <div class="bulk-ops">
+            <input type="file" id="bulk-import-file" accept=".json,application/json" style="display:none">
+            <button class="btn-toggle" id="bulk-import-pick">📂 ファイルを選ぶ</button>
+          </div>
+        </div>
+        <div class="bulk-import-body hidden" id="bulk-import-body"></div>
+      </div>
+    </div>
+
+    <h3 class="mig-h">📦 定義情報の一括取り出し</h3>
     <p class="bulk-intro">
       登録されている公式テーブル・指標の定義情報を、種類ごとにまとめて取り出せます。
       各項目とも「表示」で本文を読み込み、📋 でクリップボードにコピー、⬇ でファイルとして保存できます。
@@ -673,6 +713,10 @@ const URL_UP_APPLY    = '{{ url_for("official_data_archive.api_update_apply") }}
 const URL_UP_REJECT   = '{{ url_for("official_data_archive.api_update_reject") }}';
 const URL_BULK        = '{{ url_for("official_data_archive.api_bulk") }}';
 const URL_BULK_DL     = '{{ url_for("official_data_archive.api_bulk_download") }}';
+const URL_MIG_TABLE = '{{ url_for("official_data_archive.api_migration_import_table") }}';
+const URL_MIG_DEFS  = '{{ url_for("official_data_archive.api_migration_import_definitions") }}';
+const URL_MIG_MANIFEST = '{{ url_for("official_data_archive.api_migration_manifest") }}';
+const URL_MIG_EXPORT   = '{{ url_for("official_data_archive.api_migration_table") }}';
 
 const PAGE_SIZE = 500;
 let allRows    = [];
@@ -753,6 +797,7 @@ function loadTableList(){
       return;
     }
     $('#btn-add').toggle(!!data.can_add);
+    $('#mig-section').toggleClass('hidden', !data.is_global);
 
     // 追加モーダルのDB選択肢
     const $sel = $('#in-db').empty();
@@ -1879,15 +1924,255 @@ function deleteComposite(c){
 }
 
 // ============================================================
-// 各種データ一括ダウンロード
+// 定義情報の一括取り出し
 // ============================================================
 // カードごとに読み込んだ本文を保持（コピー用）
 const bulkText = {};
 
 // ダウンロードリンクの href を組み立てる
-$('#pane-bulk .bulk-card').each(function(){
+$('#pane-bulk .bulk-card[data-kind]').each(function(){
   const kind = $(this).data('kind');
   $(this).find('.b-dl').attr('href', URL_BULK_DL + '?kind=' + encodeURIComponent(kind));
+});
+
+
+// ============================================================
+// データマイグレーション（全部一括JSONの書き出しと取り込み）
+//   サーバとはテーブル単位の短いリクエストでやり取りし，
+//   JSONの組み立て・分解はブラウザ側で行う
+// ============================================================
+const MIG_POST_BYTES   = 2 * 1024 * 1024;   // 取り込み：1回の送信の目安
+const MIG_FETCH_BYTES  = 3 * 1024 * 1024;   // 書き出し：1回の受信の目安
+const MIG_FIRST_LIMIT  = 100;               // 書き出し：各テーブル最初の行数
+const MIG_WAIT_MS      = 300;               // 送受信の間合い
+const MIG_RETRY        = 3;                 // 1回あたりの試行回数
+
+function migSleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+// 1回のやり取り（失敗したら間を空けて再試行）
+async function migCall(method, url, payload){
+  let lastErr = '';
+  for(let k = 1; k <= MIG_RETRY; k++){
+    try{
+      const opt = (method === 'GET')
+        ? {url: url, method: 'GET', data: payload}
+        : {url: url, method: 'POST', contentType: 'application/json',
+           data: JSON.stringify(payload)};
+      const d = await $.ajax(opt);
+      if(d && d.success) return d;
+      lastErr = (d && d.error) || '不明なエラー';
+    }catch(xhr){
+      lastErr = (xhr.responseJSON && xhr.responseJSON.error) ||
+                ('通信エラー（' + (xhr.status||'-') + '）');
+    }
+    await migSleep(MIG_WAIT_MS * 5 * k);
+  }
+  throw new Error(lastErr);
+}
+
+// ---------- 書き出し ----------
+$('#mig-export-go').on('click', async function(){
+  const $btn  = $(this).prop('disabled', true);
+  const $body = $('#mig-export-body').removeClass('hidden').empty();
+  const $st   = $('<div class="bi-q">').appendTo($body);
+  const $ul   = $('<ul>').appendTo($body);
+  try{
+    $st.text('目次を取得しています…');
+    const m = await migCall('GET', URL_MIG_MANIFEST, {});
+    const regs = m.registry || [];
+    const parts = [];       // Blob にする断片（巨大な1本の文字列を作らない）
+    let nTables = 0, nRows = 0, fail = 0;
+
+    for(let i = 0; i < regs.length; i++){
+      const reg  = regs[i];
+      const name = reg.database_name + ' / ' + reg.table_name;
+      const $li  = $('<li>').text(name + '　…').appendTo($ul);
+      $ul.scrollTop($ul[0].scrollHeight);
+      if(i > 0) parts.push(',');
+      if((m.db_choices||[]).indexOf(reg.database_name) < 0){
+        parts.push(JSON.stringify({registry: reg, error: '未対応のデータベース指定'}));
+        $li.text(name + '　対象外（未対応のデータベース）');
+        continue;
+      }
+      const chunks = [];
+      let offset = 0, limit = MIG_FIRST_LIMIT, ddl = null, columns = null;
+      try{
+        while(true){
+          $st.text('書き出し中 ' + (i+1) + '/' + regs.length + '：' + name +
+                   (offset ? '（' + offset + '行）' : ''));
+          const d = await migCall('GET', URL_MIG_EXPORT,
+            {table: reg.table_name, db: reg.database_name, offset: offset, limit: limit});
+          if(offset === 0){ ddl = d.ddl; columns = d.columns; }
+          if(d.rows.length) chunks.push(JSON.stringify(d.rows).slice(1, -1));
+          offset += d.rows.length;
+          if(d.done) break;
+          limit = Math.max(1, Math.min(5000,
+                    Math.floor(limit * MIG_FETCH_BYTES / Math.max(1, d.bytes || 1))));
+          await migSleep(MIG_WAIT_MS);
+        }
+        parts.push('{"registry":' + JSON.stringify(reg) +
+                   ',"ddl":' + JSON.stringify(ddl) +
+                   ',"columns":' + JSON.stringify(columns) +
+                   ',"row_count":' + offset + ',"rows":[');
+        chunks.forEach(function(c, k){ if(k) parts.push(','); parts.push(c); });
+        parts.push(']}');
+        nTables++; nRows += offset;
+        $li.text(name + '　' + offset + '行');
+      }catch(e){
+        fail++;
+        parts.push(JSON.stringify({registry: reg, error: e.message}));
+        $li.text(name + '　失敗：' + e.message).css('color', '#c0392b');
+      }
+      await migSleep(MIG_WAIT_MS);
+    }
+
+    const h = m.header;
+    h.counts = {tables: nTables, rows: nRows,
+                indicator_views: (m.indicator_views||[]).length,
+                composites: (m.composites||[]).length};
+    h.package_note = '公式データ集の移行用スナップショット。tables[]=登録簿情報（registry）'
+      + '＋DDL＋列名＋全行（rows は columns の順）。管理グループは名前で持ち運ぶ。'
+      + '取り込み先では同名テーブルを DROP して DDL から作り直し全行を INSERT、'
+      + '登録簿・単一指標・複合指標は全削除のうえ再作成する（破壊的再現）。';
+    const headJson = JSON.stringify(h);
+    const out = [headJson.slice(0, -1) + ',"tables":['].concat(parts);
+    out.push('],"indicator_views":' + JSON.stringify(m.indicator_views || []) +
+             ',"composites":' + JSON.stringify(m.composites || []) + '}');
+    const blob = new Blob(out, {type: 'application/json'});
+    const fname = 'official_data_archive_migration_' +
+      (h.generated_at || '').replace(/[-: ]/g, '').replace(/^(\d{8})(\d{6})$/, '$1_$2') + '.json';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 60000);
+    $st.text((fail ? '書き出しました（失敗 ' + fail + ' テーブル）．' : '書き出しました．') +
+      '　' + nTables + 'テーブル・' + nRows + '行／単一指標 ' + h.counts.indicator_views +
+      '件／複合指標 ' + h.counts.composites + '件　' + fname);
+    toast(fail ? ('失敗 ' + fail + ' テーブル') : '書き出しました', !!fail);
+  }catch(e){
+    $st.text('エラー：' + e.message);
+    toast('エラー: ' + e.message, true);
+  }finally{
+    $btn.prop('disabled', false);
+  }
+});
+
+// ---------- 取り込み ----------
+//   ファイルを読んで上書きするテーブル名を並べ，確認のうえ送る．
+//   各テーブルは最初の送信で DROP → CREATE するので，途中で止まっても
+//   最初からやり直せば同じ結果になる（冪等）．
+let importPkg = null;
+
+function migImportable(t){
+  return t && t.ddl && !t.error && t.registry && t.registry.table_name;
+}
+
+$('#bulk-import-pick').on('click', function(){
+  $('#bulk-import-file').val('').trigger('click');
+});
+
+$('#bulk-import-file').on('change', function(){
+  const f = this.files && this.files[0];
+  if(!f) return;
+  const $body = $('#bulk-import-body').removeClass('hidden').text('読み込み中…');
+  const rd = new FileReader();
+  rd.onload = function(){
+    let pkg;
+    try{ pkg = JSON.parse(rd.result); }
+    catch(e){ $body.text('JSONとして読めません'); return; }
+    if(!pkg || pkg.export_type !== 'official_data_archive_migration'){
+      $body.text('全部一括（JSON）のファイルではありません'); return;
+    }
+    importPkg = pkg;
+    const items = (pkg.tables||[]).filter(migImportable);
+    const $ul = $('<ul>');
+    items.forEach(function(t){
+      $ul.append($('<li>').text(t.registry.database_name + ' / ' +
+        t.registry.table_name + '（' + (t.row_count||0) + '行）'));
+    });
+    $body.empty()
+      .append($('<div>').text('読み込み元：' + (pkg.site_name||'') + '　' + (pkg.generated_at||'')))
+      .append($('<div class="bi-q">').text('次の ' + items.length + ' テーブルを上書きします．これでいいですね．'))
+      .append($ul)
+      .append($('<button class="btn-toggle" id="bulk-import-go">').text('上書きする'))
+      .append(' ')
+      .append($('<button class="btn-toggle" id="bulk-import-cancel">').text('やめる'));
+  };
+  rd.readAsText(f, 'utf-8');
+});
+
+$('#pane-bulk').on('click', '#bulk-import-cancel', function(){
+  importPkg = null;
+  $('#bulk-import-body').addClass('hidden').empty();
+});
+
+// 行を送信の目安の大きさで切り分ける（空のテーブルも1回は送る）
+function migSplitRows(rows){
+  const chunks = [];
+  let cur = [], size = 0;
+  rows.forEach(function(r){
+    const n = JSON.stringify(r).length;
+    if(cur.length && size + n > MIG_POST_BYTES){ chunks.push(cur); cur = []; size = 0; }
+    cur.push(r); size += n;
+  });
+  chunks.push(cur);
+  return chunks;
+}
+
+$('#pane-bulk').on('click', '#bulk-import-go', async function(){
+  if(!importPkg) return;
+  const pkg = importPkg;
+  const items = (pkg.tables||[]).filter(migImportable);
+  const $body = $('#bulk-import-body').empty();
+  const $st  = $('<div class="bi-q">').appendTo($body);
+  const $ul  = $('<ul>').appendTo($body);
+  let fail = 0;
+
+  for(let i = 0; i < items.length; i++){
+    const t = items[i];
+    const name = t.registry.database_name + ' / ' + t.registry.table_name;
+    const rows = t.rows || [];
+    const $li = $('<li>').text(name + '　…').appendTo($ul);
+    $ul.scrollTop($ul[0].scrollHeight);
+    try{
+      const chunks = migSplitRows(rows);
+      let done = 0;
+      for(let k = 0; k < chunks.length; k++){
+        $st.text('取り込み中 ' + (i+1) + '/' + items.length + '：' + name +
+                 (chunks.length > 1 ? '（' + done + '/' + rows.length + '行）' : ''));
+        const d = await migCall('POST', URL_MIG_TABLE, {
+          registry: t.registry, ddl: t.ddl, columns: t.columns,
+          rows: chunks[k], reset: k === 0
+        });
+        done += d.rows || 0;
+        await migSleep(MIG_WAIT_MS);
+      }
+      $li.text(name + '　' + done + '行');
+    }catch(e){
+      fail++;
+      $li.text(name + '　失敗：' + e.message).css('color', '#c0392b');
+    }
+  }
+
+  $st.text('登録簿・単一指標・複合指標を作り直しています…');
+  try{
+    const d = await migCall('POST', URL_MIG_DEFS, {
+      tables: (pkg.tables||[]).map(function(t){ return {registry: t.registry}; }),
+      indicator_views: pkg.indicator_views || [],
+      composites: pkg.composites || []
+    });
+    const c = d.counts || {};
+    $st.text((fail ? '終了（失敗 ' + fail + ' テーブル．もう一度実行すれば最初からやり直します）'
+                   : '取り込みました．') +
+      '　登録簿 ' + (c.registry||0) + '件／単一指標 ' +
+      (c.indicator_views||0) + '件／複合指標 ' + (c.composites||0) + '件');
+    toast(fail ? ('失敗 ' + fail + ' テーブル') : '取り込みました', !!fail);
+  }catch(e){
+    $st.text('エラー：' + e.message);
+    toast('エラー: ' + e.message, true);
+  }
+  loadTableList(); loadIvList(); loadCpList();
 });
 
 // 「表示」：本文を読み込んで <pre> に表示し、コピーを有効化する

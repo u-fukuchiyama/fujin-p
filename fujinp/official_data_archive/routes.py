@@ -1684,6 +1684,361 @@ def api_bulk_download():
 
 
 # ────────────────────────────────────────────
+# データマイグレーション（全部一括JSONの書き出しと取り込み）
+#   公式テーブル（登録簿・DDL・全行）、単一指標、複合指標を1本のJSONで
+#   持ち運び、移行先で破壊的に再現する。全体管理者のみ。
+#   書き出しも取り込みもブラウザが組み立て役になり、サーバとはテーブル単位
+#   （大きい表は行を分割）の短いリクエストでやり取りする（タイムアウト対策）。
+#   管理グループは名前で持ち運ぶ（グループ id はサイト間で一致しないため）。
+#   JSONの形式は fujinpshowcase 版の「全部一括（JSON）」（format_version 1）と
+#   同じで、どちらの版で書き出したものも取り込める。
+# ────────────────────────────────────────────
+
+MIGRATION_FORMAT_VERSION = 2
+MIGRATION_PAGE_MAX = 5000     # 書き出し1回あたりの最大行数
+MIGRATION_EXPORT_TYPE = 'official_data_archive_migration'
+MIGRATION_INSERT_CHUNK = 500
+
+
+def _migration_val(v):
+    """行データの値をJSON化可能にする（日時は文字列、Decimalは文字列で桁を保持）。"""
+    import decimal
+    if isinstance(v, decimal.Decimal):
+        return str(v)
+    return safe_val(v)
+
+
+def _migration_indicators():
+    """単一指標の全定義。"""
+    conn = mysql.connector.connect(**DatabaseConfig.default())
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT v.id, v.name, v.query, v.sort_order, v.chart_type,
+                   g.name AS manager_group_name
+            FROM official_data_archive_indicator_views v
+            LEFT JOIN user_groups g ON v.manager_group_id = g.id
+            ORDER BY v.sort_order, v.name
+        """)
+        views = cursor.fetchall()
+        cursor.close()
+    finally:
+        conn.close()
+    return [{
+        'id': v['id'],
+        'name': v['name'],
+        'query': v['query'],
+        'sort_order': _migration_val(v['sort_order']),
+        'chart_type': v.get('chart_type') or 'bar',
+        'manager_group_name': v.get('manager_group_name'),
+    } for v in views]
+
+
+def _migration_composites():
+    """複合指標の全定義と構成（単一指標は id と名前の両方で参照）。"""
+    conn = mysql.connector.connect(**DatabaseConfig.default())
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT c.id, c.name, c.sort_order, g.name AS manager_group_name
+            FROM official_data_archive_composites c
+            LEFT JOIN user_groups g ON c.manager_group_id = g.id
+            ORDER BY c.sort_order, c.name
+        """)
+        composites = cursor.fetchall()
+        cursor.execute("""
+            SELECT cc.composite_id, cc.color, cc.seq,
+                   cc.indicator_view_id, v.name AS indicator_name
+            FROM official_data_archive_composite_components cc
+            LEFT JOIN official_data_archive_indicator_views v
+                   ON cc.indicator_view_id = v.id
+            ORDER BY cc.composite_id, cc.seq
+        """)
+        comp_rows = cursor.fetchall()
+        cursor.close()
+    finally:
+        conn.close()
+    by_comp = {}
+    for r in comp_rows:
+        by_comp.setdefault(r['composite_id'], []).append({
+            'seq': r['seq'],
+            'color': r['color'],
+            'indicator_view_id': r['indicator_view_id'],
+            'indicator_name': r['indicator_name'],
+        })
+    return [{
+        'id': c['id'],
+        'name': c['name'],
+        'sort_order': _migration_val(c['sort_order']),
+        'manager_group_name': c.get('manager_group_name'),
+        'components': by_comp.get(c['id'], []),
+    } for c in composites]
+
+
+@official_data_archive_bp.route('/api/migration/manifest', methods=['GET'])
+@login_required
+def api_migration_manifest():
+    """書き出しの目次：JSONの見出し情報、登録簿、単一指標、複合指標。
+    テーブルの中身は /api/migration/table で1本ずつ取る。全体管理者のみ。"""
+    user_id = session.get('user_id')
+    if not is_global_manager(user_id):
+        return jsonify({'success': False,
+                        'error': '全体管理者のみ実行できます'}), 403
+    try:
+        conn = mysql.connector.connect(**DatabaseConfig.default())
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT full_name FROM users WHERE id = %s", (user_id,))
+            u = cursor.fetchone() or {}
+            cursor.close()
+        finally:
+            conn.close()
+        registry = [{
+            'table_name': r['table_name'],
+            'database_name': r['database_name'],
+            'display_name': r.get('display_name'),
+            'note': r.get('note'),
+            'manager_group_name': r.get('manager_group_name'),
+        } for r in _registered_tables()]
+        return jsonify({
+            'success': True,
+            'header': {
+                'export_type': MIGRATION_EXPORT_TYPE,
+                'format_version': MIGRATION_FORMAT_VERSION,
+                'app_name': 'official_data_archive',
+                'site_name': getattr(Config, 'SITE_NAME', None) or request.host,
+                'site_url': request.host_url.rstrip('/'),
+                'generated_at': get_jst_now().strftime('%Y-%m-%d %H:%M:%S'),
+                'generated_by': u.get('full_name'),
+            },
+            'registry': registry,
+            'db_choices': list(DB_CHOICES.keys()),
+            'indicator_views': _migration_indicators(),
+            'composites': _migration_composites(),
+        })
+    except Exception as e:
+        logging.error("api_migration_manifest error: %s", e)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@official_data_archive_bp.route('/api/migration/table', methods=['GET'])
+@login_required
+def api_migration_table():
+    """登録済みテーブル1本の一部を返す。全体管理者のみ。
+    パラメータ: table, db, offset, limit。offset=0 のときだけ DDL と列名を付ける。
+    行の順序は主キー順（主キーが無ければ格納順）。"""
+    import json
+    user_id = session.get('user_id')
+    if not is_global_manager(user_id):
+        return jsonify({'success': False,
+                        'error': '全体管理者のみ実行できます'}), 403
+    table = (request.args.get('table') or '').strip()
+    db = (request.args.get('db') or '').strip()
+    if db not in DB_CHOICES or not _registry_lookup(table, db):
+        return jsonify({'success': False,
+                        'error': '登録簿にないテーブルです'}), 404
+    try:
+        offset = max(0, int(request.args.get('offset') or 0))
+        limit = min(MIGRATION_PAGE_MAX,
+                    max(1, int(request.args.get('limit') or 100)))
+    except ValueError:
+        return jsonify({'success': False, 'error': '数値の指定が不正です'}), 400
+
+    conn = mysql.connector.connect(**DB_CHOICES[db]())
+    try:
+        cur = conn.cursor()
+        out = {'success': True}
+        if offset == 0:
+            cur.execute('SHOW CREATE TABLE `%s`' % table)
+            row = cur.fetchone()
+            out['ddl'] = row[1] if row and len(row) > 1 else None
+        cur.execute("SHOW KEYS FROM `%s` WHERE Key_name = 'PRIMARY'" % table)
+        keys = sorted(cur.fetchall(), key=lambda k: k[3])   # Seq_in_index
+        order = (' ORDER BY ' + ', '.join('`%s`' % k[4] for k in keys)) if keys else ''
+        cur.execute('SELECT * FROM `%s`%s LIMIT %d OFFSET %d'
+                    % (table, order, limit, offset))
+        cols = [d[0] for d in cur.description]
+        rows = [[_migration_val(v) for v in rec] for rec in cur.fetchall()]
+        cur.close()
+        if offset == 0:
+            out['columns'] = cols
+        out['rows'] = rows
+        out['done'] = len(rows) < limit
+        out['bytes'] = len(json.dumps(rows, ensure_ascii=False, default=str))
+        return jsonify(out)
+    except Exception as e:
+        logging.error("api_migration_table %s: %s", table, e)
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+def _migration_importable(item):
+    """取り込み対象のテーブル項目か（DDLがあり、所在DBがこのサイトにある）。"""
+    reg = item.get('registry') or {}
+    return (not item.get('error') and item.get('ddl')
+            and reg.get('table_name')
+            and reg.get('database_name') in DB_CHOICES)
+
+
+def _migration_import_table(item, reset):
+    """1テーブル分（または行の一部）を書き込む。
+    reset=True なら DROP → 同梱DDLで CREATE してから INSERT、
+    False なら既存テーブルへ INSERT のみ（行を分割して送る2回目以降）。挿入行数を返す。"""
+    reg = item['registry']
+    tbl = reg['table_name']
+    conn = mysql.connector.connect(**DB_CHOICES[reg['database_name']]())
+    cur = conn.cursor()
+    try:
+        cur.execute("SET FOREIGN_KEY_CHECKS=0")
+        if reset:
+            cur.execute("DROP TABLE IF EXISTS `%s`" % tbl)
+            cur.execute(item['ddl'])
+        cols = item.get('columns') or []
+        rows = item.get('rows') or []
+        if cols and rows:
+            sql = "INSERT INTO `%s` (%s) VALUES (%s)" % (
+                tbl, ', '.join('`%s`' % c for c in cols),
+                ', '.join(['%s'] * len(cols)))
+            for i in range(0, len(rows), MIGRATION_INSERT_CHUNK):
+                cur.executemany(sql, [tuple(r) for r in
+                                      rows[i:i + MIGRATION_INSERT_CHUNK]])
+        conn.commit()
+        return len(rows)
+    finally:
+        try:
+            cur.execute("SET FOREIGN_KEY_CHECKS=1")
+        except Exception:
+            pass
+        cur.close(); conn.close()
+
+
+def _migration_import_definitions(pkg, user_id, now):
+    """登録簿・単一指標・複合指標を全削除して再作成する。件数を返す。"""
+    conn = mysql.connector.connect(**DatabaseConfig.default())
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT id, name FROM user_groups")
+        gid = {name: i for i, name in cur.fetchall()}
+
+        # ── 登録簿 ──
+        cur.execute("DELETE FROM official_data_archive_tables")
+        n_reg = 0
+        seen = set()
+        for item in pkg.get('tables') or []:
+            reg = item.get('registry') or {}
+            key = (reg.get('database_name'), reg.get('table_name'))
+            if not all(key) or key in seen:
+                continue
+            seen.add(key)
+            cur.execute("""
+                INSERT INTO official_data_archive_tables
+                    (table_name, database_name, display_name, note,
+                     manager_group_id, created_by, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (reg['table_name'], reg['database_name'],
+                  reg.get('display_name'), reg.get('note'),
+                  gid.get(reg.get('manager_group_name')), user_id, now))
+            n_reg += 1
+
+        # ── 単一指標・複合指標 ──
+        cur.execute("DELETE FROM official_data_archive_composite_components")
+        cur.execute("DELETE FROM official_data_archive_composites")
+        cur.execute("DELETE FROM official_data_archive_indicator_views")
+
+        iv_ids = set()
+        iv_by_name = {}
+        for v in pkg.get('indicator_views') or []:
+            cur.execute("""
+                INSERT INTO official_data_archive_indicator_views
+                    (id, name, query, sort_order, chart_type,
+                     manager_group_id, created_by, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (v['id'], v['name'], v['query'], v.get('sort_order') or 100,
+                  v.get('chart_type') or 'bar',
+                  gid.get(v.get('manager_group_name')), user_id, now))
+            iv_ids.add(v['id'])
+            iv_by_name.setdefault(v['name'], v['id'])
+
+        n_comp = 0
+        for c in pkg.get('composites') or []:
+            cur.execute("""
+                INSERT INTO official_data_archive_composites
+                    (id, name, sort_order, manager_group_id,
+                     created_by, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (c['id'], c['name'], c.get('sort_order') or 100,
+                  gid.get(c.get('manager_group_name')), user_id, now))
+            n_comp += 1
+            for m in c.get('components') or []:
+                iv = m.get('indicator_view_id')
+                if iv not in iv_ids:
+                    iv = iv_by_name.get(m.get('indicator_name'))
+                if iv is None:
+                    continue
+                cur.execute("""
+                    INSERT INTO official_data_archive_composite_components
+                        (composite_id, indicator_view_id, color, seq)
+                    VALUES (%s, %s, %s, %s)
+                """, (c['id'], iv, m.get('color') or '#2e6da4',
+                      m.get('seq') or 1))
+        conn.commit()
+        return {'registry': n_reg, 'indicator_views': len(iv_ids),
+                'composites': n_comp}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close(); conn.close()
+
+
+# 取り込みはブラウザ側で JSON を分解し、テーブルごと（大きい表は行を分割して）
+# 順に送る。1リクエストを短く保ってタイムアウトを避けるため。
+# 各テーブルは最初の送信（reset=true）で作り直すので、途中で止まっても
+# 最初からやり直せば同じ結果になる（冪等）。
+
+@official_data_archive_bp.route('/api/migration/import/table', methods=['POST'])
+@login_required
+def api_migration_import_table():
+    """1テーブル分を取り込む。全体管理者のみ。
+    リクエスト: { registry, ddl, columns, rows, reset }"""
+    user_id = session.get('user_id')
+    if not is_global_manager(user_id):
+        return jsonify({'success': False,
+                        'error': '全体管理者のみ実行できます'}), 403
+    item = request.get_json(silent=True) or {}
+    if not _migration_importable(item):
+        return jsonify({'success': False,
+                        'error': '取り込み対象外のテーブルです'}), 400
+    try:
+        n = _migration_import_table(item, bool(item.get('reset')))
+        return jsonify({'success': True, 'rows': n})
+    except Exception as e:
+        logging.error("api_migration_import_table %s: %s",
+                      (item.get('registry') or {}).get('table_name'), e)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@official_data_archive_bp.route('/api/migration/import/definitions', methods=['POST'])
+@login_required
+def api_migration_import_definitions():
+    """登録簿・単一指標・複合指標を全削除して再作成する。全体管理者のみ。
+    リクエスト: { tables: [{registry}], indicator_views, composites }"""
+    user_id = session.get('user_id')
+    if not is_global_manager(user_id):
+        return jsonify({'success': False,
+                        'error': '全体管理者のみ実行できます'}), 403
+    pkg = request.get_json(silent=True) or {}
+    try:
+        counts = _migration_import_definitions(pkg, user_id, get_jst_now())
+        return jsonify({'success': True, 'counts': counts})
+    except Exception as e:
+        logging.error("api_migration_import_definitions: %s", e)
+        return jsonify({'success': False,
+                        'error': f'登録簿・指標の再作成に失敗しました：{e}'}), 500
+
+
+# ────────────────────────────────────────────
 # データ更新（公式テーブルのExcel更新ワークフロー）
 #   担当者（アイテムの管理グループ所属者）がExcelを提供し、
 #   全体管理者がDBバックアップを取りながら正式テーブルへ転記する。
