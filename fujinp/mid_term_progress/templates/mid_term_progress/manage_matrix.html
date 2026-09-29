@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>担当の割り当て {{ year or '' }}年度 - 事業全貌</title>
+<style>
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans",sans-serif; background:#f1f5f9; color:#1f2937; font-size:13px; display:flex; flex-direction:column; }
+  .bar { background:#1f2937; color:#fff; padding:8px 14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; flex:0 0 auto; }
+  .bar h1 { font-size:1rem; margin:0 6px 0 0; white-space:nowrap; }
+  .btn { display:inline-block; padding:4px 11px; border-radius:6px; border:1px solid #c7d2fe; background:#eef2ff; color:#3730a3; text-decoration:none; font-size:0.8rem; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .btn:hover { background:#e0e7ff; }
+  .btn.top { background:#334155; color:#fff; border-color:#334155; }   /* このアプリのトップ（事業全貌） */
+  .btn.fujin { background:#e74c3c; color:#fff; border-color:#e74c3c; }   /* FUJIN-P：赤地に白字（全アプリ共通） */
+  .btn.pri { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+  select, input[type=text] { padding:4px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.82rem; font-family:inherit; }
+  .sub { flex:0 0 auto; padding:6px 14px; display:flex; gap:14px; flex-wrap:wrap; align-items:center; font-size:0.8rem; background:#fff; border-bottom:1px solid #e2e8f0; }
+  .sub .muted { color:#64748b; }
+  .sub .warn { color:#c2410c; font-weight:600; }
+  #wrap { flex:1 1 auto; overflow:scroll; background:#fff; position:relative; }
+  table.mx { border-collapse:separate; border-spacing:0; }
+  table.mx th, table.mx td { border-right:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb; }
+  table.mx thead th { position:sticky; top:0; z-index:3; background:#f8fafc; vertical-align:bottom; }
+  table.mx thead th.gh { width:30px; min-width:30px; max-width:30px; padding:6px 0 4px; cursor:default; text-align:center; }
+  .gname { font-family:"Hiragino Sans","Yu Gothic UI","Yu Gothic","Meiryo","Noto Sans CJK JP","Noto Sans JP",sans-serif; writing-mode:vertical-rl; text-orientation:mixed; white-space:nowrap; font-size:0.78rem; font-weight:600; color:#334155; display:inline-block; height:170px; overflow:hidden; text-overflow:ellipsis; line-height:1.2; }
+  th.gh:hover .gname { height:auto; min-height:170px; overflow:visible; text-overflow:clip; background:#fffbeb; position:relative; z-index:6; box-shadow:0 4px 10px rgba(0,0,0,.15); border-radius:4px; padding:2px 0; }
+  .gcount { display:block; font-size:0.66rem; color:#64748b; text-align:center; margin-top:4px; }
+  table.mx .lead { position:sticky; left:0; z-index:2; background:#fff; min-width:250px; max-width:250px; padding:4px 8px; }
+  table.mx thead th.lead { z-index:4; background:#f1f5f9; text-align:left; vertical-align:bottom; font-size:0.74rem; color:#64748b; }
+  .pno { font-weight:700; color:#1e3a8a; white-space:nowrap; }
+  .pno .ann { font-weight:600; color:#64748b; font-size:0.72rem; margin-left:4px; }
+  .ptxt { display:block; font-size:0.72rem; color:#475569; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .none { color:#c2410c; font-size:0.7rem; font-weight:700; margin-left:6px; }
+  .other { font-size:0.68rem; color:#7c3aed; margin-left:4px; }
+  td.c { width:30px; min-width:30px; text-align:center; padding:0; cursor:pointer; }
+  td.c input { width:15px; height:15px; margin:6px 0; cursor:pointer; }
+  td.c.on { background:#dcfce7; }
+  td.c.txt::after { content:'✎'; font-size:0.6rem; color:#15803d; position:relative; top:-2px; }
+  tr.hl td, tr.hl .lead { background:#fef9c3 !important; }
+  .colhl { background:#fef9c3 !important; }
+  td.c.on.colhl, tr.hl td.c.on { background:#bbf7d0 !important; }
+  tr.goalrow td { background:#eef2ff; color:#3730a3; font-size:0.74rem; font-weight:600; padding:3px 8px; position:sticky; left:0; }
+  .hidden { display:none !important; }
+  #setup { flex:0 0 auto; padding:8px 14px; background:#fffbeb; border-bottom:1px solid #fde68a; display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:0.8rem; }
+  #setup b { color:#92400e; }
+  #setup select { min-width:16em; max-width:22em; }
+  .hctl { display:block; margin-top:4px; }
+  .hctl button { display:block; width:24px; margin:2px auto 0; padding:0; font-size:0.72rem; line-height:18px; border-radius:4px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; }
+  .hctl button.del { color:#b91c1c; border-color:#fecaca; }
+  .hctl button.add { color:#047857; border-color:#a7f3d0; }
+  .hidx { display:block; font-size:0.62rem; color:#94a3b8; text-align:center; }
+  .mode { font-size:0.74rem; padding:2px 8px; border-radius:10px; background:#e0e7ff; color:#3730a3; font-weight:600; }
+  body.setup .mode { background:#fde68a; color:#92400e; }
+  @media (max-width:600px) { #setup select { min-width:0; max-width:100%; flex:1 1 12em; } .bar h1 { font-size:0.92rem; } }
+  #toast { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); background:#1f2937; color:#fff; padding:6px 14px; border-radius:8px; font-size:0.8rem; opacity:0; transition:opacity .3s; pointer-events:none; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>{% if readonly %}🗂 担当表（計画別）{% else %}🧭 担当の割り当て{% endif %}</h1>
+  <form method="get" style="display:flex;gap:6px;align-items:center;">
+    <label for="yearSel" style="font-size:0.8rem;">年度</label>
+    <select id="yearSel" name="year" onchange="this.form.submit()">
+      {% for y in years %}<option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}年度</option>{% endfor %}
+    </select>
+  </form>
+  {% if years and not readonly %}<button class="btn pri" type="button" onclick="openYear()">＋ {{ years[-1] + 1 }}年度を開く</button>{% endif %}
+  <input type="text" id="flt" placeholder="計画番号・目標で絞り込み" style="width:13em;" aria-label="絞り込み">
+  <label style="font-size:0.78rem;"><input type="checkbox" id="onlyNone"> 担当なしのみ</label>
+  <button class="btn" type="button" id="modeBtn" onclick="setMode(!document.body.classList.contains('setup'))">🏢 列の設定</button>
+  <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
+    <a class="btn" href="?year={{ year }}&view=rows">🗂 担当表（部門別）</a>
+    {% if not readonly %}<a class="btn" href="?year={{ year }}&view=list">☰ 一覧で細目を編集</a>{% endif %}
+    {% if can_edit %}<a class="btn" href="{{ url_for('mid_term_progress.editor') }}?year={{ year }}">🧩 編集者ダッシュボード</a>{% endif %}
+    <a class="btn top" href="{{ url_for('mid_term_progress.view') }}" title="事業全貌（このアプリのトップ）">📊 トップ</a>
+    <a class="btn fujin" href="{{ url_for('mid_term_progress.return_to_fujin') }}">🏠 FUJIN-P</a>
+    {% if not readonly %}<a class="btn" href="{{ url_for('mid_term_progress.upload_page') }}">📁 データ管理</a>{% endif %}
+  </span>
+</div>
+<div class="sub">
+  <b>{{ year }}年度</b>
+  <span>年度計画 <span id="nRows"></span></span>
+  <span>担当あり <span id="nAssigned"></span></span>
+  <span class="warn">担当なし <span id="nNone"></span></span>
+  <span class="mode" id="modeLabel"></span>
+  <span class="muted" id="modeHelp"></span>
+</div>
+{% if not readonly %}<div id="setup">
+  <b>列の設定</b>
+  <input type="text" id="gq" placeholder="部門名で探す" style="width:10em;" aria-label="部門名で探す">
+  <select id="gsel" aria-label="加える部門"></select>
+  <button class="btn pri" type="button" onclick="addAt(COLS.length)">右端に加える ⇥</button>
+  <button class="btn" type="button" onclick="addAt(0)">⇤ 左端に加える</button>
+  <span class="muted">列見出しの「＋」でその列の右に，「✕」でその列を外します．設定中もチェックできます．</span>
+</div>{% else %}<div id="setup" class="hidden"><select id="gsel"></select><input id="gq"></div>{% endif %}
+<div id="wrap"><table class="mx" id="mx"></table></div>
+
+<div id="toast"></div>
+
+<script>
+const YEAR = {{ year|tojson }};
+const RO = {{ 'true' if readonly else 'false' }};   // 閲覧だけ（管理者以外）
+const ROWS = {{ rows|tojson }};
+const GROUPS = {{ groups|tojson }};
+let COLS = {{ columns|tojson }};
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.opacity=1; clearTimeout(t._h); t._h=setTimeout(()=>t.style.opacity=0, 2200); }
+function used(){ const s=new Set(); ROWS.forEach(r => r.details.forEach(d => d.owner && s.add(d.owner))); return s; }
+function columns(){ return COLS; }
+function owners(r){ return new Set(r.details.map(d => d.owner).filter(Boolean)); }
+function render(){
+  const cols = columns(), tbl = document.getElementById('mx');
+  let h = '<thead><tr><th class="lead">計画番号（年度計画番号）</th>';
+  cols.forEach((g, j) => {
+    const n = ROWS.filter(r => owners(r).has(g)).length;
+    h += `<th class="gh" data-col="${j}" title="${esc(g)}"><span class="hidx">${j + 1}</span><div class="gname">${esc(g)}</div><span class="gcount">${n}</span>`
+       + `<span class="hctl setup-only"><button type="button" class="add" onclick="addAt(${j + 1})" title="選んだ部門をこの右に加える">＋</button>`
+       + `<button type="button" class="del" onclick="removeCol(${j})" title="この列を外す">✕</button></span></th>`;
+  });
+  h += '</tr></thead><tbody>';
+  let lastGoal = null;
+  ROWS.forEach((r, i) => {
+    const gk = r.goal + ' ' + r.goal_title;
+    if (gk !== lastGoal) { h += `<tr class="goalrow" data-goal="${esc(gk)}"><td colspan="${cols.length + 1}">${esc(gk)}</td></tr>`; lastGoal = gk; }
+    h += rowHtml(r, i, cols);
+  });
+  tbl.innerHTML = h + '</tbody>';
+  const setup = document.body.classList.contains('setup');
+  document.querySelectorAll('.setup-only').forEach(x => x.classList.toggle('hidden', !setup));
+  summary(); applyFilter();
+}
+function rowHtml(r, i, cols){
+  const own = owners(r), others = [...own].filter(g => !cols.includes(g));
+  const txt = new Set(r.details.filter(d => d.has_text && d.owner).map(d => d.owner));
+  let h = `<tr data-i="${i}" data-key="${r.mid} ${esc(r.goal)} ${esc(r.goal_title)}" data-none="${own.size ? 0 : 1}"><td class="lead" title="${esc(r.mid_plan)}">`
+        + `<span class="pno">${r.mid}${r.ann != r.mid ? `<span class="ann">(${r.ann})</span>` : ''}</span>`
+        + (own.size ? '' : '<span class="none">担当なし</span>')
+        + `<span class="ptxt">${esc(r.plan || r.mid_plan)}</span></td>`;
+  cols.forEach((g, j) => {
+    const on = own.has(g);
+    h += `<td class="c${on ? ' on' : ''}${txt.has(g) ? ' txt' : ''}" data-col="${j}" title="${esc(g)} × 計画番号 ${r.mid}"><input type="checkbox" ${on ? 'checked' : ''} ${RO ? 'disabled' : ''} aria-label="${esc(g)}"></td>`;
+  });
+  return h + '</tr>';
+}
+function summary(){
+  const a = ROWS.filter(r => owners(r).size).length;
+  document.getElementById('nRows').textContent = ROWS.length;
+  document.getElementById('nAssigned').textContent = a;
+  document.getElementById('nNone').textContent = ROWS.length - a;
+}
+async function toggle(td){
+  const tr = td.closest('tr'), i = +tr.dataset.i, r = ROWS[i], g = columns()[+td.dataset.col];
+  const cb = td.querySelector('input'), on = cb.checked;
+  const d = r.details.find(x => x.owner === g);
+  try {
+    const res = await fetch(''  /* 割り当ては細目編集へ移した */, {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({year: YEAR, mid_plan_no: r.mid, annual_plan_no: r.ann, group: g, on})});
+    const j = await res.json();
+    if (!j.success) throw new Error(j.error || '失敗しました');
+    r.details = j.details;
+    const cols = columns();
+    const tmp = document.createElement('tbody'); tmp.innerHTML = rowHtml(r, i, cols);
+    tr.replaceWith(tmp.firstElementChild);
+    document.querySelectorAll('th.gh').forEach((th, jx) => { th.querySelector('.gcount').textContent = ROWS.filter(x => owners(x).has(cols[jx])).length; });
+    summary(); if (j.note) toast(j.note);
+  } catch(e){ cb.checked = !on; alert(e.message); }
+}
+document.getElementById('mx').addEventListener('click', e => {
+  const td = e.target.closest('td.c'); if (!td || RO) return;
+  if (e.target.tagName !== 'INPUT') { const cb = td.querySelector('input'); cb.checked = !cb.checked; }
+  toggle(td);
+});
+// 糸を垂らす：行と列を照らす
+let lastCol = null;
+document.getElementById('mx').addEventListener('mouseover', e => {
+  const cell = e.target.closest('td, th'); if (!cell) return;
+  document.querySelectorAll('tr.hl').forEach(t => t.classList.remove('hl'));
+  const tr = cell.closest('tbody tr[data-i]'); if (tr) tr.classList.add('hl');
+  const col = cell.dataset.col ?? null;
+  if (col !== lastCol) {
+    document.querySelectorAll('.colhl').forEach(x => x.classList.remove('colhl'));
+    if (col !== null) document.querySelectorAll(`[data-col="${col}"]`).forEach(x => x.classList.add('colhl'));
+    lastCol = col;
+  }
+});
+document.getElementById('mx').addEventListener('mouseleave', () => {
+  document.querySelectorAll('tr.hl').forEach(t => t.classList.remove('hl'));
+  document.querySelectorAll('.colhl').forEach(x => x.classList.remove('colhl')); lastCol = null;
+});
+function applyFilter(){
+  const q = document.getElementById('flt').value.trim(), only = document.getElementById('onlyNone').checked;
+  document.querySelectorAll('#mx tbody tr[data-i]').forEach(tr => {
+    const ok = (!q || tr.dataset.key.includes(q)) && (!only || tr.dataset.none === '1');
+    tr.classList.toggle('hidden', !ok);
+  });
+  document.querySelectorAll('#mx tbody tr.goalrow').forEach(gr => {
+    let n = gr.nextElementSibling, any = false;
+    while (n && !n.classList.contains('goalrow')) { if (!n.classList.contains('hidden')) any = true; n = n.nextElementSibling; }
+    gr.classList.toggle('hidden', !any);
+  });
+}
+document.getElementById('flt').addEventListener('input', applyFilter);
+document.getElementById('onlyNone').addEventListener('change', applyFilter);
+// 列の設定（左から順に並べる．並びはサイトで1本，サーバに保存）
+function fillSelect(){
+  const q = document.getElementById('gq').value.trim(), sel = document.getElementById('gsel');
+  const cand = GROUPS.filter(g => !COLS.includes(g) && (!q || g.includes(q)));
+  sel.innerHTML = cand.length ? cand.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('')
+                              : '<option value="">（該当なし）</option>';
+}
+async function saveCols(next){
+  const res = await fetch('{{ url_for("mid_term_progress.api_manage_columns") }}', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({columns: next})});
+  const j = await res.json();
+  if (!j.success) { alert(j.error || '保存できませんでした'); return; }
+  COLS = j.columns; fillSelect(); render();
+  if (lastAddPos !== null) { const th = document.querySelector(`th.gh[data-col="${lastAddPos}"]`); if (th) th.scrollIntoView({block:'nearest', inline:'nearest'}); lastAddPos = null; }
+}
+let lastAddPos = null;
+function addAt(pos){
+  const g = document.getElementById('gsel').value;
+  lastAddPos = pos;
+  if (!g) { alert('加える部門を選んでください'); return; }
+  const next = COLS.slice(); next.splice(pos, 0, g); saveCols(next);
+}
+async function removeCol(j){
+  const g = COLS[j], n = ROWS.filter(r => owners(r).has(g)).length;
+  if (n && !confirm(`「${g}」の列を外すと，この年度の「${g}」の担当 ${n} 件も外れます．よろしいですか？`)) return;
+  const next = COLS.slice(); next.splice(j, 1);
+  await saveCols(next); await prune();
+}
+async function prune(){
+  const cols = new Set(COLS);
+  if (!ROWS.some(r => r.details.some(d => d.owner && !cols.has(d.owner)))) return;
+  const res = await fetch(''  /* 割り当ては細目編集へ移した */, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year: YEAR, columns: COLS})});
+  const j = await res.json();
+  if (!j.success) { alert(j.error || '失敗しました'); return; }
+  if (j.removed || j.cleared) location.reload();
+}
+function setMode(setup){
+  if (!RO) { try { localStorage.setItem('mtp_setup_hidden', setup ? '0' : '1'); } catch(e) {} }
+  document.getElementById('modeBtn').textContent = setup ? '🏢 列の設定を隠す' : '🏢 列の設定を表示';
+  document.body.classList.toggle('setup', setup);
+  document.getElementById('setup').classList.toggle('hidden', !setup);
+  document.querySelectorAll('.setup-only').forEach(x => x.classList.toggle('hidden', !setup));
+  document.getElementById('modeLabel').textContent = '';
+  document.getElementById('modeLabel').classList.add('hidden');
+  document.getElementById('modeHelp').textContent = RO ? '閲覧のみ．交点に印のある部門が担当です．' : setup
+    ? '交点にチェックでその部門が担当（複数の部門なら細目が分かれます）．✎は本文の入った細目．'
+    : '交点にチェックでその部門が担当（複数の部門なら細目が分かれます）．✎は本文の入った細目．列を足すには「列の設定を表示」．';
+  if (setup) fillSelect();
+}
+document.getElementById('gq').addEventListener('input', fillSelect);
+async function openYear(){
+  {% if years %}
+  const y = {{ years[-1] + 1 }}, from = {{ years[-1] }};
+  if (!confirm(`${y}年度を開きます．${from}年度の行（中期計画番号・年度計画番号・細目・担当）を写し，本文は空で作ります．よろしいですか？`)) return;
+  const res = await fetch('{{ url_for("mid_term_progress.api_manage_open_year") }}', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year: y, from})});
+  const j = await res.json();
+  if (!j.success) { alert(j.error); return; }
+  alert(`${y}年度の行を ${j.added} 行作りました（評価の行 ${j.added_evals}）．`); location.href = '?year=' + y;
+  {% endif %}
+}
+render();
+if (RO) { setMode(false); document.getElementById('modeBtn').classList.add('hidden'); }
+else { setMode(localStorage.getItem('mtp_setup_hidden') !== '1'); prune(); }
+</script>
+</body>
+</html>

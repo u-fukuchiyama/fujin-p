@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>執筆者ダッシュボード - 事業全貌</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans",sans-serif; background:#f1f5f9; color:#1f2937; font-size:14px; }
+  /* 上部の帯（閲覧画面と同じ作り） */
+  .bar { background:#1f2937; color:#fff; position:sticky; top:0; z-index:60; box-shadow:0 2px 6px rgba(0,0,0,.25); }
+  .row1 { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:6px 14px; }
+  .ttl { font-weight:700; font-size:0.95rem; white-space:nowrap; margin-right:6px; }
+  .set { display:inline-flex; align-items:center; gap:5px; font-size:0.76rem; font-weight:700; padding:2px 11px; border-radius:14px;
+         border:2px solid #6366f1; color:#c7d2fe; cursor:pointer; white-space:nowrap; }
+  .set.on { background:#4f46e5; color:#fff; }
+  .set input { display:none; }
+  .quick { margin-left:auto; display:inline-flex; gap:5px; align-items:center; flex-wrap:wrap; }
+  .q { font-size:0.74rem; font-weight:700; color:#fff; text-decoration:none; padding:3px 9px; border-radius:6px; white-space:nowrap; }
+  .q:hover { filter:brightness(1.12); }
+  .q.editor { background:#4f46e5; } .q.teal { background:#0f766e; } .q.view { background:#475569; } .q.home { background:#e74c3c; }
+  .tg { background:#374151; color:#e5e7eb; border:1px solid #4b5563; border-radius:6px; font-size:0.76rem; padding:3px 10px; cursor:pointer; white-space:nowrap; font-family:inherit; }
+  .tg:hover { background:#4b5563; }
+  .panel { border-top:1px solid #374151; padding:6px 14px; }
+  .panel[hidden] { display:none !important; }
+  .panel.toc { max-height:40vh; overflow:auto; }
+  .flt { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:0.78rem; color:#cbd5e1; }
+  .flt select { padding:2px 6px; border-radius:5px; border:1px solid #4b5563; background:#111827; color:#e5e7eb; font-size:0.78rem; }
+  .sum { display:flex; gap:10px; flex-wrap:wrap; font-size:0.76rem; color:#cbd5e1; }
+  .sum b { color:#fff; }
+  .tocin { background:#fff; border-radius:6px; padding:5px 10px; display:flex; flex-wrap:wrap; gap:3px 10px; align-items:center; font-size:0.66rem; }
+  .tocg { display:inline-flex; gap:2px; align-items:center; flex-wrap:wrap; }
+  .tocg .gl { color:#9ca3af; margin-right:1px; white-space:nowrap; }
+  .tocin a { display:inline-block; padding:0 4px; min-width:1.9em; text-align:center; border:1px solid #d1d5db; color:#374151; border-radius:3px; text-decoration:none; line-height:1.5; }
+  .tocin a:hover { background:#eef2ff; border-color:#6366f1; }
+  .tocin a.todo { background:#fff7ed; border-color:#fdba74; color:#c2410c; font-weight:700; }
+  .tocin a.submitted { background:#dbeafe; border-color:#60a5fa; color:#1e40af; }
+  .tocin a.confirmed { background:#dcfce7; border-color:#86efac; color:#166534; }
+  .note { background:#eef2ff; border:1px solid #c7d2fe; color:#3730a3; border-radius:8px; padding:5px 12px; font-size:0.78rem; margin:10px auto 0; max-width:1400px; }
+  .warn { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:8px; padding:10px 12px; font-size:0.84rem; line-height:1.7; margin:14px; }
+  /* 本文（閲覧画面と同じ並び） */
+  .wrap { max-width:1400px; margin:0 auto; padding:10px 14px 80px; }
+  .goalh { background:#4c2c7f; color:#fff; border-radius:8px 8px 0 0; padding:6px 14px; margin-top:14px; display:flex; gap:10px; align-items:center; }
+  .goalh .code { background:rgba(0,0,0,.25); border-radius:10px; padding:1px 10px; font-size:0.78rem; font-weight:700; }
+  .goalh .gt { font-weight:700; font-size:0.9rem; }
+  .blk { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.08); scroll-margin-top:60px; }
+  .planh { background:#374151; color:#fff; padding:6px 14px; display:flex; gap:10px; align-items:center; }
+  .planh .no { background:#6d28d9; border-radius:12px; padding:1px 12px; font-weight:800; font-size:0.9rem; }
+  .midp { background:#eef2ff; border-left:4px solid #6366f1; padding:6px 14px; font-size:0.84rem; }
+  .midp .lbl, .lbl { font-size:0.7rem; font-weight:700; color:#4f46e5; margin-bottom:2px; }
+  .midp ul, .midp p, .cell ul, .cell ol, .cell p { margin:2px 0; } .cell ul, .cell ol, .midp ul { padding-left:18px; }
+  .thead, .trow { display:grid; }
+  .thead { background:#4b5563; color:#fff; font-size:0.78rem; font-weight:700; }
+  .thead > div { padding:5px 10px; }
+  :root { --cNo:6.5em; --cPlan:1fr; --cProg:0.9fr; --cRep:1.25fr; }
+  .g-plan { grid-template-columns:var(--cNo) var(--cPlan) var(--cRep); }
+  .g-prog { grid-template-columns:var(--cNo) var(--cPlan) var(--cRep); }
+  .g-res  { grid-template-columns:var(--cNo) var(--cPlan) var(--cProg) var(--cRep); }
+  .wid { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:0.76rem; color:#cbd5e1; margin-top:6px; }
+  .wid label { display:inline-flex; gap:5px; align-items:center; white-space:nowrap; }
+  .wid input[type=range] { width:110px; accent-color:#6366f1; }
+  .wid .v { min-width:2.6em; color:#fff; font-variant-numeric:tabular-nums; }
+  .wid button { font-size:0.72rem; padding:1px 9px; border-radius:5px; border:1px solid #4b5563; background:#374151; color:#e5e7eb; cursor:pointer; font-family:inherit; }
+  .trow { border-bottom:1px solid #e5e7eb; font-size:0.86rem; line-height:1.65; }
+  .trow > .cell { padding:8px 10px; border-right:1px solid #eef2f7; min-width:0; }
+  .trow > .cell:last-child { border-right:none; }
+  .trow .no { font-weight:800; color:#1e3a8a; text-align:center; background:#f8fafc; }
+  .trow .no .ow { display:block; font-size:0.66rem; color:#0f766e; font-weight:600; word-break:break-all; margin-top:2px; }
+  .trow .sameN { font-size:0.7rem; color:#6d28d9; font-weight:700; }
+  .trow.other { background:#fafafa; color:#6b7280; }
+  .trow.done { color:#9ca3af; font-size:0.78rem; }
+  .trow.mine .rep { background:#f0fdf4; }
+  .pending { color:#9ca3af; font-style:italic; }
+  .rephead { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:3px; }
+  .chip { display:inline-block; font-size:0.66rem; font-weight:700; padding:0 7px; border-radius:10px; white-space:nowrap; }
+  .chip.none { background:#f1f5f9; color:#94a3b8; } .chip.requested { background:#e0e7ff; color:#3730a3; }
+  .chip.writing { background:#fef3c7; color:#92400e; } .chip.submitted { background:#dbeafe; color:#1e40af; }
+  .chip.confirmed { background:#dcfce7; color:#166534; }
+  .ast { margin-left:auto; display:inline-flex; gap:2px; }
+  .ast button, .btns button { font-size:0.7rem; padding:1px 7px; border-radius:5px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; font-family:inherit; }
+  .ast button.on { background:#1e40af; color:#fff; border-color:#1e40af; }
+  .btns { display:flex; gap:5px; margin-top:5px; flex-wrap:wrap; align-items:center; }
+  .btns button.pri { background:#15803d; color:#fff; border-color:#15803d; }
+  .sub2 { margin-top:5px; padding-top:4px; border-top:1px dashed #bbf7d0; font-size:0.8rem; }
+  .cmt { margin-top:6px; background:#fffbeb; border:1px solid #fde68a; border-radius:5px; padding:4px 8px; font-size:0.8rem; }
+  .cmt .lbl { color:#92400e; }
+  .ed textarea { width:100%; min-height:8em; font-family:inherit; font-size:0.84rem; border:1px solid #86efac; border-radius:5px; padding:5px 7px; line-height:1.55; }
+  .ed textarea.short { min-height:3.5em; }
+  .ed .fld { margin-top:5px; }
+  .hidden { display:none !important; }
+  #toast { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); background:#1f2937; color:#fff; padding:6px 14px; border-radius:8px; font-size:0.8rem; opacity:0; transition:opacity .3s; pointer-events:none; z-index:999; }
+  @media (max-width:760px) {
+    .thead { display:none; }
+    .g-plan, .g-prog, .g-res { grid-template-columns:1fr; }
+    .trow > .cell { border-right:none; border-bottom:1px dashed #eef2f7; }
+    .trow .no { text-align:left; }
+    .trow > .cell[data-h]::before { content:attr(data-h); display:block; font-size:0.68rem; font-weight:700; color:#64748b; }
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="row1">
+    <span class="ttl">✍️ 執筆者ダッシュボード</span>
+    {% for a in sets %}{% set key = a.year ~ '-' ~ a.stage %}{% set on = cur_set and cur_set.year == a.year and cur_set.stage == a.stage %}
+    <label class="set {{ 'on' if on else '' }}"><input type="radio" name="set" {{ 'checked' if on else '' }} onchange="location.href='?set={{ key }}'">{{ '◉' if on else '○' }} {{ a.label }}</label>
+    {% endfor %}
+    <span class="quick">
+      {% if editor %}<a class="q editor" href="{{ url_for('mid_term_progress.editor') }}{% if cur_set %}?year={{ cur_set.year }}{% endif %}">🧩 編集者⇒</a>{% endif %}
+      <a class="q teal" href="{{ url_for('mid_term_progress.manage') }}?{% if cur_set %}year={{ cur_set.year }}&{% endif %}view=rows">🗂 担当表</a>
+      <a class="q view" href="{{ url_for('mid_term_progress.hojin') }}">🏛 法人評価⇒</a>
+      <a class="q view" href="{{ url_for('mid_term_progress.view') }}" title="事業全貌（このアプリのトップ）">📊 トップ</a>
+      <a class="q home" href="{{ url_for('mid_term_progress.return_to_fujin') }}">🏠 FUJIN-P</a>
+    </span>
+    {% if cur_set and ready %}
+    <button type="button" class="tg" id="tocT" onclick="tog('toc')">📋 目次 <span>▾</span></button>
+    <button type="button" class="tg" id="fltT" onclick="tog('flt')">⚙ 絞り込みと列幅 <span>▾</span></button>
+    {% endif %}
+  </div>
+  {% if cur_set and ready %}
+  <div class="panel toc" id="toc" hidden><div class="tocin" id="tocin"></div></div>
+  <div class="panel" id="flt" hidden>
+    <div class="flt">
+      <label>部門 <select id="fOwner"><option value="">すべて</option></select></label>
+      <label>状態 <select id="fState"><option value="">すべて</option>{% for k, v in state_label.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+      <span class="sum" id="sum"></span>
+    </div>
+    <div class="wid">
+      <span>列の幅</span>
+      <label>番号 <input type="range" id="wNo" min="3" max="14" step="0.5"><span class="v" id="vNo"></span></label>
+      <label>年度計画 <input type="range" id="wPlan" min="0.3" max="4" step="0.1"><span class="v" id="vPlan"></span></label>
+      {% if cur_set.stage == 'result' %}<label>進捗状況報告 <input type="range" id="wProg" min="0.3" max="4" step="0.1"><span class="v" id="vProg"></span></label>{% endif %}
+      <label>{{ {'plan':'計画の提案','progress':'進捗状況報告','result':'業務実績報告'}[cur_set.stage] }} <input type="range" id="wRep" min="0.3" max="4" step="0.1"><span class="v" id="vRep"></span></label>
+      <button type="button" onclick="resetW()">初期値に戻す</button>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if not sets %}
+  <div class="warn">いま執筆をお願いしている依頼はありません．
+    {% if editor %}<br>編集者の方へ：執筆者ダッシュボードには，編集者ダッシュボードで「執筆者に開く」にチェックを入れた依頼（年度×段階）だけが並びます．
+    <a href="{{ url_for('mid_term_progress.editor') }}">編集者ダッシュボード</a>の各カードで開いてください．{% endif %}</div>
+{% elif not ready %}
+  <div class="warn">執筆の受付の準備がまだ整っていません（管理者にお知らせください）．</div>
+{% else %}
+  {% if editor %}<div class="note">編集者として開いています．担当にかかわらず，すべての細目の報告を入力できます．</div>
+  {% elif not has_groups %}<div class="warn">所属しているグループがないため，担当の細目はありません．</div>{% endif %}
+  <div class="wrap" id="wrap">読み込み中…</div>
+{% endif %}
+<div id="toast"></div>
+
+{% if cur_set and ready %}
+<script>
+const YEAR = {{ cur_set.year|tojson }}, STAGE = {{ cur_set.stage|tojson }}, EDITOR = {{ 'true' if editor else 'false' }};
+const STATE = {{ state_label|tojson }};
+const SUB = {plan:'計画の提案', progress:'進捗状況報告', result:'業務実績報告'}[STAGE];
+const A_LBL = {writing:'執筆中', done:'執筆完了', revised:'改訂済み'};
+const U = {
+  data: '{{ url_for("mid_term_progress.api_author_items") }}',
+  text: '{{ url_for("mid_term_progress.api_item_text") }}',
+  ast: '{{ url_for("mid_term_progress.api_author_status") }}',
+};
+let DATA = null;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2200); }
+function tog(id){ const p = document.getElementById(id); p.hidden = !p.hidden;
+  document.querySelector(`#${id}T span`).textContent = p.hidden ? '▾' : '▴'; }
+async function post(url, data){
+  const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+  const j = await r.json().catch(() => ({success:false, error:'応答を読めません（' + r.status + '）'}));
+  if (!j.success) throw new Error(j.error || '失敗しました');
+  return j;
+}
+const bid = b => `b-${b.mid_plan_no}-${b.annual_plan_no}`;
+const mine = b => b.details.filter(d => d.visible && !d.done);
+function planState(b){
+  const ds = mine(b); if (!ds.length) return '';
+  if (ds.every(d => d.state === 'confirmed')) return 'confirmed';
+  if (ds.some(d => ['none','requested','writing'].includes(d.state))) return 'todo';
+  return 'submitted';
+}
+const pendingText = d => ({none:'未入力', requested:'未入力', writing:'執筆中', submitted:'提出済み（本文なし）', confirmed:'確認済み'}[d.state] || '');
+const gridCls = STAGE === 'result' ? 'g-res' : (STAGE === 'plan' ? 'g-plan' : 'g-prog');
+function theadHtml(){
+  if (STAGE === 'plan') return `<div class="thead ${gridCls}"><div>番号</div><div>現在の計画</div><div>${esc(SUB)}（編集）</div></div>`;
+  if (STAGE === 'progress') return `<div class="thead ${gridCls}"><div>番号</div><div>年度計画</div><div>${esc(SUB)}（編集）</div></div>`;
+  return `<div class="thead ${gridCls}"><div>番号</div><div>年度計画</div><div>進捗状況報告</div><div>${esc(SUB)}（編集）</div></div>`;
+}
+
+async function load(onlyKey){
+  const j = await (await fetch(`${U.data}?year=${YEAR}&stage=${STAGE}`)).json();
+  const wrap = document.getElementById('wrap');
+  if (!j.success) { wrap.textContent = j.error || '読み込めません'; return; }
+  DATA = j;
+  if (!wrap.dataset.built) {
+    const sel = document.getElementById('fOwner');
+    j.owners.forEach(o => { const op = document.createElement('option'); op.textContent = o; sel.appendChild(op); });
+    if (!j.blocks.length) { wrap.innerHTML = '<div class="warn" style="margin:0">担当の細目はありません．</div>'; return; }
+    // 目標ごとに見出しを入れる
+    let h = '', lastGoal = null;
+    for (const b of j.blocks) {
+      if (b.goal !== lastGoal) { h += `<div class="goalh" data-goal="${esc(b.goal)}"><span class="code">${esc(b.goal)}</span><span class="gt">${esc(b.goal_title)}</span></div>`; lastGoal = b.goal; }
+      h += `<div class="blk" id="${bid(b)}"></div>`;
+    }
+    wrap.innerHTML = h; wrap.dataset.built = '1';
+    j.blocks.forEach(b => document.getElementById(bid(b)).innerHTML = renderBlock(b));
+  } else {
+    j.blocks.filter(b => !onlyKey || bid(b) === onlyKey).forEach(b => { const el = document.getElementById(bid(b)); if (el) el.innerHTML = renderBlock(b); });
+  }
+  drawToc(); applyFilter();
+}
+
+function renderBlock(b){
+  const k0 = {fiscal_year: YEAR, mid_plan_no: b.mid_plan_no, annual_plan_no: b.annual_plan_no};
+  let h = `<div class="planh"><span class="no">計画番号 ${b.mid_plan_no}</span></div>`;
+  if (b.mid_plan_html) h += `<div class="midp"><div class="lbl">中期計画</div>${b.mid_plan_html}</div>`;
+  h += theadHtml();
+  for (const d of b.details) {
+    const label = `${b.annual_plan_no}-${d.detail_no}`;
+    const noCell = `<div class="cell no">${label}${d.owner_group ? `<span class="ow">${esc(d.owner_group)}</span>` : '<span class="ow">（担当なし）</span>'}</div>`;
+    if (!d.visible) {   // 執筆者には，同じ計画番号の他部門の細目は計画だけを薄く出す（入力はできない）
+      h += `<div class="trow other ${gridCls}">${noCell}<div class="cell">${d.done ? '対応済み' : (d.plan_html || '')}</div>` +
+           (STAGE === 'result' ? '<div class="cell"></div>' : '') + `<div class="cell pending">他部門の担当</div></div>`;
+      continue;
+    }
+    if (d.done) { h += `<div class="trow done ${gridCls}">${noCell}<div class="cell" style="grid-column:span ${STAGE === 'result' ? 3 : 2}">対応済み（報告不要）</div></div>`; continue; }
+    const k = Object.assign({detail_no: d.detail_no}, k0), J = esc(JSON.stringify(k));
+    const id = `${b.mid_plan_no}-${b.annual_plan_no}-${d.detail_no}`;
+    // 計画の欄
+    let planCell;
+    if (STAGE === 'plan') planCell = d.same ? `<div class="sameN">同上（細目${d.plan_src || '?'}と同じ計画）</div>${d.plan_html || ''}` : (d.final_html || '<span class="pending">なし</span>');
+    else planCell = (d.same ? `<div class="sameN">同上（細目${d.plan_src || '?'}と同じ計画）</div>` : '') + (d.plan_html || '<span class="pending">計画本文なし</span>');
+    // 入力の欄
+    let rep =               `<div id="v-${id}">${d.author_text ? d.author_html : `<span class="pending">${pendingText(d)}</span>`}` +
+              (STAGE === 'result' && d.author_self_eval != null ? `<div class="sub2"><span class="lbl" style="color:#166534">自己評価（案）</span> ${esc(d.author_self_eval)}</div>` : '') +
+              (STAGE === 'result' && d.self_eval_note ? `<div class="sub2"><div class="lbl" style="color:#166534">自己評価へのコメント</div>${d.self_eval_note_html}</div>` : '') +
+              (STAGE === 'result' && d.evidence ? `<div class="sub2"><div class="lbl" style="color:#166534">エビデンス</div>${d.evidence_html}</div>` : '') + `</div>` +
+              `<div id="e-${id}" class="ed hidden"><textarea id="t-${id}" placeholder="${esc(SUB)}を書きます（Markdown可）">${esc(d.author_text)}</textarea>` +
+              (STAGE === 'result' ? `<div class="fld"><label class="lbl" style="color:#166534">自己評価（案） <select id="s-${id}"><option value="">—</option>` +
+                  [1,2,3,4].map(n => `<option value="${n}" ${d.author_self_eval == n ? 'selected' : ''}>${n}</option>`).join('') + '</select></label></div>' +
+                `<div class="fld"><div class="lbl" style="color:#166534">自己評価へのコメント</div><textarea id="n-${id}" class="short">${esc(d.self_eval_note)}</textarea></div>` +
+                `<div class="fld"><div class="lbl" style="color:#166534">エビデンス</div><textarea id="x-${id}" class="short" placeholder="根拠となる資料・データ・URL など（Markdown可）">${esc(d.evidence)}</textarea></div>` : '') + `</div>` +
+              // 編集ボタン・状態・執筆者の状態ボタンは本文の下に1行で並べる（計画の欄と本文の高さをそろえる）
+              `<div class="btns"><button type="button" id="eb-${id}" onclick='editOn("${id}")'>✎ 編集</button>` +
+              `<button type="button" class="pri hidden" id="sb-${id}" onclick='save(${J}, "${id}", "${bid(b)}")'>保存</button>` +
+              `<button type="button" class="hidden" id="cb-${id}" onclick='editOff("${id}")'>やめる</button>` +
+              `<span class="chip ${d.state}">${esc(STATE[d.state])}</span>` +
+              (d.author_text_at ? `<span class="pending" style="font-style:normal;font-size:0.68rem">${esc(d.author_text_at)}</span>` : '') +
+              `<span class="ast">` + ['writing','done','revised'].map(a =>
+                `<button type="button" class="${d.author_status === a ? 'on' : ''}" onclick='setA(${J}, "${d.author_status === a ? '' : a}", "${bid(b)}")'>${A_LBL[a]}</button>`).join('') + `</span></div>` +
+              (d.comment ? `<div class="cmt"><div class="lbl">評価室からのコメント${d.comment_at ? '（' + esc(d.comment_at) + '）' : ''}</div>${d.comment_html}</div>` : '') +
+              (STAGE === 'progress' && d.final_html ? `<div class="cmt" style="background:#eff6ff;border-color:#bfdbfe"><div class="lbl" style="color:#1e3a8a">評価室がまとめた／承認した進捗状況報告</div>${d.final_html}</div>` : '');
+    h += `<div class="trow mine ${gridCls}" data-owner="${esc(d.owner_group)}" data-state="${d.state}">${noCell}` +
+         `<div class="cell" data-h="${STAGE === 'plan' ? '現在の計画' : '年度計画'}">${planCell}</div>` +
+         (STAGE === 'result' ? `<div class="cell" data-h="進捗状況報告">${d.progress_html || d.progress_author_html || '<span class="pending">なし</span>'}</div>` : '') +
+         `<div class="cell rep" data-h="${esc(SUB)}（編集）">${rep}</div></div>`;
+  }
+  return h;
+}
+function drawToc(){
+  let h = '', lastGoal = null, open = false;
+  for (const b of DATA.blocks) {
+    if (b.goal !== lastGoal) { if (open) h += '</span>'; h += `<span class="tocg" title="${esc(b.goal)} ${esc(b.goal_title)}"><span class="gl">${esc(b.goal)}</span>`; lastGoal = b.goal; open = true; }
+    h += `<a href="#${bid(b)}" class="${planState(b)}" title="${esc(b.goal_title)}">${b.mid_plan_no}</a>`;
+  }
+  if (open) h += '</span>';
+  document.getElementById('tocin').innerHTML = h;
+  document.querySelectorAll('#tocin a').forEach(a => a.addEventListener('click', e => {
+    const t = document.querySelector(a.getAttribute('href')); if (!t) return; e.preventDefault();
+    const barH = document.querySelector('.bar').offsetHeight;
+    window.scrollTo({top: t.getBoundingClientRect().top + scrollY - barH - 6, behavior:'smooth'});
+  }));
+  const c = {}; let n = 0;
+  DATA.blocks.forEach(b => mine(b).forEach(d => { c[d.state] = (c[d.state] || 0) + 1; n++; }));
+  document.getElementById('sum').innerHTML = `<span>細目 <b>${n}</b></span><span>未入力 <b>${(c.none || 0) + (c.requested || 0)}</b></span>` +
+    ['writing','submitted','confirmed'].map(k => `<span>${esc(STATE[k])} <b>${c[k] || 0}</b></span>`).join('');
+}
+function applyFilter(){
+  const o = document.getElementById('fOwner').value, st = document.getElementById('fState').value;
+  for (const b of DATA.blocks) {
+    const el = document.getElementById(bid(b)); if (!el) continue;
+    el.querySelectorAll('.trow.mine').forEach(x => x.classList.toggle('hidden',
+      (o && x.dataset.owner !== o) || (st && x.dataset.state !== st && !(st === 'requested' && x.dataset.state === 'none'))));
+    el.classList.toggle('hidden', !!(o || st) && !el.querySelector('.trow.mine:not(.hidden)'));
+  }
+  document.querySelectorAll('.goalh').forEach(g => {
+    let n = g.nextElementSibling, any = false;
+    while (n && n.classList.contains('blk')) { if (!n.classList.contains('hidden')) any = true; n = n.nextElementSibling; }
+    g.classList.toggle('hidden', !any);
+  });
+}
+document.getElementById('fOwner').addEventListener('change', applyFilter);
+document.getElementById('fState').addEventListener('change', applyFilter);
+function editOn(id){ ['v','eb'].forEach(p => document.getElementById(`${p}-${id}`).classList.add('hidden'));
+  ['e','sb','cb'].forEach(p => document.getElementById(`${p}-${id}`).classList.remove('hidden')); document.getElementById(`t-${id}`).focus(); }
+function editOff(id){ ['v','eb'].forEach(p => document.getElementById(`${p}-${id}`).classList.remove('hidden'));
+  ['e','sb','cb'].forEach(p => document.getElementById(`${p}-${id}`).classList.add('hidden')); }
+async function save(k, id, blk){
+  const data = Object.assign({stage: STAGE, target: 'author', text: document.getElementById(`t-${id}`).value}, k);
+  const se = document.getElementById(`s-${id}`); if (se) data.self_eval = se.value;
+  const nt = document.getElementById(`n-${id}`); if (nt) data.self_eval_note = nt.value;
+  const ev = document.getElementById(`x-${id}`); if (ev) data.evidence = ev.value;
+  try { await post(U.text, data); toast('保存しました'); await load(blk); } catch (e) { alert(e.message); }
+}
+async function setA(k, status, blk){
+  try { await post(U.ast, Object.assign({stage: STAGE, status}, k)); await load(blk); } catch (e) { alert(e.message); }
+}
+// 列の幅（スライダー）．ブラウザに覚えておき，次に開いたときも同じ幅にする
+const W_DEF = {No:6.5, Plan:1, Prog:0.9, Rep:1.25}, W_KEY = 'mtp_author_widths';
+function applyW(w){
+  const r = document.documentElement.style;
+  r.setProperty('--cNo', w.No + 'em'); r.setProperty('--cPlan', w.Plan + 'fr');
+  r.setProperty('--cProg', w.Prog + 'fr'); r.setProperty('--cRep', w.Rep + 'fr');
+  for (const k of Object.keys(W_DEF)) {
+    const el = document.getElementById('w' + k), v = document.getElementById('v' + k);
+    if (el) el.value = w[k]; if (v) v.textContent = k === 'No' ? w[k] + 'em' : w[k];
+  }
+}
+function getW(){ try { return Object.assign({}, W_DEF, JSON.parse(localStorage.getItem(W_KEY) || '{}')); } catch (e) { return Object.assign({}, W_DEF); } }
+function setW(k, v){ const w = getW(); w[k] = parseFloat(v); try { localStorage.setItem(W_KEY, JSON.stringify(w)); } catch (e) {} applyW(w); }
+function resetW(){ try { localStorage.removeItem(W_KEY); } catch (e) {} applyW(Object.assign({}, W_DEF)); }
+for (const k of Object.keys(W_DEF)) { const el = document.getElementById('w' + k); if (el) el.addEventListener('input', () => setW(k, el.value)); }
+applyW(getW());
+load();
+</script>
+{% endif %}
+</body>
+</html>

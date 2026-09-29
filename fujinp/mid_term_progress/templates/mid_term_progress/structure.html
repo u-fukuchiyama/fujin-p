@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>年度計画策定 {{ year }}年度 - 事業全貌</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans",sans-serif; background:#f1f5f9; color:#1f2937; font-size:14px; }
+  .btn { display:inline-block; padding:4px 11px; border-radius:6px; border:1px solid #c7d2fe; background:#eef2ff; color:#3730a3; text-decoration:none; font-size:0.8rem; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .btn.pri { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+  .muted { color:#64748b; font-size:0.78rem; }
+  /* 上部の帯（閲覧画面と同じ作り） */
+  .bar { background:#1f2937; color:#fff; position:sticky; top:0; z-index:60; box-shadow:0 2px 6px rgba(0,0,0,.25); }
+  .row1 { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:6px 14px; }
+  .ttl { font-weight:700; font-size:0.95rem; white-space:nowrap; margin-right:6px; }
+  .quick { margin-left:auto; display:inline-flex; gap:5px; align-items:center; flex-wrap:wrap; }
+  .q { font-size:0.74rem; font-weight:700; color:#fff; text-decoration:none; padding:3px 9px; border-radius:6px; white-space:nowrap; border:none; cursor:pointer; font-family:inherit; }
+  .q:hover { filter:brightness(1.12); }
+  .q.home { background:#e74c3c; color:#fff; }
+  .q.back { background:#4f46e5; } .q.teal { background:#0f766e; } .q.gray { background:#475569; }
+  .tg { background:#374151; color:#e5e7eb; border:1px solid #4b5563; border-radius:6px; font-size:0.76rem; padding:3px 10px; cursor:pointer; white-space:nowrap; font-family:inherit; }
+  .tg:hover { background:#4b5563; }
+  .panel { border-top:1px solid #374151; padding:6px 14px; }
+  .panel[hidden] { display:none !important; }
+  .panel.toc { max-height:40vh; overflow:auto; }
+  .flt { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:0.78rem; color:#cbd5e1; }
+  .flt select { padding:2px 6px; border-radius:5px; border:1px solid #4b5563; background:#111827; color:#e5e7eb; font-size:0.78rem; }
+  .wid { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:0.76rem; color:#cbd5e1; margin-top:6px; }
+  .wid label { display:inline-flex; gap:5px; align-items:center; white-space:nowrap; }
+  .wid input[type=range] { width:110px; accent-color:#6366f1; }
+  .wid .v { min-width:2.6em; color:#fff; }
+  .wid button { font-size:0.72rem; padding:1px 9px; border-radius:5px; border:1px solid #4b5563; background:#374151; color:#e5e7eb; cursor:pointer; font-family:inherit; }
+  .tocin { background:#fff; border-radius:6px; padding:5px 10px; display:flex; flex-wrap:wrap; gap:3px 10px; align-items:center; font-size:0.66rem; }
+  .tocg { display:inline-flex; gap:2px; align-items:center; flex-wrap:wrap; }
+  .tocg .gl { color:#9ca3af; margin-right:1px; white-space:nowrap; }
+  .tocin a { display:inline-block; padding:0 4px; min-width:1.9em; text-align:center; border:1px solid #d1d5db; color:#374151; border-radius:3px; text-decoration:none; line-height:1.5; }
+  .tocin a:hover { background:#eef2ff; border-color:#6366f1; }
+  .tocin a.warn { background:#fff7ed; border-color:#fdba74; color:#c2410c; font-weight:700; }
+  .tocin a.prop { background:#f0fdf4; border-color:#86efac; color:#166534; }
+  .tocin a.dim { color:#9ca3af; background:#f8fafc; }
+  .lockbar { background:#fef2f2; border-bottom:1px solid #fecaca; color:#991b1b; padding:5px 14px; font-size:0.8rem; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .lockbar button { font-size:0.74rem; padding:2px 10px; border-radius:6px; border:1px solid #fca5a5; color:#991b1b; background:#fff; cursor:pointer; font-family:inherit; }
+  /* 本文 */
+  .wrap { max-width:1500px; margin:0 auto; padding:10px 14px 80px; }
+  .goalh { background:#4c2c7f; color:#fff; border-radius:8px 8px 0 0; padding:6px 14px; margin-top:14px; display:flex; gap:10px; align-items:center; }
+  .goalh .code { background:rgba(0,0,0,.25); border-radius:10px; padding:1px 10px; font-size:0.78rem; font-weight:700; }
+  .goalh .gt { font-weight:700; font-size:0.9rem; }
+  .blk { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.08); scroll-margin-top:60px; }
+  .planh { background:#374151; color:#fff; padding:6px 14px; display:flex; gap:10px; align-items:center; }
+  .planh .no { background:#6d28d9; border-radius:12px; padding:1px 12px; font-weight:800; font-size:0.9rem; }
+  .midp { background:#eef2ff; border-left:4px solid #6366f1; padding:6px 14px; font-size:0.84rem; }
+  .lbl { font-size:0.7rem; font-weight:700; color:#4f46e5; margin-bottom:2px; }
+  .midp ul, .midp p, .cell ul, .cell ol, .cell p { margin:2px 0; } .cell ul, .cell ol, .midp ul { padding-left:18px; }
+  :root { --cNo:13em; --cProp:1fr; --cPlan:1.2fr; }
+  .thead, .trow { display:grid; grid-template-columns:var(--cNo) var(--cProp) var(--cPlan); }
+  .thead { background:#4b5563; color:#fff; font-size:0.78rem; font-weight:700; }
+  .thead > div { padding:5px 10px; }
+  .trow { border-bottom:1px solid #e5e7eb; font-size:0.86rem; line-height:1.65; }
+  .trow > .cell { padding:8px 10px; border-right:1px solid #eef2f7; min-width:0; }
+  .trow > .cell:last-child { border-right:none; }
+  .cno { background:#f8fafc; }
+  .cno .num { font-weight:800; color:#1e3a8a; font-size:0.95rem; margin-right:4px; }
+  .cno .line { display:flex; gap:4px; align-items:center; flex-wrap:wrap; margin-top:4px; }
+  .cno .ops button { font-size:0.7rem; padding:1px 6px; border-radius:5px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; font-family:inherit; }
+  .cno .ops button.del { color:#b91c1c; border-color:#fecaca; }
+  .cno .ops button:disabled { opacity:.35; cursor:default; }
+  .owbtn { max-width:100% !important; min-width:0 !important; width:100%; font-size:0.76rem !important; }
+  .trow.noowner .cno { background:#fff7ed; }
+  .trow.done { color:#9ca3af; font-size:0.8rem; }
+  .trow.done .cno { background:#f8fafc; }
+  .cprop { background:#f0fdf4; }
+  .cprop .ph { font-size:0.68rem; color:#166534; font-weight:700; }
+  .empty, .pending { color:#9ca3af; font-style:italic; }
+  .fb { display:inline-block; font-size:0.66rem; font-weight:700; color:#92400e; background:#fef3c7; border:1px solid #fcd34d; border-radius:9px; padding:0 8px; margin-bottom:3px; }   /* 正本以外の内容を出しているときの状態バッジ */
+  .samenote { font-size:0.72rem; font-weight:700; color:#6d28d9; margin-bottom:2px; }
+  .samewarn { font-size:0.74rem; font-weight:700; color:#b91c1c; }
+  .samebtn { font-size:0.7rem; padding:0 8px; border-radius:10px; border:1px solid #c4b5fd; background:#fff; color:#6d28d9; cursor:pointer; font-family:inherit; }
+  .samebtn.on { background:#6d28d9; color:#fff; border-color:#6d28d9; }
+  .donebtn { font-size:0.7rem; padding:0 8px; border-radius:10px; border:1px solid #cbd5e1; background:#fff; color:#64748b; cursor:pointer; font-family:inherit; }
+  .donebtn.on { background:#94a3b8; color:#fff; border-color:#94a3b8; }
+  .samebtn:disabled, .donebtn:disabled { opacity:.6; cursor:default; }
+  .chip { display:inline-block; font-size:0.64rem; font-weight:700; padding:0 7px; border-radius:10px; white-space:nowrap; }
+  .chip.e-requested { background:#dbeafe; color:#1e40af; } .chip.e-confirmed { background:#dcfce7; color:#166534; }
+  .chip.a-writing { background:#fef3c7; color:#92400e; } .chip.a-done { background:#e0e7ff; color:#3730a3; } .chip.a-revised { background:#f3e8ff; color:#6b21a8; }
+  .chip.none { background:#f1f5f9; color:#94a3b8; }
+  .ed textarea { width:100%; min-height:7em; font-family:inherit; font-size:0.84rem; border:1px solid #93c5fd; border-radius:5px; padding:5px 7px; line-height:1.55; }
+  .pbtn { display:flex; gap:5px; flex-wrap:wrap; margin-top:5px; }
+  .pbtn button { font-size:0.72rem; padding:1px 8px; border-radius:5px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; font-family:inherit; }
+  .pbtn button.save { background:#1e40af; color:#fff; border-color:#1e40af; }
+  .addrow { padding:6px 10px; border-bottom:1px solid #e5e7eb; }
+  .hidden { display:none !important; }
+  body.locked .lockable { display:none !important; }
+  #colDlg { position:fixed; inset:0; background:rgba(15,23,42,.4); z-index:950; display:none; align-items:center; justify-content:center; }
+  #colDlg.open { display:flex; }
+  #colDlg .box { background:#fff; border-radius:10px; padding:14px 16px; width:min(560px, 94vw); max-height:90vh; overflow:auto; }
+  #colDlg textarea { width:100%; min-height:16em; font-family:inherit; font-size:0.84rem; }
+  .owbtn { min-width:14em; max-width:28em; text-align:left; padding:3px 10px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; font-size:0.82rem; font-family:inherit; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .owbtn:hover:not(:disabled) { border-color:#6366f1; background:#eef2ff; }
+  .owbtn.none { color:#c2410c; border-color:#fdba74; }
+  .owbtn:disabled { cursor:default; background:#f8fafc; color:#475569; }
+  #owDlg { position:fixed; inset:0; background:rgba(15,23,42,.4); z-index:960; display:none; align-items:center; justify-content:center; }
+  #owDlg.open { display:flex; }
+  #owDlg .box { background:#fff; border-radius:10px; width:min(860px, 96vw); max-height:92vh; display:flex; flex-direction:column; box-shadow:0 10px 30px rgba(0,0,0,.25); }
+  #owDlg .hd { display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid #e2e8f0; }
+  #owDlg .hd b { font-size:0.95rem; }
+  #owDlg .hd .x { margin-left:auto; border:none; background:none; font-size:1.3rem; line-height:1; cursor:pointer; color:#64748b; padding:2px 6px; }
+  #owDlg .hd .x:hover { color:#111827; }
+  #owDlg .bd { padding:10px 16px; overflow:auto; }
+  #owDlg .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:4px 12px; }
+  #owDlg label { display:flex; align-items:center; gap:7px; padding:5px 8px; border-radius:6px; font-size:0.86rem; cursor:pointer; border:1px solid transparent; }
+  #owDlg label:hover { background:#f1f5f9; }
+  #owDlg label.on { background:#eef2ff; border-color:#a5b4fc; }
+  #owDlg label.nobody { color:#c2410c; }
+  #owDlg input[type=radio] { width:16px; height:16px; margin:0; flex:0 0 auto; }
+  #owDlg .ft { display:flex; gap:8px; justify-content:flex-end; align-items:center; padding:10px 16px; border-top:1px solid #e2e8f0; }
+  #owDlg .ft .hint { margin-right:auto; }
+  #toast { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); background:#1f2937; color:#fff; padding:6px 14px; border-radius:8px; font-size:0.8rem; opacity:0; transition:opacity .3s; pointer-events:none; z-index:999; }
+  @media (max-width:760px) {
+    .thead { display:none; }
+    .thead, .trow { grid-template-columns:1fr; }
+    .trow > .cell { border-right:none; border-bottom:1px dashed #eef2f7; }
+    .trow > .cell[data-h]::before { content:attr(data-h); display:block; font-size:0.68rem; font-weight:700; color:#64748b; }
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="row1">
+    <span class="ttl">📝 年度計画策定　{{ year }}年度</span>
+    <span class="quick">
+      <a class="q back" href="{{ url_for('mid_term_progress.editor') }}?year={{ year }}">🧩 編集者⇒</a>
+      <button type="button" class="q gray" onclick="openCols()">🏢 部門の並び</button>
+      <a class="q teal" href="{{ url_for('mid_term_progress.manage') }}?year={{ year }}&view=rows">🗂 担当表（部門別）</a>
+      <a class="q teal" href="{{ url_for('mid_term_progress.manage') }}?year={{ year }}">🗂 担当表（計画別）</a>
+      <a class="q gray" href="{{ url_for('mid_term_progress.view') }}" title="事業全貌（このアプリのトップ）">📊 トップ</a>
+      <a class="q home" href="{{ url_for('mid_term_progress.return_to_fujin') }}">🏠 FUJIN-P</a>
+    </span>
+    <button type="button" class="tg" id="tocT" onclick="tog('toc')">📋 目次 <span>▾</span></button>
+    <button type="button" class="tg" id="fltT" onclick="tog('flt')">⚙ 絞り込みと列幅 <span>▾</span></button>
+  </div>
+  <div class="panel toc" id="toc" hidden><div class="tocin" id="tocin"></div></div>
+  <div class="panel" id="flt" hidden>
+    <div class="flt">
+      <label>部門 <select id="fOwner"><option value="">すべて</option>{% for c in choices %}<option>{{ c }}</option>{% endfor %}</select></label>
+      <label><input type="checkbox" id="fNone"> 担当なしの細目がある計画だけ</label>
+      <label><input type="checkbox" id="fProp"> 提案のある計画だけ</label>
+      <span id="sumTxt"></span>
+    </div>
+    <div class="wid">
+      <span>列の幅</span>
+      <label>番号・操作 <input type="range" id="wNo" min="8" max="24" step="0.5"><span class="v" id="vNo"></span></label>
+      <label>部門からの提案 <input type="range" id="wProp" min="0.3" max="4" step="0.1"><span class="v" id="vProp"></span></label>
+      <label>年度計画 <input type="range" id="wPlan" min="0.3" max="4" step="0.1"><span class="v" id="vPlan"></span></label>
+      <button type="button" onclick="resetW()">初期値に戻す</button>
+    </div>
+  </div>
+  <div id="lockbar" class="lockbar hidden"><span id="lockMsg"></span>
+    <button type="button" id="unlockBtn" onclick="toggleForce()"></button></div>
+</div>
+<div class="wrap" id="wrap">読み込み中…</div>
+
+<div id="colDlg"><div class="box">
+  <b>部門の並び</b>
+  <p class="muted">担当に選べる部門を，1行に1つ，並べたい順に書きます．担当表の列もこの順になります．並びに無い部門は担当に選べません．</p>
+  <textarea id="colTxt"></textarea>
+  <details class="muted" style="margin:6px 0"><summary>ユーザグループの一覧（参考）</summary><div id="grpList"></div></details>
+  <div style="display:flex;gap:6px;justify-content:flex-end"><button class="btn" type="button" onclick="closeCols()">やめる</button><button class="btn pri" type="button" onclick="saveCols()">保存</button></div>
+</div></div>
+<div id="owDlg" role="dialog" aria-modal="true" aria-labelledby="owTitle"><div class="box">
+  <div class="hd"><b id="owTitle">担当部門</b><span class="muted" id="owSub"></span>
+    <button type="button" class="x" onclick="closeOwner()" aria-label="閉じる">×</button></div>
+  <div class="bd"><div class="grid" id="owList"></div></div>
+  <div class="ft"><span class="muted hint">部門を選んで「決定」を押します（ダブルクリックでも決定）．</span>
+    <button type="button" class="btn" onclick="closeOwner()">閉じる</button>
+    <button type="button" class="btn pri" id="owOk" onclick="okOwner()">決定</button></div>
+</div></div>
+<div id="toast"></div>
+
+{% include 'mid_term_progress/_item_panel.html' %}
+
+<script>
+const YEAR = {{ year|tojson }};
+const CHOICES = {{ choices|tojson }};
+const COLS = {{ columns|tojson }};
+const GROUPS = {{ all_groups|tojson }};
+const U = {
+  data: '{{ url_for("mid_term_progress.api_structure") }}',
+  add: '{{ url_for("mid_term_progress.api_structure_add") }}',
+  owner: '{{ url_for("mid_term_progress.api_structure_owner") }}',
+  del: '{{ url_for("mid_term_progress.api_structure_delete") }}',
+  move: '{{ url_for("mid_term_progress.api_structure_move") }}',
+  merge: '{{ url_for("mid_term_progress.api_structure_merge") }}',
+  text: '{{ url_for("mid_term_progress.api_item_text") }}',
+  cols: '{{ url_for("mid_term_progress.api_manage_columns") }}',
+  same: '{{ url_for("mid_term_progress.api_structure_same") }}',
+  done: '{{ url_for("mid_term_progress.api_structure_done") }}',
+};
+let DATA = null, FORCE = false;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2200); }
+function tog(id){ const p = document.getElementById(id); p.hidden = !p.hidden; document.querySelector(`#${id}T span`).textContent = p.hidden ? '▾' : '▴'; }
+async function post(url, data){
+  const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+  const j = await r.json().catch(() => ({success:false, error:'応答を読めません（' + r.status + '）'}));
+  if (!j.success) throw new Error(j.error || '失敗しました');
+  return j;
+}
+const E_LBL = {requested:'依頼中', confirmed:'確認済み'}, A_LBL = {writing:'執筆中', done:'執筆完了', revised:'改訂済み'};
+window.statusChips = window.statusChips || function(es, as){
+  return (es ? `<span class="chip e-${es}">${E_LBL[es]}</span>` : '<span class="chip none">未依頼</span>') + (as ? ` <span class="chip a-${as}">${A_LBL[as]}</span>` : '');
+};
+function ownerButton(val, onclick, disabled){
+  return `<button type="button" class="owbtn ${val ? '' : 'none'}" title="${esc(val || '担当なし')}" ${disabled ? 'disabled' : ''} onclick='${onclick}'>` +
+         `${val ? '🏢 ' + esc(val) : '（担当なし）'}</button>`;
+}
+// 担当部門を選ぶモーダル（外側クリックでは閉じない．閉じる・×・決定で閉じる）
+let OW = null;
+function openOwner(title, sub, current, okLabel, onPick){
+  OW = {onPick};
+  document.getElementById('owTitle').textContent = title;
+  document.getElementById('owSub').textContent = sub || '';
+  document.getElementById('owOk').textContent = okLabel || '決定';
+  const opts = CHOICES.slice(); if (current && !opts.includes(current)) opts.unshift(current);
+  const item = (v, lbl, cls) => `<label class="${cls || ''} ${v === (current || '') ? 'on' : ''}">` +
+    `<input type="radio" name="ow" value="${esc(v)}" ${v === (current || '') ? 'checked' : ''}>${lbl}</label>`;
+  document.getElementById('owList').innerHTML =
+    item('', '（担当なし）', 'nobody') + opts.map(o => item(o, esc(o))).join('');
+  document.getElementById('owDlg').classList.add('open');
+  const on = document.querySelector('#owList input:checked'); if (on) on.focus();
+}
+function closeOwner(){ document.getElementById('owDlg').classList.remove('open'); OW = null; }
+function okOwner(){
+  const r = document.querySelector('#owList input[name=ow]:checked');
+  if (!r || !OW) { closeOwner(); return; }
+  const f = OW.onPick; closeOwner(); f(r.value);
+}
+document.getElementById('owList').addEventListener('change', e => {
+  document.querySelectorAll('#owList label').forEach(l => l.classList.toggle('on', l.contains(e.target) && e.target.checked));
+});
+document.getElementById('owList').addEventListener('dblclick', e => { if (e.target.closest('label')) okOwner(); });
+const bid = b => `b-${b.mid_plan_no}-${b.annual_plan_no}`;
+const pk = b => ({fiscal_year: YEAR, mid_plan_no: b.mid_plan_no, annual_plan_no: b.annual_plan_no});
+
+async function load(){
+  const j = await (await fetch(`${U.data}?year=${YEAR}`)).json();
+  const wrap = document.getElementById('wrap');
+  if (!j.success) { wrap.textContent = j.error || '読み込めません'; return; }
+  const raw = j.locked; j.locked = j.locked && !FORCE; DATA = j;
+  document.body.classList.toggle('locked', j.locked);
+  const lb = document.getElementById('lockbar'); lb.classList.toggle('hidden', !raw);
+  document.getElementById('lockMsg').textContent = FORCE
+    ? '固定を一時解除しています．新設・廃止・並べ替え・統合・担当の変更ができます．廃止・統合した細目の報告・コメントは消えるので注意してください．'
+    : 'この年度は進捗報告・業務実績報告の依頼が出ているため，細目構造（新設・廃止・並べ替え・統合・担当）は固定されています．計画本文の修正はできます．';
+  document.getElementById('unlockBtn').textContent = FORCE ? '🔒 固定に戻す' : '🔓 固定を一時解除して編集する';
+  const blocks = j.blocks.filter(b => b.current.length);
+  if (!wrap.dataset.built) {
+    let h = '', last = null;
+    for (const b of blocks) {
+      if (b.goal !== last) { h += `<div class="goalh"><span class="code">${esc(b.goal)}</span><span class="gt">${esc(b.goal_title)}</span></div>`; last = b.goal; }
+      h += `<div class="blk" id="${bid(b)}"></div>`;
+    }
+    wrap.innerHTML = h || '<p class="muted">この年度には細目がありません．</p>'; wrap.dataset.built = '1';
+  }
+  for (const b of blocks) { const el = document.getElementById(bid(b)); if (el) el.innerHTML = renderBlock(b); }
+  drawToc(); applyFilter();
+}
+window.onItemChanged = load;
+
+function renderBlock(b){
+  const k = pk(b);
+  let h = `<div class="planh"><span class="no">計画番号 ${b.mid_plan_no}</span>` +
+          (b.annual_plan_no !== b.mid_plan_no ? `<span class="muted" style="color:#cbd5e1">年度計画 ${b.annual_plan_no}</span>` : '') + '</div>';
+  if (b.mid_plan_html) h += `<div class="midp"><div class="lbl">中期計画</div>${b.mid_plan_html}</div>`;
+  h += `<div class="thead"><div>番号・担当・操作</div><div>部門からの計画の提案</div><div>${YEAR}年度計画（編集）</div></div>`;
+  b.current.forEach((d, i) => {
+    const dk = Object.assign({detail_no: d.detail_no}, k), J = esc(JSON.stringify(dk));
+    const label = `${b.annual_plan_no}-${d.detail_no}`;
+    const doneBtn = `<button type="button" class="donebtn ${d.done ? 'on' : ''}" ${DATA.locked ? 'disabled' : ''} ` +
+      `title="${d.done ? '対応済みを外す' : '対応が完了して取り組み不要（計画・報告に「対応済み」と入れる）'}" ` +
+      `onclick='toggleDone(${J}, ${d.done ? 'false' : 'true'}, ${!d.done && (d.plan_text || '').trim() ? 'true' : 'false'})'>対応済み</button>`;
+    const sameBtn = (i > 0 || d.same) ? `<button type="button" class="samebtn ${d.same ? 'on' : ''}" ${DATA.locked ? 'disabled' : ''} ` +
+      `title="${d.same ? '同上を外す（自分の計画を書く）' : '上の細目と同じ計画にする（報告は細目ごと）'}" ` +
+      `onclick='toggleSame(${J}, ${d.same ? 'false' : 'true'}, ${d.plan_text && !d.same ? 'true' : 'false'})'>同上</button>` : '';
+    const ops = `<span class="ops"><button type="button" onclick='openItem(${J})'>詳細</button> ` +
+      `<button type="button" class="lockable" title="上へ" ${i === 0 ? 'disabled' : ''} onclick='move(${J},-1)'>↑</button>` +
+      `<button type="button" class="lockable" title="下へ" ${i === b.current.length - 1 ? 'disabled' : ''} onclick='move(${J},1)'>↓</button>` +
+      (d.done ? '' : `<button type="button" class="lockable" title="1つ上の細目に統合" ${i === 0 ? 'disabled' : ''} onclick='merge(${J})'>⤴統合</button>`) +
+      `<button type="button" class="lockable del" title="この細目を廃止" ${b.current.length <= 1 ? 'disabled' : ''} onclick='del(${J})'>✕廃止</button></span>`;
+    const noCell = `<div class="cell cno"><div><span class="num">${label}</span>${d.done ? '' : statusChips(d.editor_status, d.author_status)}${d.has_comment ? ' 💬' : ''}</div>` +
+      `<div class="line">${ownerButton(d.owner_group, `pickOwner(${J}, ${esc(JSON.stringify(d.owner_group))})`, DATA.locked)}</div>` +
+      `<div class="line">${sameBtn}${doneBtn}</div><div class="line">${ops}</div></div>`;
+    if (d.done) {
+      h += `<div class="trow dt done" data-owner="${esc(d.owner_group)}">${noCell}<div class="cell">—</div><div class="cell">対応済み（報告不要）</div></div>`;
+      return;
+    }
+    const prop = `<div class="cell cprop" data-h="部門からの計画の提案">` +
+      (d.proposal ? `<div class="ph">${esc(d.proposal_at || '')}</div>${d.proposal_html}` : '<span class="empty">提案なし</span>') + '</div>';
+    let plan;
+    if (d.same) {
+      plan = `<div class="cell" data-h="年度計画">` + (d.same_src
+        ? `<div class="samenote">↑ 細目${d.same_src}と同じ計画（報告はこの細目で書きます）</div>${d.plan_badge ? `<span class="fb">${esc(d.plan_badge)}</span>` : ''}${d.plan_html || '<span class="empty">計画本文なし</span>'}`
+        : `<div class="samewarn">⚠ 同上の相手がありません．同上を外すか並べ替えてください</div>`) + '</div>';
+    } else {
+      plan = `<div class="cell" data-h="年度計画（編集）"><div data-v>${d.plan_badge ? `<span class="fb">${esc(d.plan_badge)}</span>` : ''}${d.plan_html || '<span class="empty">計画本文なし</span>'}</div>` +
+        `<div class="ed hidden" data-e><textarea data-base="${esc(d.updated_at || '')}">${esc(d.plan_text)}</textarea></div>` +
+        `<div class="pbtn"><button type="button" data-eb onclick='editOn(this)'>✎ 編集</button>` +
+        (d.proposal ? `<button type="button" onclick='adoptProp(this, ${J})'>提案を取り込む</button>` : '') +
+        `<button type="button" class="save hidden" onclick='saveText(this, ${J})'>保存</button>` +
+        `<button type="button" class="hidden" data-cancel onclick='editOff(this)'>やめる</button></div></div>`;
+    }
+    h += `<div class="trow dt ${d.owner_group ? '' : 'noowner'}" data-owner="${esc(d.owner_group)}">${noCell}${prop}${plan}</div>`;
+  });
+  h += `<div class="addrow lockable"><button type="button" class="btn" onclick='add(${esc(JSON.stringify(k))})'>＋ 細目を新設</button></div>`;
+  return h;
+}
+function drawToc(){
+  let h = '', last = null, open = false;
+  const blocks = DATA.blocks.filter(b => b.current.length);
+  for (const b of blocks) {
+    if (b.goal !== last) { if (open) h += '</span>'; h += `<span class="tocg" title="${esc(b.goal)} ${esc(b.goal_title)}"><span class="gl">${esc(b.goal)}</span>`; last = b.goal; open = true; }
+    const live = b.current.filter(d => !d.done);
+    const cls = !live.length ? 'dim' : (live.some(d => !d.owner_group) ? 'warn' : (live.some(d => d.proposal) ? 'prop' : ''));
+    h += `<a href="#${bid(b)}" class="${cls}" title="${esc(b.goal_title)}">${b.mid_plan_no}</a>`;
+  }
+  if (open) h += '</span>';
+  document.getElementById('tocin').innerHTML = h;
+  document.querySelectorAll('#tocin a').forEach(a => a.addEventListener('click', e => {
+    const t = document.querySelector(a.getAttribute('href')); if (!t) return; e.preventDefault();
+    window.scrollTo({top: t.getBoundingClientRect().top + scrollY - document.querySelector('.bar').offsetHeight - 6, behavior:'smooth'});
+  }));
+  const n = blocks.reduce((a, b) => a + b.current.filter(d => !d.done).length, 0);
+  const none = blocks.reduce((a, b) => a + b.current.filter(d => !d.owner_group && !d.done).length, 0);
+  const pr = blocks.reduce((a, b) => a + b.current.filter(d => d.proposal && !d.done).length, 0);
+  document.getElementById('sumTxt').textContent = `細目 ${n}（担当なし ${none}）　提案 ${pr}` + (DATA.done ? `　対応済み ${DATA.done}` : '');
+}
+function applyFilter(){
+  const o = document.getElementById('fOwner').value, nn = document.getElementById('fNone').checked, pp = document.getElementById('fProp').checked;
+  for (const b of DATA.blocks.filter(b => b.current.length)) {
+    const el = document.getElementById(bid(b)); if (!el) continue;
+    let show = true;
+    if (o) show = b.current.some(d => d.owner_group === o);
+    if (nn) show = show && b.current.some(d => !d.owner_group && !d.done);
+    if (pp) show = show && b.current.some(d => d.proposal && !d.done);
+    el.classList.toggle('hidden', !show);
+  }
+  document.querySelectorAll('.goalh').forEach(g => {
+    let n = g.nextElementSibling, any = false;
+    while (n && n.classList.contains('blk')) { if (!n.classList.contains('hidden')) any = true; n = n.nextElementSibling; }
+    g.classList.toggle('hidden', !any);
+  });
+}
+document.getElementById('fOwner').addEventListener('change', applyFilter);
+document.getElementById('fNone').addEventListener('change', applyFilter);
+document.getElementById('fProp').addEventListener('change', applyFilter);
+function toggleForce(){
+  if (!FORCE && !confirm('細目構造の固定を一時解除します．進捗報告・業務実績報告の依頼が出ている年度なので，廃止・統合した細目の報告・コメント・依頼の記録は消えます．この画面を開いているあいだだけ有効です．よろしいですか？')) return;
+  FORCE = !FORCE; load();
+}
+async function run(url, data, msg){
+  if (FORCE) data = Object.assign({force: true}, data);
+  try { await post(url, data); if (msg) toast(msg); await load(); } catch (e) { alert(e.message); await load(); }
+}
+function setOwner(k, v){ run(U.owner, Object.assign({owner_group: v}, k), '担当を決めました'); }
+function move(k, dir){ run(U.move, Object.assign({dir}, k)); }
+function merge(k){ if (confirm(`細目${k.detail_no}を細目${k.detail_no - 1}に統合します．本文とコメントは上の細目の後ろに足され，細目${k.detail_no}は廃止されます．よろしいですか？`)) run(U.merge, k, '統合しました'); }
+function del(k){ if (confirm(`細目${k.detail_no}を廃止します．本文・依頼・コメントも消えます．よろしいですか？`)) run(U.del, k, '廃止しました'); }
+function add(k){
+  openOwner('新しい細目の担当部門', `計画番号 ${k.mid_plan_no}`, '', '細目を新設',
+            v => run(U.add, Object.assign({owner_group: v}, k), '細目を新設しました'));
+}
+function toggleDone(k, on, hasText){
+  if (on && !confirm(`細目${k.detail_no}を「対応済み」にします．計画・進捗報告・業務実績報告に「・対応済み」と入り，執筆の依頼の対象から外れます．` +
+                     (hasText ? '\nいまの計画本文は置き換わります．' : '') + '\nよろしいですか？')) return;
+  if (!on && !confirm(`細目${k.detail_no}の「対応済み」を外します．「対応済み」と入っている欄は空になります．よろしいですか？`)) return;
+  run(U.done, Object.assign({on}, k), on ? '対応済みにしました' : '対応済みを外しました');
+}
+function toggleSame(k, on, hasText){
+  if (on && hasText && !confirm(`細目${k.detail_no}を「同上」にすると，この細目の計画本文は消えて，上の細目の計画を共有します．よろしいですか？`)) return;
+  if (!on && !confirm(`細目${k.detail_no}の「同上」を外します．計画本文は空になるので，この細目の計画を書いてください．よろしいですか？`)) return;
+  run(U.same, Object.assign({on}, k), on ? '同上にしました' : '同上を外しました');
+}
+function pickOwner(k, cur){
+  openOwner('担当部門', `計画番号 ${k.mid_plan_no}　細目 ${k.detail_no}`, cur, '決定', v => { if (v !== (cur || '')) setOwner(k, v); });
+}
+function take(k, owner){ run(U.add, Object.assign({owner_group: owner}, k), `「${owner || '担当なし'}」の細目を新設しました`); }
+function editOn(b){ const dt = b.closest('.dt'); dt.querySelector('[data-v]').classList.add('hidden'); dt.querySelector('[data-e]').classList.remove('hidden');
+  b.classList.add('hidden'); dt.querySelector('.save').classList.remove('hidden'); dt.querySelector('[data-cancel]').classList.remove('hidden'); dt.querySelector('textarea').focus(); }
+function editOff(b){ const dt = b.closest('.dt'); dt.querySelector('[data-v]').classList.remove('hidden'); dt.querySelector('[data-e]').classList.add('hidden');
+  dt.querySelector('[data-eb]').classList.remove('hidden'); dt.querySelector('.save').classList.add('hidden'); b.classList.add('hidden'); }
+function adoptProp(b, k){
+  const blk = DATA.blocks.find(x => x.mid_plan_no === k.mid_plan_no && x.annual_plan_no === k.annual_plan_no);
+  const d = blk && blk.current.find(x => x.detail_no === k.detail_no); if (!d) return;
+  const dt = b.closest('.dt'); editOn(dt.querySelector('[data-eb]'));
+  const ta = dt.querySelector('textarea');
+  if (ta.value.trim() && !confirm('いまの計画本文を部門の提案で置き換えます．よろしいですか？')) return;
+  ta.value = d.proposal;
+}
+function saveText(b, k){ const ta = b.closest('.dt').querySelector('textarea');
+  run(U.text, Object.assign({stage:'plan', text: ta.value, base_updated_at: ta.dataset.base || null}, k), '保存しました'); }
+
+function openCols(){
+  document.getElementById('colTxt').value = COLS.join('\n');
+  document.getElementById('grpList').textContent = GROUPS.join('，');
+  document.getElementById('colDlg').classList.add('open');
+}
+function closeCols(){ document.getElementById('colDlg').classList.remove('open'); }
+async function saveCols(){
+  const cols = document.getElementById('colTxt').value.split('\n').map(s => s.trim()).filter(Boolean);
+  try { await post(U.cols, {columns: cols}); location.reload(); } catch (e) { alert(e.message); }
+}
+// 列の幅（スライダー．ブラウザに覚えておく）
+const W_DEF = {No:13, Prop:1, Plan:1.2}, W_KEY = 'mtp_structure_widths';
+function applyW(w){
+  const r = document.documentElement.style;
+  r.setProperty('--cNo', w.No + 'em'); r.setProperty('--cProp', w.Prop + 'fr'); r.setProperty('--cPlan', w.Plan + 'fr');
+  for (const k of Object.keys(W_DEF)) { const el = document.getElementById('w' + k), v = document.getElementById('v' + k);
+    if (el) el.value = w[k]; if (v) v.textContent = k === 'No' ? w[k] + 'em' : w[k]; }
+}
+function getW(){ try { return Object.assign({}, W_DEF, JSON.parse(localStorage.getItem(W_KEY) || '{}')); } catch (e) { return Object.assign({}, W_DEF); } }
+function setW(k, v){ const w = getW(); w[k] = parseFloat(v); try { localStorage.setItem(W_KEY, JSON.stringify(w)); } catch (e) {} applyW(w); }
+function resetW(){ try { localStorage.removeItem(W_KEY); } catch (e) {} applyW(Object.assign({}, W_DEF)); }
+for (const k of Object.keys(W_DEF)) { const el = document.getElementById('w' + k); if (el) el.addEventListener('input', () => setW(k, el.value)); }
+applyW(getW());
+load();
+</script>
+</body>
+</html>

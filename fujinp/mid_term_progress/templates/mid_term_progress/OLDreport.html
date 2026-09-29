@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>事業全貌（公開版）</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 0 0 80px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", sans-serif;
+            background: #f5f7fa;
+        }
+
+        /* フォーカスバー */
+        .focus-bar {
+            position: sticky; top: 0; z-index: 100;
+            background: #1f2937;
+            padding: 9px 20px;
+            display: flex; flex-direction: column; gap: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.3);
+        }
+        .fb-row {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        }
+        .fb-row-return { justify-content: flex-end; }
+        .focus-bar-label { color: #9ca3af; font-size: 0.76rem; white-space: nowrap; }
+
+        /* 列幅調整スライダー（フォーカスバー内・省スペース） */
+        .width-ctrl {
+            display:flex; align-items:center; gap:6px; margin-left:auto;
+            color:#9ca3af; font-size:0.72rem; white-space:nowrap;
+        }
+        .width-ctrl .wc-end { color:#cbd5e1; }
+        .width-ctrl input[type=range] {
+            width:130px; height:4px; cursor:pointer; accent-color:#6366f1;
+        }
+        .width-ctrl .wc-val {
+            color:#e5e7eb; font-variant-numeric:tabular-nums;
+            min-width:62px; text-align:center;
+        }
+        .width-ctrl button {
+            background:#374151; color:#d1d5db; border:1px solid #4b5563;
+            border-radius:4px; font-size:0.68rem; padding:2px 7px; cursor:pointer;
+        }
+        .width-ctrl button:hover { background:#4b5563; color:#fff; }
+        .focus-btn {
+            padding: 4px 14px; border-radius: 20px; border: 2px solid transparent;
+            font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all .15s;
+        }
+        .focus-btn.all { background:#374151; color:#d1d5db; border-color:#4b5563; }
+        .focus-btn.all.active, .focus-btn.all:hover { background:#6b7280; color:white; border-color:#9ca3af; }
+        .focus-btn[data-mid="1"] { background:#1e3a5f; color:#93c5fd; border-color:#1e40af; }
+        .focus-btn[data-mid="1"].active, .focus-btn[data-mid="1"]:hover { background:#1e40af; color:white; }
+        .focus-btn[data-mid="2"] { background:#3b1f5e; color:#c4b5fd; border-color:#5b21b6; }
+        .focus-btn[data-mid="2"].active, .focus-btn[data-mid="2"]:hover { background:#5b21b6; color:white; }
+        .focus-btn[data-mid="3"] { background:#1f3a2f; color:#6ee7b7; border-color:#065f46; }
+        .focus-btn[data-mid="3"].active, .focus-btn[data-mid="3"]:hover { background:#065f46; color:white; }
+
+        /* ページヘッダー */
+        .page-header {
+            background:white; border-radius:8px; padding:14px 22px;
+            margin:14px 0 16px; border:1px solid #dee2e6;
+            box-shadow:0 1px 4px rgba(0,0,0,.06);
+        }
+        .page-header h1 { font-size:1.2rem; color:#1f2937; margin:0 0 3px; }
+        .page-header .meta { font-size:0.78rem; color:#6b7280; }
+
+        /* 中期セクション */
+        .midterm-section { margin-bottom:2.5rem; transition:opacity .25s; }
+        .midterm-section.dimmed { opacity:.12; pointer-events:none; }
+
+        .midterm-header {
+            padding:9px 18px; border-radius:8px 8px 0 0;
+            display:flex; align-items:center; gap:10px;
+        }
+        .midterm-header[data-mid="1"] { background:#1e40af; }
+        .midterm-header[data-mid="2"] { background:#5b21b6; }
+        .midterm-header[data-mid="3"] { background:#065f46; }
+        .midterm-header h2 { color:white; font-size:1rem; margin:0; }
+        .midterm-header .period-badge {
+            background:rgba(255,255,255,.2); color:white;
+            border-radius:12px; padding:2px 10px; font-size:0.76rem;
+        }
+        .midterm-header .plan-count { margin-left:auto; color:rgba(255,255,255,.7); font-size:0.76rem; }
+
+        /* 目次 */
+        .toc-inner {
+            background:white; border:1px solid #dee2e6; border-top:none;
+            padding:10px 16px; margin-bottom:14px;
+        }
+        .toc-label { font-size:0.73rem; color:#6b7280; margin-bottom:5px; font-weight:600; }
+        .toc-group { margin-bottom:5px; }
+        .toc-group-label {
+            font-size:0.7rem; color:#9ca3af; margin-bottom:2px;
+        }
+        .toc-btn-inner {
+            display:inline-block; margin:2px 2px; padding:2px 7px;
+            font-size:0.74rem; border:1px solid #d1d5db; color:#374151;
+            border-radius:4px; text-decoration:none;
+        }
+        .toc-btn-inner:hover { background:#f3f4f6; }
+
+        /* 目標カード内の中期計画一覧 */
+        .goal-plans-summary {
+            background: rgba(0,0,0,.12);
+            padding: 8px 14px;
+            border-top: 1px solid rgba(255,255,255,.1);
+        }
+        .goal-plan-item {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255,255,255,.07);
+            font-size: 0.78rem;
+            color: rgba(255,255,255,.8);
+            line-height: 1.4;
+        }
+        .goal-plan-item:last-child { border-bottom: none; }
+        .goal-plan-no {
+            background: rgba(255,255,255,.15);
+            color: white;
+            border-radius: 10px;
+            padding: 1px 7px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .goal-plan-text { flex: 1; }
+
+        /* 中期目標カード */
+        .goal-block { margin-bottom:1.4rem; }
+        .goal-header {
+            padding:7px 16px;
+            display:flex; align-items:center; gap:10px;
+            border-radius:6px 6px 0 0;
+        }
+        .midterm-section[data-mid="1"] .goal-header { background:#2d4a7a; }
+        .midterm-section[data-mid="2"] .goal-header { background:#4a2d7a; }
+        .midterm-section[data-mid="3"] .goal-header { background:#2d7a4a; }
+        .goal-code-badge {
+            font-size:0.72rem; font-weight:700; color:rgba(255,255,255,.85);
+            background:rgba(0,0,0,.2); padding:2px 9px; border-radius:10px; white-space:nowrap;
+        }
+        .goal-title { color:white; font-size:0.88rem; font-weight:600; flex:1; }
+        .goal-text-bar {
+            background:rgba(255,255,255,.06);
+            border-left:3px solid rgba(255,255,255,.2);
+            padding:6px 14px;
+            font-size:0.77rem; color:rgba(255,255,255,.8); line-height:1.5;
+        }
+        /* goal-header の背景色を継承するために goal-text-bar は goal-header の中に入れる */
+        .goal-header-wrap {
+            border-radius:6px 6px 0 0;
+            overflow:hidden;
+        }
+        .midterm-section[data-mid="1"] .goal-header-wrap { background:#2d4a7a; }
+        .midterm-section[data-mid="2"] .goal-header-wrap { background:#4a2d7a; }
+        .midterm-section[data-mid="3"] .goal-header-wrap { background:#2d7a4a; }
+
+        .goal-plans {
+            border:1px solid #dee2e6; border-top:none;
+            border-radius:0 0 6px 6px; overflow:hidden;
+        }
+
+        /* 計画ブロック */
+        .plan-block {
+            background:#fff; border-bottom:1px solid #dee2e6; overflow:hidden;
+        }
+        .plan-block:last-child { border-bottom:none; }
+        .plan-block-header {
+            background:#343a40; color:#fff; padding:8px 16px;
+            display:flex; align-items:center; gap:10px;
+        }
+        .plan-no-badge {
+            color:white; border-radius:14px; padding:2px 10px;
+            font-weight:700; font-size:0.86rem; white-space:nowrap;
+        }
+        .midterm-section[data-mid="1"] .plan-no-badge { background:#1e40af; }
+        .midterm-section[data-mid="2"] .plan-no-badge { background:#5b21b6; }
+        .midterm-section[data-mid="3"] .plan-no-badge { background:#065f46; }
+        .plan-path { font-size:0.8rem; opacity:.85; flex:1; }
+
+        /* 年度テーブル */
+        .annual-table {
+            width:100%; border-collapse:collapse; font-size:0.85rem;
+            table-layout:fixed;
+        }
+        /* 列幅は colgroup の col に指定。ap/rep の幅は JS が直接設定する */
+        .annual-table col.year-col { width:72px; }
+        .annual-table thead th {
+            background:#495057; color:white; padding:7px 12px;
+            white-space:nowrap; font-weight:600; border:none;
+        }
+        .annual-table thead th.year-col { text-align:center; }
+        .annual-table td { word-wrap:break-word; overflow-wrap:anywhere; }
+        .annual-table tbody tr { border-bottom:1px solid #dee2e6; }
+        .annual-table tbody tr:nth-child(odd)  { background:#fafafa; }
+        .annual-table tbody tr:nth-child(even) { background:#fff; }
+        .annual-table td {
+            padding:9px 12px; vertical-align:top; border-right:1px solid #e9ecef;
+        }
+        .annual-table td:last-child { border-right:none; }
+        .year-cell {
+            text-align:center; font-weight:700; color:#374151;
+            background:#f1f5f9 !important; border-right:2px solid #cbd5e1 !important;
+        }
+        .version-sep td {
+            background:#e8eaf6 !important;
+            font-size:0.72rem; color:#3730a3;
+            padding:3px 12px; border-bottom:2px solid #c7d2fe !important;
+        }
+        .cell-content ul, .cell-content ol { padding-left:16px; margin:3px 0; }
+        .cell-content li { margin-bottom:2px; }
+        .cell-content p  { margin:2px 0; }
+        .empty-cell { color:#adb5bd; font-style:italic; }
+
+        /* 4年終了時・目標期間業務実績報告 */
+        .midterm-reports { border-top:2px solid #e9ecef; }
+        .midterm-report-row {
+            display:grid; grid-template-columns:160px 1fr;
+            border-bottom:1px solid #e9ecef;
+        }
+        .midterm-report-row:last-child { border-bottom:none; }
+        .midterm-report-label {
+            background:#f1f5f9; padding:10px 14px;
+            font-size:0.78rem; font-weight:700; color:#374151;
+            border-right:2px solid #cbd5e1;
+            display:flex; align-items:flex-start;
+        }
+        .midterm-report-body { padding:10px 14px; font-size:0.85rem; color:#1e293b; }
+
+        /* ページトップ */
+        .back-to-top {
+            position:fixed; bottom:20px; right:20px;
+            width:38px; height:38px; border-radius:50%;
+            background:#6366f1; color:white;
+            display:flex; align-items:center; justify-content:center;
+            text-decoration:none; box-shadow:0 3px 8px rgba(0,0,0,.2);
+            font-size:0.95rem; z-index:200;
+        }
+        .back-to-top:hover { background:#4f46e5; color:white; }
+
+        .btn-return {
+            padding: 4px 14px;
+            border-radius: 6px;
+            border: none;
+            background: #e74c3c;
+            color: #fff;
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-decoration: none;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,.3);
+            transition: background .15s;
+        }
+        .btn-return:hover { background: #c0392b; color: #fff; }
+
+    </style>
+</head>
+<body>
+
+<!-- フォーカスバー -->
+<div class="focus-bar" id="focusBar">
+
+    <!-- 1段目：FUJIN-Pダッシュボードに戻る -->
+    <div class="fb-row fb-row-return">
+        <a href="{{ url_for('mid_term_progress.return_to_fujin') }}" class="btn-return">🏠 FUJIN-Pダッシュボードに戻る</a>
+    </div>
+
+    <!-- 2段目：フォーカス 〜 データダウンロード／アップロード -->
+    <div class="fb-row">
+        <span class="focus-bar-label">フォーカス：</span>
+        <button class="focus-btn all active" onclick="setFocus(null)">全期間</button>
+        <div style="width:1px;height:22px;background:#374151;margin:0 2px;"></div>
+        {% for mid_id, mid in midterm_map.items() %}
+        <button class="focus-btn" data-mid="{{ mid_id }}" onclick="setFocus({{ mid_id }})">{{ mid.label }}</button>
+        {% endfor %}
+        {% if can_upload %}
+        <a href="{{ url_for('mid_term_progress.upload_page') }}"
+           style="margin-left:12px;padding:4px 14px;font-size:0.78rem;font-weight:600;
+                  background:#6366f1;color:white;border-radius:6px;text-decoration:none;
+                  white-space:nowrap;">
+            📁 データダウンロード／アップロード
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- 3段目：スライダー（計画／実績） -->
+    <div class="fb-row">
+        <div class="width-ctrl">
+            <span class="wc-end">計画</span>
+            <input type="range" id="planRatio" min="20" max="80" step="5" value="50"
+                   oninput="setPlanRatio(this.value)" title="年度計画／年度実績の列幅">
+            <span class="wc-end">実績</span>
+            <span class="wc-val" id="planRatioVal">50 / 50</span>
+            <button type="button" onclick="setPlanRatio(50, true)">均等</button>
+        </div>
+    </div>
+
+</div>
+
+
+<div class="container-fluid" style="max-width:1500px; padding:0 16px;">
+
+    <!-- ページヘッダー -->
+    <div class="page-header">
+        <h1>📊 事業全貌（公開版）</h1>
+        <div class="meta">
+            生成日時: {{ generated_at }}　　
+            {% for mid_id, mid in midterm_map.items() %}
+            {{ mid.label }}（{% if mid.years %}{{ mid.years[0] }}～{{ mid.years[-1] }}{% endif %}年度）
+            {% if not loop.last %}　{% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    {% for mid_id, mid in midterm_map.items() %}
+    <div class="midterm-section" id="midterm-{{ mid_id }}" data-mid="{{ mid_id }}">
+
+        <div class="midterm-header" data-mid="{{ mid_id }}">
+            <h2>{{ mid.label }}</h2>
+            {% if mid.years %}
+            <span class="period-badge">{{ mid.years[0] }}年度 ～ {{ mid.years[-1] }}年度</span>
+            {% endif %}
+        </div>
+
+        <!-- 目次 -->
+        <div class="toc-inner">
+            <div class="toc-label">📋 計画番号</div>
+            {% for goal_code, goal in mid.goals.items() %}
+            {% if goal.plans %}
+            <div class="toc-group">
+                <div class="toc-group-label">{{ goal.goal_code }} {{ goal.goal_title }}</div>
+                {% for plan_no in goal.plans.keys() %}
+                <a href="#plan-{{ mid_id }}-{{ plan_no }}" class="toc-btn-inner">{{ plan_no }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+            {% if mid.plans_ungrouped %}
+            <div class="toc-group">
+                <div class="toc-group-label">未分類</div>
+                {% for plan_no in mid.plans_ungrouped.keys() %}
+                <a href="#plan-{{ mid_id }}-{{ plan_no }}" class="toc-btn-inner">{{ plan_no }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 目標カード → 計画カード → 年度テーブル -->
+        {% for goal_code, goal in mid.goals.items() %}
+        {% if goal.plans %}
+        <div class="goal-block">
+            <div class="goal-header-wrap">
+                <div class="goal-header">
+                    <span class="goal-code-badge">{{ goal.goal_code }}</span>
+                    <span class="goal-title">{{ goal.goal_title }}</span>
+                    {# バージョンが複数あれば件数を表示 #}
+                    {% if goal.versions|length > 1 %}
+                    <span style="font-size:0.7rem;color:rgba(255,255,255,.6);">（目標改訂 {{ goal.versions|length }}版）</span>
+                    {% endif %}
+                </div>
+                {# 最新バージョンの goal_text を表示 #}
+                {% set latest_goal = goal.versions[-1] %}
+                {% if latest_goal.goal_text %}
+                <div class="goal-text-bar">{{ latest_goal.goal_text }}</div>
+                {% endif %}
+                {# 改訂履歴がある場合、旧バージョンを折りたたみで表示 #}
+                {% if goal.versions|length > 1 %}
+                <div class="goal-text-bar" style="font-size:0.72rem;color:rgba(255,255,255,.5);border-left-color:rgba(255,255,255,.1);">
+                    目標改訂履歴：
+                    {% for v in goal.versions %}
+                    {{ v.valid_from }}〜{% if v.valid_to %}{{ v.valid_to }}{% else %}中期末{% endif %}年度版
+                    {% if not loop.last %} → {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+            </div>
+            <div class="goal-plans">
+            {% for plan_no, plan in goal.plans.items() %}
+            {% include 'mid_term_progress/_plan_block.html' ignore missing %}
+            {# インラインでplan_blockを展開 #}
+            {% set rep = plan.versions[-1] if plan.versions else {} %}
+            <div class="plan-block" id="plan-{{ mid_id }}-{{ plan_no }}" data-mid="{{ mid_id }}">
+                <div class="plan-block-header">
+                    <span class="plan-no-badge">計画番号 {{ plan_no }}</span>
+                    <span class="plan-path">
+                        {{ rep.get('item1','') }}
+                        {% if rep.get('item2') %} ／ {{ rep.item2 }}{% endif %}
+                        {% if rep.get('item3') %} ／ {{ rep.item3 }}{% endif %}
+                    </span>
+                </div>
+
+                {% if rep.get('mid_plan') %}
+                <div style="padding:8px 14px;background:#f0f4ff;border-left:4px solid #6366f1;border-top:1px solid #e9ecef;">
+                    <div style="font-size:0.68rem;font-weight:700;color:#4f46e5;text-transform:uppercase;margin-bottom:3px;">中期計画</div>
+                    <div class="cell-content" style="font-size:0.84rem;color:#1e293b;">{{ md_to_html(rep.mid_plan)|safe }}</div>
+                </div>
+                {% endif %}
+                <div style="overflow-x:auto;">
+                    <table class="annual-table">
+                        <colgroup>
+                            <col class="year-col">
+                            <col class="ap-col">
+                            <col class="rep-col">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th class="year-col">年度</th>
+                                <th class="ap-col">年度計画</th>
+                                <th class="rep-col">年度実績</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% set ns = namespace(prev_ver=none) %}
+                        {% for yr in mid.years %}
+                            {% set yr_data = plan.annual.get(yr, none) %}
+                            {% set cur_mv = yr_data.midterm if yr_data else none %}
+                            {% if cur_mv and cur_mv != ns.prev_ver and ns.prev_ver is not none %}
+                            <tr class="version-sep">
+                                <td colspan="3">▲ {{ yr }}年度より中期計画を改訂（有効開始: {{ cur_mv.valid_from }}年度）</td>
+                            </tr>
+                            {% endif %}
+                            {% set ns.prev_ver = cur_mv %}
+                            {% set yr_data = plan.annual.get(yr, none) %}
+                            {% set subs = yr_data.entries if yr_data else [] %}
+                            {% if subs %}
+                                {% for sub in subs %}
+                                <tr>
+                                    {% if loop.first %}
+                                    <td class="year-cell" rowspan="{{ subs|length }}">{{ yr }}</td>
+                                    {% endif %}
+                                    <td>
+                                        {% if sub.annual_plan %}
+                                            <div class="cell-content">{{ md_to_html(sub.annual_plan)|safe }}</div>
+                                        {% else %}<span class="empty-cell">－</span>{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if sub.report_content %}
+                                            <div class="cell-content">{{ md_to_html(sub.report_content)|safe }}</div>
+                                        {% else %}<span class="empty-cell">－</span>{% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                            <tr>
+                                <td class="year-cell">{{ yr }}</td>
+                                <td><span class="empty-cell">－</span></td>
+                                <td><span class="empty-cell">－</span></td>
+                            </tr>
+                            {% endif %}
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if plan.report_4yr or plan.report_mid %}
+                <div class="midterm-reports">
+                    {% if plan.report_4yr %}
+                    <div class="midterm-report-row">
+                        <div class="midterm-report-label">4年終了時業務実績報告</div>
+                        <div class="midterm-report-body cell-content">{{ md_to_html(plan.report_4yr)|safe }}</div>
+                    </div>
+                    {% endif %}
+                    {% if plan.report_mid %}
+                    <div class="midterm-report-row">
+                        <div class="midterm-report-label">目標期間業務実績報告</div>
+                        <div class="midterm-report-body cell-content">{{ md_to_html(plan.report_mid)|safe }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>{# /plan-block #}
+            {% endfor %}
+            </div>{# /goal-plans #}
+        </div>{# /goal-block #}
+        {% endif %}
+        {% endfor %}
+
+        {% if mid.plans_ungrouped %}
+        <div class="goal-block">
+            <div style="padding:6px 14px;background:#6b7280;color:white;font-size:0.78rem;border-radius:6px 6px 0 0;">目標未分類の計画</div>
+            <div class="goal-plans">
+            {% for plan_no, plan in mid.plans_ungrouped.items() %}
+            {% set rep = plan.versions[-1] if plan.versions else {} %}
+            <div class="plan-block" id="plan-{{ mid_id }}-{{ plan_no }}" data-mid="{{ mid_id }}">
+                <div class="plan-block-header">
+                    <span class="plan-no-badge">計画番号 {{ plan_no }}</span>
+                    <span class="plan-path">{{ rep.get('item1','') }}</span>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="annual-table">
+                        <colgroup>
+                            <col class="year-col">
+                            <col class="ap-col">
+                            <col class="rep-col">
+                        </colgroup>
+                        <thead><tr>
+                            <th class="year-col">年度</th>
+                            <th class="ap-col">年度計画</th>
+                            <th class="rep-col">年度実績</th>
+                        </tr></thead>
+                        <tbody>
+                        {% for yr in mid.years %}
+                        {% set yr_data = plan.annual.get(yr, none) %}
+                        {% set subs = yr_data.entries if yr_data else [] %}
+                        {% if subs %}{% for sub in subs %}
+                        <tr>
+                            {% if loop.first %}<td class="year-cell" rowspan="{{ subs|length }}">{{ yr }}</td>{% endif %}
+                            <td>{% if sub.annual_plan %}<div class="cell-content">{{ md_to_html(sub.annual_plan)|safe }}</div>{% else %}<span class="empty-cell">－</span>{% endif %}</td>
+                            <td>{% if sub.report_content %}<div class="cell-content">{{ md_to_html(sub.report_content)|safe }}</div>{% else %}<span class="empty-cell">－</span>{% endif %}</td>
+                        </tr>
+                        {% endfor %}{% else %}
+                        <tr><td class="year-cell">{{ yr }}</td><td><span class="empty-cell">－</span></td><td><span class="empty-cell">－</span></td></tr>
+                        {% endif %}
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+    {% endfor %}
+
+</div>
+
+<a href="#" class="back-to-top">▲</a>
+
+<script>
+    // 年度計画／年度実績の列幅調整（val は 20〜80 の整数 = 計画列の%）
+    var _planRatioVal = 50;
+    function applyColWidths() {
+        var val = _planRatioVal;
+        document.querySelectorAll('.annual-table').forEach(function(tbl) {
+            var avail = tbl.clientWidth - 72;   // 年度列(72px)を除いた残り幅
+            if (avail <= 0) return;
+            var planW = Math.round(avail * val / 100);
+            var ap  = tbl.querySelector('col.ap-col');
+            var rep = tbl.querySelector('col.rep-col');
+            if (ap)  ap.style.width  = planW + 'px';
+            if (rep) rep.style.width = (avail - planW) + 'px';
+        });
+    }
+    function setPlanRatio(val, syncSlider) {
+        _planRatioVal = parseInt(val, 10);
+        applyColWidths();
+        document.getElementById('planRatioVal').textContent =
+            _planRatioVal + ' / ' + (100 - _planRatioVal);
+        if (syncSlider) {
+            document.getElementById('planRatio').value = _planRatioVal;
+        }
+    }
+    // ウィンドウ幅変更時に px 幅を再計算
+    window.addEventListener('resize', applyColWidths);
+
+    function setFocus(midId) {
+        document.querySelectorAll('.focus-btn').forEach(b => b.classList.remove('active'));
+        if (midId === null) {
+            document.querySelector('.focus-btn.all').classList.add('active');
+        } else {
+            document.querySelector(`.focus-btn[data-mid="${midId}"]`)?.classList.add('active');
+        }
+        document.querySelectorAll('.midterm-section').forEach(sec => {
+            sec.classList.toggle('dimmed', midId !== null && parseInt(sec.dataset.mid) !== midId);
+        });
+        if (midId !== null) {
+            const target = document.getElementById(`midterm-${midId}`);
+            if (target) {
+                const barH = document.getElementById('focusBar').offsetHeight;
+                window.scrollTo({ top: target.getBoundingClientRect().top + scrollY - barH - 8, behavior: 'smooth' });
+            }
+        }
+    }
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+        a.addEventListener('click', e => {
+            const target = document.querySelector(a.getAttribute('href'));
+            if (!target) return;
+            e.preventDefault();
+            const barH = document.getElementById('focusBar').offsetHeight;
+            window.scrollTo({ top: target.getBoundingClientRect().top + scrollY - barH - 6, behavior: 'smooth' });
+        });
+    });
+
+    // 初期列幅を適用
+    setPlanRatio(document.getElementById('planRatio').value);
+</script>
+</body>
+</html>

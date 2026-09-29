@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-09-23 15:50:55",
+  "generated_at": "2026-09-29 21:56:27",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -1508,6 +1508,82 @@
       ],
       "version_id": "v20260917.151020-31bf1b",
       "version_confirmed_at": "2026-09-17 15:10:21"
+    },
+    {
+      "app_name": "mid_term_progress",
+      "display_name": "事業全貌",
+      "icon": "📦",
+      "description": "大学の中期計画・年度計画と，その進捗状況報告・業務実績報告・法人評価を，策定から閲覧まで通して見渡せます",
+      "sort_order": 490.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "mid_term_progress_bp",
+          "name": "mid_term_progress",
+          "module": "fujinp.mid_term_progress",
+          "url_prefix": null
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "📦",
+          "label": "事業全貌",
+          "groups": [],
+          "params": "",
+          "section": "under_development",
+          "endpoint": "mid_term_progress.index",
+          "dashboards": [
+            "admin",
+            "guest"
+          ],
+          "sort_order": 10,
+          "visibility": "public",
+          "description": "大学の中期計画・年度計画と，その進捗状況報告・業務実績報告・法人評価を，策定から閲覧まで通して見渡せます",
+          "extra_class": ""
+        }
+      ],
+      "version_id": "v20260929.view-canonical-first",
+      "version_confirmed_at": null
+    },
+    {
+      "app_name": "universal_form_composer",
+      "display_name": "ゆにこん",
+      "icon": "🦄",
+      "description": "こんかの部品群をプロジェクトとして預かり，作品の閲覧・書き出し，部品とSQLテーブルの対応付け，担当者への依頼を受け持つ（v0.1は殻：一覧・閲覧・基本情報・エクスポート・インポート・削除）",
+      "sort_order": 500.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "unicon_bp",
+          "name": "unicon",
+          "module": "fujinp.universal_form_composer",
+          "url_prefix": "/unicon"
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "🦄",
+          "label": "ゆにこん",
+          "groups": [],
+          "params": "",
+          "section": "under_development",
+          "endpoint": "unicon.index",
+          "dashboards": [
+            "admin",
+            "guest"
+          ],
+          "sort_order": 10,
+          "visibility": "public",
+          "description": "部品群から文書をつくり，書き手に依頼する",
+          "extra_class": ""
+        }
+      ],
+      "version_id": "v20260924.v0-4-1",
+      "version_confirmed_at": null
     }
   ],
   "sections": [
@@ -1515,9 +1591,9 @@
       "key": "system",
       "title": "⚙️ システム管理",
       "css_class": "admin-function",
-      "color_from": "",
-      "color_to": "",
-      "text_color": "",
+      "color_from": "#4c0519",
+      "color_to": "#1e1b4b",
+      "text_color": "#ffffff",
       "sort_order": 10.0,
       "show_admin": true,
       "show_guest": true,
@@ -1528,9 +1604,9 @@
       "key": "sommelier",
       "title": "🧑‍🍳 FUJIN-Pソムリエ用アプリ",
       "css_class": "sommelier",
-      "color_from": "",
-      "color_to": "",
-      "text_color": "",
+      "color_from": "#7c3aed",
+      "color_to": "#5b21b6",
+      "text_color": "#ffffff",
       "sort_order": 20.0,
       "show_admin": true,
       "show_guest": true,
@@ -1541,9 +1617,9 @@
       "key": "admin_support",
       "title": "👨‍✈️ 管理支援",
       "css_class": "admin-support",
-      "color_from": "",
-      "color_to": "",
-      "text_color": "",
+      "color_from": "#f59e0b",
+      "color_to": "#d97706",
+      "text_color": "#ffffff",
       "sort_order": 30.0,
       "show_admin": true,
       "show_guest": true,
@@ -1554,9 +1630,9 @@
       "key": "internal",
       "title": "🏫 機関内向け",
       "css_class": "highlight",
-      "color_from": "",
-      "color_to": "",
-      "text_color": "",
+      "color_from": "#10b981",
+      "color_to": "#059669",
+      "text_color": "#ffffff",
       "sort_order": 40.0,
       "show_admin": true,
       "show_guest": true,
@@ -1567,10 +1643,23 @@
       "key": "guest",
       "title": "📌 ゲスト向け",
       "css_class": "open-sky",
-      "color_from": "",
-      "color_to": "",
-      "text_color": "",
+      "color_from": "#38bdf8",
+      "color_to": "#0ea5e9",
+      "text_color": "#ffffff",
       "sort_order": 50.0,
+      "show_admin": true,
+      "show_guest": true,
+      "require_groups": [],
+      "require_categories": []
+    },
+    {
+      "key": "under_development",
+      "title": "🧪  開発中",
+      "css_class": "under_development",
+      "color_from": "#5deef8",
+      "color_to": "#92da25",
+      "text_color": "#ffffff",
+      "sort_order": 55.0,
       "show_admin": true,
       "show_guest": true,
       "require_groups": [],
@@ -1580,9 +1669,9 @@
       "key": "legacy",
       "title": "🏚 レガシー",
       "css_class": "legacy",
-      "color_from": "",
-      "color_to": "",
-      "text_color": "",
+      "color_from": "#9ca3af",
+      "color_to": "#6b7280",
+      "text_color": "#ffffff",
       "sort_order": 60.0,
       "show_admin": true,
       "show_guest": true,

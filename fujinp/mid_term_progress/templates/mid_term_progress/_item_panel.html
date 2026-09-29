@@ -1,0 +1,241 @@
+{# 細目の詳細パネル（編集者用・執筆者用ダッシュボードで共用）．
+   使い方：{% include 'mid_term_progress/_item_panel.html' %} の後，openItem({fiscal_year, mid_plan_no, annual_plan_no, detail_no}) を呼ぶ．
+   保存などで状態が変わったら window.onItemChanged() が呼ばれる（定義してあれば）． #}
+<style>
+  #ipBack { position:fixed; inset:0; background:rgba(15,23,42,.35); z-index:900; display:none; }
+  #ipPanel { position:fixed; top:0; right:0; bottom:0; width:min(920px, 100%); background:#fff; z-index:901;
+             box-shadow:-6px 0 24px rgba(0,0,0,.18); display:none; flex-direction:column; }
+  #ipPanel.open, #ipBack.open { display:flex; }
+  #ipHead { flex:0 0 auto; padding:10px 16px; background:#1f2937; color:#fff; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  #ipHead h2 { font-size:1rem; margin:0; font-weight:700; }
+  #ipHead .own { font-size:0.78rem; background:#0f766e; padding:2px 10px; border-radius:10px; }
+  #ipHead .x { margin-left:auto; background:#374151; color:#fff; border:none; border-radius:6px; padding:4px 12px; cursor:pointer; font-size:0.85rem; }
+  #ipBody { flex:1 1 auto; overflow:auto; padding:12px 16px 40px; font-size:0.86rem; color:#1e293b; }
+  .ip-goal { font-size:0.78rem; color:#475569; margin-bottom:6px; }
+  .ip-mid { font-size:0.8rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:6px 10px; margin-bottom:12px; }
+  .ip-mid summary { cursor:pointer; color:#334155; font-weight:600; }
+  .ip-sec { border:1px solid #e2e8f0; border-radius:8px; margin-bottom:12px; overflow:hidden; }
+  .ip-sec > h3 { font-size:0.86rem; margin:0; padding:6px 12px; background:#f1f5f9; color:#1e3a8a; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .ip-sec.prev > h3 { color:#475569; }
+  .ip-two { display:grid; grid-template-columns:1fr 1fr; }
+  .ip-two > div { padding:8px 12px; border-right:1px solid #eef2f7; }
+  .ip-two > div:last-child { border-right:none; }
+  .ip-lbl { font-size:0.7rem; font-weight:700; color:#64748b; margin-bottom:3px; }
+  .ip-txt { padding:8px 12px; }
+  .ip-txt ul, .ip-txt ol, .ip-two ul, .ip-two ol { padding-left:18px; margin:2px 0; }
+  .ip-txt p, .ip-two p { margin:2px 0; }
+  .ip-empty { color:#94a3b8; font-style:italic; }
+  .ip-sub { margin:8px 12px 6px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:6px 10px; }
+  .ip-sub .ip-lbl { color:#166534; }
+  .ip-sub textarea { width:100%; min-height:7em; font-family:inherit; font-size:0.84rem; border:1px solid #86efac; border-radius:5px; padding:5px 7px; }
+  .ip-cmt { margin:0 12px 10px; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:6px 10px; }
+  .ip-cmt .ip-lbl { color:#92400e; }
+  .ip-cmt textarea { width:100%; min-height:5em; font-family:inherit; font-size:0.84rem; border:1px solid #fcd34d; border-radius:5px; padding:5px 7px; }
+  .chip { display:inline-block; font-size:0.72rem; font-weight:700; padding:1px 9px; border-radius:10px; white-space:nowrap; }
+  .chip.e-requested { background:#dbeafe; color:#1e40af; }
+  .chip.e-confirmed { background:#dcfce7; color:#166534; }
+  .chip.a-writing { background:#fef3c7; color:#92400e; }
+  .chip.a-done { background:#e0e7ff; color:#3730a3; }
+  .chip.a-revised { background:#f3e8ff; color:#6b21a8; }
+  .chip.none { background:#f1f5f9; color:#94a3b8; }
+  .ip-ctl { display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding:0 12px 10px; font-size:0.78rem; }
+  .ip-ctl .who { color:#64748b; margin-right:2px; }
+  .ip-ctl button { font-size:0.76rem; padding:3px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; font-family:inherit; }
+  .ip-ctl button:hover { background:#f1f5f9; }
+  .ip-ctl button.on { background:#1e40af; color:#fff; border-color:#1e40af; }
+  .ip-ctl button.danger { color:#b91c1c; border-color:#fecaca; }
+  .ip-note { font-size:0.72rem; color:#64748b; }
+  .ip-ed { padding:0 12px 10px; }
+  .ip-ed textarea { width:100%; min-height:9em; font-family:inherit; font-size:0.85rem; border:1px solid #93c5fd; border-radius:5px; padding:6px 8px; line-height:1.6; }
+  .ip-ed button, .ip-edit { font-size:0.76rem; padding:3px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; font-family:inherit; }
+  .ip-ed .ip-save { background:#1e40af; color:#fff; border-color:#1e40af; }
+  .ip-edit { color:#1e40af; border-color:#93c5fd; }
+  @media (max-width:700px) { .ip-two { grid-template-columns:1fr; } .ip-two > div { border-right:none; border-bottom:1px solid #eef2f7; } }
+</style>
+<div id="ipBack" onclick="closeItem()"></div>
+<div id="ipPanel" role="dialog" aria-modal="true" aria-labelledby="ipTitle">
+  <div id="ipHead"><h2 id="ipTitle"></h2><span class="own" id="ipOwner"></span>
+    <button class="x" type="button" onclick="closeItem()">✕ 閉じる</button></div>
+  <div id="ipBody"></div>
+</div>
+<script>
+(function(){
+  const E_LBL = {requested:'依頼中', confirmed:'確認済み'};
+  const A_LBL = {writing:'執筆中', done:'執筆完了', revised:'改訂済み'};
+  const URL_ITEM = '{{ url_for("mid_term_progress.api_item") }}';
+  const URL_ES = '{{ url_for("mid_term_progress.api_editor_status") }}';
+  const URL_EC = '{{ url_for("mid_term_progress.api_editor_comment") }}';
+  const URL_AS = '{{ url_for("mid_term_progress.api_author_status") }}';
+  const URL_TX = '{{ url_for("mid_term_progress.api_item_text") }}';
+  let cur = null, rowUpdatedAt = null;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const body = h => h ? h : '<span class="ip-empty">（なし）</span>';
+  window.statusChips = function(es, as){
+    return (es ? `<span class="chip e-${es}">編集者：${E_LBL[es]}</span>` : '<span class="chip none">未依頼</span>') +
+           (as ? ` <span class="chip a-${as}">執筆者：${A_LBL[as]}</span>` : '');
+  };
+  async function post(url, data){
+    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+    const j = await r.json().catch(() => ({success:false, error:'応答を読めません（' + r.status + '）'}));
+    if (!j.success) throw new Error(j.error || '失敗しました');
+    return j;
+  }
+  function changed(){ if (typeof window.onItemChanged === 'function') window.onItemChanged(); }
+  window.closeItem = function(){
+    document.getElementById('ipPanel').classList.remove('open');
+    document.getElementById('ipBack').classList.remove('open');
+  };
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeItem(); });
+  window.openItem = async function(key){
+    cur = key;
+    document.getElementById('ipPanel').classList.add('open');
+    document.getElementById('ipBack').classList.add('open');
+    document.getElementById('ipBody').innerHTML = '読み込み中…';
+    const q = new URLSearchParams(key).toString();
+    const r = await fetch(URL_ITEM + '?' + q);
+    const j = await r.json().catch(() => ({success:false, error:'読み込めません（' + r.status + '）'}));
+    if (!j.success) { document.getElementById('ipBody').textContent = j.error || '読み込めません'; return; }
+    render(j);
+  };
+  let LAST = null;
+  function render(j){
+    const k = j.key;
+    LAST = j;
+    rowUpdatedAt = j.row_updated_at;
+    document.getElementById('ipTitle').textContent =
+      `${k.fiscal_year}年度　計画番号 ${k.mid_plan_no}（年度計画 ${k.annual_plan_no}）細目 ${k.detail_no}`;
+    document.getElementById('ipOwner').textContent = j.owner_group ? '担当：' + j.owner_group : '担当なし';
+    let h = '';
+    if (j.goal || j.goal_title) h += `<div class="ip-goal">${esc(j.goal)}　${esc(j.goal_title)}</div>`;
+    if (j.mid_plan_html) h += `<details class="ip-mid"><summary>中期計画</summary>${j.mid_plan_html}</details>`;
+    if (j.done) h += `<div class="ip-mid" style="color:#475569;font-weight:600">この細目は「対応済み」です．進捗報告・業務実績報告は不要です．</div>`;
+    // 昨年度
+    h += `<div class="ip-sec prev"><h3>📁 昨年度（${j.prev.year}年度）の計画と報告` +
+         (j.prev.how && j.prev.how !== '同じ担当' ? `<span class="ip-note">（${esc(j.prev.how)}の細目を表示）</span>` : '') + '</h3>';
+    if (!j.prev.rows.length) h += '<div class="ip-txt"><span class="ip-empty">昨年度の行はありません</span></div>';
+    for (const p of j.prev.rows) {
+      if (j.prev.rows.length > 1 || p.same_src) h += `<div class="ip-note" style="padding:6px 12px 0">細目 ${p.detail_no}${p.owner_group ? '（' + esc(p.owner_group) + '）' : ''}${p.same_src ? `　同上（細目${p.same_src}と同じ計画）` : ''}</div>`;
+      h += `<div class="ip-two"><div><div class="ip-lbl">計画</div>${body(p.plan_html)}</div>` +
+           `<div><div class="ip-lbl">業務実績報告</div>${body(p.result_html)}</div></div>`;
+    }
+    h += '</div>';
+    // 今年度の3段階
+    for (const s of j.stages) {
+      h += `<div class="ip-sec" data-stage="${s.stage}"><h3>📝 今年度の${esc(s.label)} ${statusChips(s.editor_status, s.author_status)}` +
+           (s.requested_at ? `<span class="ip-note">依頼 ${esc(s.requested_at)}</span>` : '') +
+           (s.author_updated_at ? `<span class="ip-note">執筆者更新 ${esc(s.author_updated_at)}</span>` : '') + '</h3>';
+      const authorMode = (window.IP_MODE === 'author');
+      if (s.report) {
+        // 執筆者からの報告（提出）
+        const subEdit = authorMode && s.can_submit;
+        h += `<div class="ip-sub"><div class="ip-lbl">執筆者からの報告` + (s.author_text_at ? `（${esc(s.author_text_at)}）` : '') + '</div>';
+        if (subEdit) {
+          h += `<textarea data-sub="${s.stage}" placeholder="報告を書きます（Markdown可）">${esc(s.author_text)}</textarea>` +
+               (s.stage === 'result' ? `<label class="ip-note">自己評価（案） <select data-sse="${s.stage}"><option value="">—</option>` +
+                 [1,2,3,4].map(n => `<option value="${n}" ${s.author_self_eval == n ? 'selected' : ''}>${n}</option>`).join('') + `</select></label>` : '') +
+               `<div style="margin-top:4px"><button type="button" class="ip-save" onclick="saveSubmission('${s.stage}')">報告を保存</button></div>`;
+        } else {
+          h += s.author_text ? s.author_text_html : `<span class="ip-empty">${esc(pendingLabel(s))}</span>`;
+          if (s.stage === 'result' && s.author_self_eval != null) h += `<div class="ip-note">自己評価（案）：${esc(s.author_self_eval)}</div>`;
+        }
+        h += '</div>';
+      }
+      // 正本（計画段階は計画本文，報告段階は編集者がまとめた／承認した報告）
+      const finalEdit = s.can_edit && !(s.report && authorMode);
+      h += `<div class="ip-txt" data-view="${s.stage}">` +
+           (s.report ? `<div class="ip-lbl" style="color:#1e3a8a">評価室がまとめた／承認した${esc(s.label)}</div>` : '') +
+           (s.same ? `<div class="ip-note" style="color:#6d28d9;font-weight:700;margin-bottom:3px">` +
+                     (s.same_src ? `同上（細目${s.same_src}と同じ計画）` : '同上（相手の細目がありません）') + '</div>' : '') +
+           `${body(s.text_html)}` +
+           (s.stage === 'result' && s.self_eval != null ? `<div class="ip-note" style="margin-top:4px">自己評価：${esc(s.self_eval)}</div>` : '') +
+           (finalEdit ? `<div style="margin-top:6px"><button type="button" class="ip-edit" onclick="editText('${s.stage}')">✎ 本文を書く</button>` +
+                        (s.report && s.author_text ? ` <button type="button" class="ip-edit" onclick="adoptSubmission('${s.stage}')">執筆者の報告を取り込む</button>` : '') + '</div>' : '') + '</div>';
+      if (finalEdit) {
+        h += `<div class="ip-ed" data-ed="${s.stage}" hidden>` +
+             `<textarea data-txt="${s.stage}" placeholder="Markdown（細目の「・」は「- 」で書きます）">${esc(s.text)}</textarea>` +
+             (s.stage === 'result' ? `<label class="ip-note">自己評価 <select data-se="result"><option value="">—</option>` +
+               [1,2,3,4].map(n => `<option value="${n}" ${s.self_eval == n ? 'selected' : ''}>${n}</option>`).join('') + `</select></label>` : '') +
+             `<div style="margin-top:4px;display:flex;gap:6px"><button type="button" class="ip-save" onclick="saveText('${s.stage}')">保存</button>` +
+             `<button type="button" onclick="cancelText('${s.stage}')">やめる</button></div></div>`;
+      }
+      // 評価室からのコメント
+      if (j.editor) {
+        h += `<div class="ip-cmt"><div class="ip-lbl">評価室からのコメント` +
+             (s.comment_updated_at ? `（${esc(s.comment_updated_at)}）` : '') + `</div>` +
+             `<textarea data-cmt="${s.stage}" placeholder="執筆者へのコメント（Markdown可）">${esc(s.comment)}</textarea>` +
+             `<div style="margin-top:4px"><button type="button" onclick="saveComment('${s.stage}')">コメントを保存</button></div></div>`;
+      } else {
+        h += `<div class="ip-cmt"><div class="ip-lbl">評価室からのコメント` +
+             (s.comment_updated_at ? `（${esc(s.comment_updated_at)}）` : '') + `</div>${body(s.comment_html)}</div>`;
+      }
+      // 状態の操作
+      if (j.editor) {
+        h += `<div class="ip-ctl"><span class="who">編集者：</span>` +
+             `<button type="button" class="${s.editor_status === 'requested' ? 'on' : ''}" onclick="setEditor('${s.stage}','requested')">依頼中</button>` +
+             `<button type="button" class="${s.editor_status === 'confirmed' ? 'on' : ''}" onclick="setEditor('${s.stage}','confirmed')">確認済み</button>` +
+             (s.editor_status ? `<button type="button" class="danger" onclick="setEditor('${s.stage}','cancel')">依頼を取り消す</button>` : '') +
+             '</div>';
+      }
+      if (j.member && s.editor_status === 'requested') {
+        h += `<div class="ip-ctl"><span class="who">執筆者：</span>` +
+             ['writing','done','revised'].map(a =>
+               `<button type="button" class="${s.author_status === a ? 'on' : ''}" onclick="setAuthor('${s.stage}','${s.author_status === a ? '' : a}')">${A_LBL[a]}</button>`).join('') +
+             '</div>';
+      }
+      h += '</div>';
+    }
+    document.getElementById('ipBody').innerHTML = h;
+  }
+  window.setEditor = async function(stage, status){
+    if (status === 'cancel' && !confirm('この段階の依頼を取り消しますか？')) return;
+    try { await post(URL_ES, Object.assign({stage, status}, cur)); await openItem(cur); changed(); }
+    catch (e) { alert(e.message); }
+  };
+  window.setAuthor = async function(stage, status){
+    try { await post(URL_AS, Object.assign({stage, status}, cur)); await openItem(cur); changed(); }
+    catch (e) { alert(e.message); }
+  };
+  window.editText = function(stage){
+    document.querySelector(`#ipBody [data-view="${stage}"]`).hidden = true;
+    document.querySelector(`#ipBody [data-ed="${stage}"]`).hidden = false;
+    document.querySelector(`#ipBody textarea[data-txt="${stage}"]`).focus();
+  };
+  window.cancelText = function(stage){
+    document.querySelector(`#ipBody [data-view="${stage}"]`).hidden = false;
+    document.querySelector(`#ipBody [data-ed="${stage}"]`).hidden = true;
+  };
+  window.saveText = async function(stage){
+    const data = Object.assign({stage, base_updated_at: rowUpdatedAt,
+                                text: document.querySelector(`#ipBody textarea[data-txt="${stage}"]`).value}, cur);
+    const se = document.querySelector(`#ipBody select[data-se="${stage}"]`);
+    if (se) data.self_eval = se.value;
+    try { await post(URL_TX, data); await openItem(cur); changed(); }
+    catch (e) { alert(e.message); }
+  };
+  window.pendingLabel = function(s){
+    if (!s.editor_status) return '未依頼';
+    return {writing:'執筆中（未提出）', done:'執筆完了（本文なし）', revised:'改訂済み（本文なし）'}[s.author_status] || '依頼中（未入力）';
+  };
+  window.saveSubmission = async function(stage){
+    const data = Object.assign({stage, target:'author', text: document.querySelector(`#ipBody textarea[data-sub="${stage}"]`).value}, cur);
+    const se = document.querySelector(`#ipBody select[data-sse="${stage}"]`);
+    if (se) data.self_eval = se.value;
+    try { await post(URL_TX, data); await openItem(cur); changed(); }
+    catch (e) { alert(e.message); }
+  };
+  window.adoptSubmission = function(stage){
+    const st = (LAST && LAST.stages || []).find(x => x.stage === stage); if (!st) return;
+    editText(stage);
+    const ta = document.querySelector(`#ipBody textarea[data-txt="${stage}"]`);
+    if (ta.value.trim() && !confirm('いまの本文を執筆者の報告で置き換えます．よろしいですか？')) return;
+    ta.value = st.author_text;
+    const se = document.querySelector(`#ipBody select[data-se="${stage}"]`);
+    if (se && st.author_self_eval != null) se.value = String(st.author_self_eval);
+  };
+  window.saveComment = async function(stage){
+    const ta = document.querySelector(`#ipBody textarea[data-cmt="${stage}"]`);
+    try { await post(URL_EC, Object.assign({stage, comment: ta.value}, cur)); await openItem(cur); changed(); }
+    catch (e) { alert(e.message); }
+  };
+})();
+</script>

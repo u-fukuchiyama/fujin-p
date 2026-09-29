@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>法人評価 {{ year or '' }}年度 - 事業全貌</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans",sans-serif; background:#f1f5f9; color:#1f2937; font-size:14px; }
+  .bar { background:#1f2937; color:#fff; position:sticky; top:0; z-index:60; box-shadow:0 2px 6px rgba(0,0,0,.25); }
+  .row1 { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:6px 14px; }
+  .ttl { font-weight:700; font-size:0.95rem; white-space:nowrap; }
+  .row1 select { padding:2px 6px; border-radius:5px; border:1px solid #4b5563; background:#111827; color:#e5e7eb; font-size:0.8rem; }
+  .tab { font-size:0.78rem; font-weight:700; padding:3px 12px; border-radius:14px; border:2px solid #6366f1; color:#c7d2fe; background:none; cursor:pointer; font-family:inherit; }
+  .tab.on { background:#4f46e5; color:#fff; }
+  .quick { margin-left:auto; display:inline-flex; gap:5px; flex-wrap:wrap; }
+  .q { font-size:0.74rem; font-weight:700; color:#fff; text-decoration:none; padding:3px 9px; border-radius:6px; white-space:nowrap; }
+  .q.back { background:#4f46e5; } .q.gray { background:#475569; } .q.home { background:#e74c3c; }
+  .warn { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:8px; padding:10px 12px; font-size:0.84rem; line-height:1.7; margin:14px; }
+  .muted { color:#64748b; font-size:0.78rem; }
+  .pending { color:#9ca3af; font-style:italic; }
+  .main { display:grid; grid-template-columns:minmax(220px, 22%) 1fr; gap:12px; padding:12px 14px 60px; max-width:1800px; margin:0 auto; align-items:start; }
+  .side { position:sticky; top:52px; max-height:calc(100vh - 64px); display:flex; flex-direction:column; }
+  .side #qlist { overflow:auto; flex:1; }
+  .qitem .tx { -webkit-line-clamp:1; }
+  .qitem.cur { background:#eef2ff; border-left:4px solid #4f46e5; }
+  .qcard { background:#fff; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); margin-bottom:16px; scroll-margin-top:56px; overflow:hidden; }
+  .qhead { background:#374151; color:#fff; padding:6px 14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .qhead .qno { background:#7c3aed; border-radius:12px; padding:1px 12px; font-weight:800; }
+  .qhead .pl { font-size:0.78rem; color:#cbd5e1; }
+  .two { display:grid; grid-template-columns:1fr 1fr; }
+  .two > .sec:first-child { border-right:1px solid #eef2f7; }
+  @media (max-width:1100px) { .two { grid-template-columns:1fr; } .two > .sec:first-child { border-right:none; } }
+  .card { background:#fff; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .listh { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:8px 10px; border-bottom:1px solid #e5e7eb; }
+  .listh b { font-size:0.88rem; }
+  .btn { font-size:0.74rem; padding:2px 10px; border-radius:6px; border:1px solid #c7d2fe; background:#eef2ff; color:#3730a3; cursor:pointer; font-family:inherit; }
+  .btn.pri { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+  .btn.red { color:#b91c1c; border-color:#fecaca; background:#fff; }
+  .qitem { padding:7px 10px; border-bottom:1px solid #f1f5f9; cursor:pointer; font-size:0.82rem; }
+  .qitem:hover { background:#f8fafc; }
+  .qitem.on { background:#eef2ff; border-left:4px solid #4f46e5; }
+  .qitem .h { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .qitem .no { font-weight:800; color:#1e3a8a; }
+  .qitem .pl { font-size:0.7rem; color:#475569; }
+  .qitem .tx { color:#374151; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; margin-top:2px; }
+  .chip { display:inline-block; font-size:0.66rem; font-weight:700; padding:0 7px; border-radius:10px; white-space:nowrap; }
+  .st-received { background:#f1f5f9; color:#64748b; } .st-discussing { background:#fef3c7; color:#92400e; }
+  .st-drafting { background:#dbeafe; color:#1e40af; } .st-fixed { background:#dcfce7; color:#166534; }
+  .kind { background:#f3e8ff; color:#6b21a8; }
+  .cnt { margin-left:auto; font-size:0.68rem; color:#64748b; }
+  .sec { padding:10px 14px; border-bottom:1px solid #eef2f7; }
+  .sec h3 { margin:0 0 6px; font-size:0.86rem; color:#1e3a8a; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .sec ul, .sec ol, .sec p { margin:2px 0; } .sec ul, .sec ol { padding-left:18px; }
+  .frm { display:grid; grid-template-columns:auto 1fr; gap:6px 10px; align-items:center; font-size:0.82rem; }
+  .frm input[type=text], .frm input[type=number], .frm select, textarea { font-family:inherit; font-size:0.84rem; padding:4px 7px; border:1px solid #cbd5e1; border-radius:5px; }
+  textarea { width:100%; line-height:1.55; }
+  .grp { display:flex; flex-wrap:wrap; gap:3px 12px; max-height:9em; overflow:auto; border:1px solid #e5e7eb; border-radius:5px; padding:4px 8px; font-size:0.78rem; }
+  .grp label { white-space:nowrap; }
+  .tags span { display:inline-block; background:#ccfbf1; color:#115e59; border-radius:10px; padding:0 8px; font-size:0.72rem; margin:1px 3px 1px 0; }
+  .ref { border:1px solid #e5e7eb; border-radius:8px; margin-bottom:8px; }
+  .ref > summary { cursor:pointer; padding:5px 10px; background:#f8fafc; font-size:0.8rem; font-weight:700; color:#334155; border-radius:8px; }
+  .ref .in { padding:6px 10px; font-size:0.8rem; }
+  .ref .lbl { font-size:0.68rem; font-weight:700; color:#64748b; margin-top:4px; }
+  .dgrid { display:grid; grid-template-columns:4.5em 1fr 1.3fr; gap:0; border-top:1px solid #f1f5f9; }
+  .dgrid > div { padding:4px 6px; border-bottom:1px solid #f1f5f9; }
+  .dgrid .dn { font-weight:700; color:#1e3a8a; font-size:0.74rem; }
+  .dgrid .dn .ow { display:block; color:#0f766e; font-weight:600; font-size:0.66rem; }
+  .rate { background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:4px 8px; margin-top:6px; }
+  .thread { max-height:48vh; overflow:auto; padding:4px 0; }
+  .post { padding:6px 4px; border-bottom:1px dashed #e5e7eb; font-size:0.84rem; }
+  .post .who { font-size:0.72rem; font-weight:700; color:#0f766e; display:flex; gap:8px; align-items:center; }
+  .post .who .t { color:#94a3b8; font-weight:400; }
+  .post .who button { margin-left:auto; font-size:0.66rem; border:none; background:none; color:#b91c1c; cursor:pointer; }
+  .ans { background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:6px 10px; }
+  /* 評価委員会の評点（業務実績報告の画面と同じ並び） */
+  .sc-wrap { max-width:1600px; margin:0 auto; padding:0 14px 80px; }
+  .sc-intro { margin:12px 0 0; }
+  .sc-toc { background:#fff; border-radius:6px; padding:5px 10px; display:flex; flex-wrap:wrap; gap:3px 10px; align-items:center; font-size:0.66rem; margin-top:8px; }
+  .sc-toc .tocg { display:inline-flex; gap:2px; align-items:center; flex-wrap:wrap; } .sc-toc .gl { color:#9ca3af; margin-right:1px; }
+  .sc-toc a { display:inline-block; padding:0 4px; min-width:1.9em; text-align:center; border:1px solid #d1d5db; color:#374151; border-radius:3px; text-decoration:none; line-height:1.5; }
+  .sc-toc a.has { background:#fef3c7; border-color:#fbbf24; color:#92400e; font-weight:700; }
+  .goalh { background:#4c2c7f; color:#fff; border-radius:8px 8px 0 0; padding:6px 14px; margin-top:14px; display:flex; gap:10px; align-items:center; }
+  .goalh .code { background:rgba(0,0,0,.25); border-radius:10px; padding:1px 10px; font-size:0.78rem; font-weight:700; }
+  .goalh .gt { font-weight:700; font-size:0.9rem; }
+  .blk { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.08); scroll-margin-top:56px; }
+  .planh { background:#374151; color:#fff; padding:6px 14px; display:flex; gap:10px; align-items:center; }
+  .planh .no { background:#6d28d9; border-radius:12px; padding:1px 12px; font-weight:800; font-size:0.9rem; }
+  .midp { background:#eef2ff; border-left:4px solid #6366f1; padding:6px 14px; font-size:0.84rem; }
+  .lbl { font-size:0.7rem; font-weight:700; color:#4f46e5; margin-bottom:2px; }
+  .midp ul, .midp p, .cell ul, .cell ol, .cell p, .rbox ul, .rbox p, .cbox ul, .cbox p { margin:2px 0; } .cell ul, .cell ol, .midp ul, .rbox ul, .cbox ul { padding-left:18px; }
+  .thead, .trow { display:grid; grid-template-columns:7em 1fr 1.6fr; }
+  .thead { background:#4b5563; color:#fff; font-size:0.78rem; font-weight:700; } .thead > div { padding:5px 10px; }
+  .trow { border-bottom:1px solid #e5e7eb; font-size:0.86rem; line-height:1.65; }
+  .trow > .cell { padding:8px 10px; border-right:1px solid #eef2f7; min-width:0; } .trow > .cell:last-child { border-right:none; }
+  .cno { background:#f8fafc; } .cno .num { font-weight:800; color:#1e3a8a; font-size:0.95rem; }
+  .cno .ow { display:block; font-size:0.7rem; color:#0f766e; font-weight:600; word-break:break-all; margin-top:2px; }
+  .trow.done { color:#9ca3af; font-size:0.8rem; }
+  .crep { background:#f0fdf4; }
+  .fb { display:inline-block; font-size:0.66rem; font-weight:700; color:#92400e; background:#fef3c7; border:1px solid #fcd34d; border-radius:9px; padding:0 8px; margin-bottom:3px; }   /* 正本以外の内容を出しているときの状態バッジ */
+  .samenote { font-size:0.72rem; font-weight:700; color:#6d28d9; margin-bottom:2px; }
+  .rbox { background:#fffbeb; border-top:3px solid #fbbf24; padding:8px 14px 10px; font-size:0.86rem; line-height:1.65; }
+  .cbox { background:#fff7ed; border-top:1px dashed #fb923c; padding:8px 14px 10px; font-size:0.86rem; }
+  .rbox .hd, .cbox .hd { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:0.8rem; }
+  .rbox .hd b { color:#92400e; font-size:0.84rem; } .cbox .hd b { color:#9a3412; font-size:0.84rem; }
+  .sc1 { display:inline-block; min-width:1.8em; text-align:center; border-radius:10px; padding:0 9px; font-weight:800; font-size:0.84rem; color:#fff; background:#166534; }
+  .cbox textarea { width:100%; min-height:4.5em; margin-top:5px; font-family:inherit; font-size:0.84rem; border:1px solid #fdba74; border-radius:5px; padding:5px 7px; line-height:1.55; }
+  .cbox select { font-size:0.84rem; padding:1px 4px; }
+  @media (max-width:760px) { .thead { display:none; } .thead, .trow { grid-template-columns:1fr; } .trow > .cell { border-right:none; border-bottom:1px dashed #eef2f7; } }
+  table.sc { width:100%; border-collapse:collapse; font-size:0.82rem; }
+  table.sc th { background:#4b5563; color:#fff; padding:5px 8px; text-align:left; position:sticky; top:42px; }
+  table.sc td { border-bottom:1px solid #e5e7eb; padding:5px 8px; vertical-align:top; }
+  table.sc td.no { font-weight:800; color:#1e3a8a; white-space:nowrap; }
+  table.sc textarea { min-height:3em; }
+  .hidden { display:none !important; }
+  #imp { position:fixed; inset:0; background:rgba(15,23,42,.4); z-index:900; display:none; align-items:center; justify-content:center; }
+  #imp.open { display:flex; }
+  #imp .box { background:#fff; border-radius:10px; padding:14px 16px; width:min(760px, 96vw); }
+  #toast { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); background:#1f2937; color:#fff; padding:6px 14px; border-radius:8px; font-size:0.8rem; opacity:0; transition:opacity .3s; pointer-events:none; z-index:999; }
+  @media (max-width:860px) { .main { grid-template-columns:1fr; } .side { position:static; max-height:40vh; } }
+</style>
+</head>
+<body>
+<div class="bar"><div class="row1">
+  <span class="ttl">🏛 法人評価</span>
+  <form method="get" style="display:inline"><select name="year" onchange="this.form.submit()">
+    {% for y in years %}<option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}年度</option>{% endfor %}
+    {% if not years and year %}<option>{{ year }}年度</option>{% endif %}
+  </select></form>
+  <button type="button" class="tab on" id="tabQ" onclick="showTab('q')">質問・意見と回答</button>
+  {% if editor %}<button type="button" class="tab" id="tabS" onclick="showTab('s')">評価委員会の評点</button>{% endif %}
+  <span class="quick">
+    {% if editor %}<a class="q back" href="{{ url_for('mid_term_progress.editor') }}?year={{ year or '' }}">🧩 編集者⇒</a>{% endif %}
+    <a class="q gray" href="{{ url_for('mid_term_progress.author') }}">✍️ 執筆者⇒</a>
+    <a class="q gray" href="{{ url_for('mid_term_progress.view') }}" title="事業全貌（このアプリのトップ）">📊 トップ</a>
+    <a class="q home" href="{{ url_for('mid_term_progress.return_to_fujin') }}">🏠 FUJIN-P</a>
+  </span>
+</div></div>
+
+{% if not ready %}
+<div class="warn">法人評価の表がまだありません．同梱の schema_hojin.sql を nishida$fujinp で実行してから開き直してください．</div>
+{% elif not year %}
+<div class="warn">年度がありません．</div>
+{% else %}
+<div class="main" id="paneQ">
+  <div class="card side">
+    <div class="listh"><b>目次</b><span class="muted" id="qcount"></span>
+      {% if editor %}<span style="margin-left:auto;display:inline-flex;gap:4px">
+        <button type="button" class="btn pri" onclick="newQ()">＋ 追加</button>
+        <button type="button" class="btn" onclick="openImp()">📋 貼り付け</button></span>{% endif %}
+    </div>
+    <div class="listh" style="padding:4px 10px">
+      <select id="fSt" style="font-size:0.74rem"><option value="">状態：すべて</option>{% for k, v in q_status.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+      {% if editor %}<select id="fGrp" style="font-size:0.74rem;max-width:12em"><option value="">部門：すべて</option></select>{% endif %}
+    </div>
+    <div id="qlist"><div class="sec pending">読み込み中…</div></div>
+  </div>
+  <div id="cards"></div>
+</div>
+{% if editor %}
+<div class="sc-wrap hidden" id="paneS">
+  <div class="card sec sc-intro"><h3>評価委員会からの評点とコメント（計画番号ごと）</h3>
+    <div class="muted">業務実績報告と同じ並びで，計画番号ごとに大学の自己評価と理由の下へ評価委員会の評点とコメントを記録します．目次の黄色は評価委員会の評点が入っている計画番号です．</div>
+    <div class="sc-toc" id="scToc"></div></div>
+  <div id="scBody"><p class="pending">読み込み中…</p></div>
+</div>
+<div id="imp"><div class="box">
+  <b>質問・意見の貼り付け</b>
+  <p class="muted">Excel などから行をコピーして貼り付けます．列は左から「質問番号」「計画番号（複数ならカンマ区切り）」「質問・意見の本文」「種別（質問／意見．省略可）」です．同じ質問番号があれば上書きします．責任部門は関係計画番号の細目の担当部門から自動で入れます．</p>
+  <textarea id="impTxt" style="min-height:14em" placeholder="1&#9;1&#9;全体的に各所に出てくる「修得率」というのは…"></textarea>
+  <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px"><button class="btn" type="button" onclick="closeImp()">やめる</button><button class="btn pri" type="button" onclick="doImp()">取り込む</button></div>
+</div></div>
+{% endif %}
+{% endif %}
+<div id="toast"></div>
+
+{% if ready and year %}
+<script>
+const YEAR = {{ year|tojson }}, EDITOR = {{ 'true' if editor else 'false' }};
+const QST = {{ q_status|tojson }}, GROUPS = {{ groups|tojson }};
+const U = {
+  list: '{{ url_for("mid_term_progress.api_hojin_list") }}',
+  all: '{{ url_for("mid_term_progress.api_hojin_all") }}',
+  q: '{{ url_for("mid_term_progress.api_hojin_q", qid=0) }}'.replace(/0$/, ''),
+  save: '{{ url_for("mid_term_progress.api_hojin_q_save") }}',
+  del: '{{ url_for("mid_term_progress.api_hojin_q_delete") }}',
+  imp: '{{ url_for("mid_term_progress.api_hojin_q_import") }}',
+  post: '{{ url_for("mid_term_progress.api_hojin_post") }}',
+  pdel: '{{ url_for("mid_term_progress.api_hojin_post_delete") }}',
+  rat: '{{ url_for("mid_term_progress.api_ratings") }}',
+  com: '{{ url_for("mid_term_progress.api_ratings_committee") }}',
+  prog: '{{ url_for("mid_term_progress.api_progress") }}',
+};
+let ITEMS = [], QS = [];
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2200); }
+async function post(url, data){
+  const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+  const j = await r.json().catch(() => ({success:false, error:'応答を読めません（' + r.status + '）'}));
+  if (!j.success) throw new Error(j.error || '失敗しました');
+  return j;
+}
+function showTab(t){
+  document.getElementById('paneQ').classList.toggle('hidden', t !== 'q');
+  const s = document.getElementById('paneS'); if (s) s.classList.toggle('hidden', t !== 's');
+  document.getElementById('tabQ').classList.toggle('on', t === 'q');
+  const ts = document.getElementById('tabS'); if (ts) ts.classList.toggle('on', t === 's');
+  if (t === 's') loadScores();
+}
+const barH = () => document.querySelector('.bar').offsetHeight;
+function jump(id){ const el = document.getElementById(`qc-${id}`); if (!el) return;
+  window.scrollTo({top: el.getBoundingClientRect().top + scrollY - barH() - 8, behavior:'smooth'}); }
+
+// 全件を読み，右に1列で並べる（左は目次）
+async function loadAll(keepScroll){
+  const y = scrollY;
+  const j = await (await fetch(`${U.all}?year=${YEAR}`)).json();
+  if (!j.success) { document.getElementById('cards').innerHTML = `<div class="card sec">${esc(j.error)}</div>`; return; }
+  ITEMS = j.items; QS = ITEMS.map(it => it.question);
+  const fg = document.getElementById('fGrp');
+  if (fg) { const cur = fg.value; fg.innerHTML = '<option value="">部門：すべて</option>' +
+    [...new Set(QS.flatMap(q => q.groups))].sort().map(g => `<option ${g === cur ? 'selected' : ''}>${esc(g)}</option>`).join(''); }
+  document.getElementById('cards').innerHTML = ITEMS.length ? ITEMS.map(it => `<div class="qcard" id="qc-${it.question.id}">${cardHtml(it)}</div>`).join('')
+    : `<div class="card sec pending">${EDITOR ? '質問はまだありません．「＋ 追加」か「📋 貼り付け」で登録してください．' : 'あなたの部門が関わる質問はありません．'}</div>`;
+  bindCards(); drawList(); if (keepScroll) window.scrollTo(0, y);
+}
+function visibleQ(q){
+  const st = document.getElementById('fSt').value, fg = document.getElementById('fGrp') ? document.getElementById('fGrp').value : '';
+  return (!st || q.status === st) && (!fg || q.groups.includes(fg));
+}
+function drawList(){
+  const qs = QS.filter(visibleQ);
+  document.getElementById('qcount').textContent = `${qs.length} 件`;
+  document.getElementById('qlist').innerHTML = qs.map(q =>
+    `<div class="qitem" id="qi-${q.id}" onclick="jump(${q.id})"><div class="h"><span class="no">No.${q.q_no}</span>` +
+    `<span class="chip st-${q.status}">${esc(q.status_label)}</span><span class="pl">計画 ${q.plan_nos.join('・') || '—'}</span>` +
+    `</div><div class="tx">${esc(q.question)}</div></div>`).join('') || '<div class="sec pending">該当なし</div>';
+  QS.forEach(q => { const c = document.getElementById(`qc-${q.id}`); if (c) c.classList.toggle('hidden', !visibleQ(q)); });
+  spy();
+}
+document.getElementById('fSt').addEventListener('change', drawList);
+if (document.getElementById('fGrp')) document.getElementById('fGrp').addEventListener('change', drawList);
+// いま見ている質問を目次で示す
+function spy(){
+  let cur = null; const top = barH() + 20;
+  for (const q of QS) { const c = document.getElementById(`qc-${q.id}`); if (!c || c.classList.contains('hidden')) continue;
+    if (c.getBoundingClientRect().top <= top) cur = q.id; else break; }
+  if (cur === null && QS.length) cur = (QS.find(visibleQ) || {}).id;
+  document.querySelectorAll('.qitem').forEach(x => x.classList.toggle('cur', x.id === `qi-${cur}`));
+  const it = document.getElementById(`qi-${cur}`), box = document.getElementById('qlist');
+  if (it && box && (it.offsetTop < box.scrollTop || it.offsetTop > box.scrollTop + box.clientHeight - 40)) box.scrollTop = it.offsetTop - 40;
+}
+window.addEventListener('scroll', () => { clearTimeout(window._spy); window._spy = setTimeout(spy, 80); });
+
+function cardHtml(it){
+  const q = it.question, id = q.id || 'new';
+  let h = `<div class="qhead"><span class="qno">No.${esc(q.q_no)}</span><span class="chip kind">${esc(q.kind)}</span>` +
+          `<span class="chip st-${q.status}">${esc(q.status_label || '')}</span><span class="pl">計画番号 ${q.plan_nos.join('・') || '—'}</span>` +
+          (q.groups.length ? `<span class="tags">${q.groups.map(g => `<span>${esc(g)}</span>`).join('')}</span>` : '') + `</div>`;
+  if (EDITOR) {
+    h += `<div class="sec"><div class="frm"><label>質問番号</label><span><input type="number" id="dNo-${id}" value="${esc(q.q_no)}" style="width:6em"> ` +
+      `種別 <select id="dKind-${id}">${['質問','意見'].map(k => `<option ${q.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select> ` +
+      `状態 <select id="dSt-${id}">${Object.entries(QST).map(([k, v]) => `<option value="${k}" ${q.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select> ` +
+      (q.id ? `<button type="button" class="btn red" onclick="delQ(${q.id})">削除</button>` : '') + `</span>` +
+      `<label>関係計画番号</label><input type="text" id="dPlans-${id}" value="${esc(q.plan_nos.join(','))}" placeholder="例：82 または 1,3">` +
+      `<label>本文</label><textarea id="dQ-${id}" style="min-height:4em">${esc(q.question)}</textarea>` +
+      `<label>責任部門</label><div><details><summary class="muted" style="cursor:pointer">${q.groups.length ? esc(q.groups.join('，')) : '（未設定）'}　▸ 変更</summary>` +
+      `<div class="grp" id="dGrp-${id}">${[...new Set([...q.groups, ...GROUPS])].map(g => `<label><input type="checkbox" value="${esc(g)}" ${q.groups.includes(g) ? 'checked' : ''}> ${esc(g)}</label>`).join('')}</div>` +
+      `<div class="muted">空のまま保存すると，関係計画番号の細目の担当部門を入れます．</div></details></div></div></div>`;
+  } else {
+    h += `<div class="sec">${q.question_html}</div>`;
+  }
+  if (!q.id) return h + `<div class="sec"><button type="button" class="btn pri" onclick="saveQ('new')">登録</button></div>`;
+  h += `<div class="sec"><h3>関係計画番号の年度計画・業務実績・自己評価</h3>` + (it.refs.length ? it.refs.map(r =>
+    `<details class="ref"><summary>計画番号 ${r.mid_plan_no}　${esc(r.goal)} ${esc(r.goal_title)}` +
+    (r.self_eval != null ? `　自己評価 ${esc(r.self_eval)}` : '') + (r.committee_score !== '' && r.committee_score != null ? `　評価委員会 ${esc(r.committee_score)}` : '') + `</summary><div class="in">` +
+    (r.mid_plan_html ? `<div class="lbl">中期計画</div>${r.mid_plan_html}` : '') +
+    `<div class="dgrid"><div class="lbl">番号</div><div class="lbl">年度計画</div><div class="lbl">業務実績</div>` +
+    r.details.map(d => `<div class="dn">${r.annual_plan_no}-${d.detail_no}<span class="ow">${esc(d.owner_group || '（担当なし）')}</span></div>` +
+      `<div>${d.done ? '対応済み' : (d.plan_html || '')}</div><div>${d.result_html || '<span class="pending">なし</span>'}` +
+      (d.author_self_eval != null ? `<div class="muted">自己評価（案）${esc(d.author_self_eval)}</div>` : '') + `</div>`).join('') + `</div>` +
+    (r.self_eval != null || r.self_eval_reason_html ? `<div class="rate"><b>計画番号の自己評価 ${esc(r.self_eval ?? '')}</b>${r.self_eval_reason_html}</div>` : '') +
+    `</div></details>`).join('') : '<span class="pending">関係計画番号がありません</span>') + `</div>`;
+  h += `<div class="two"><div class="sec"><h3>連絡の窓 <span class="muted">責任部門と編集担当が書き込めます</span></h3><div class="thread" id="th-${id}">` +
+    (it.posts.length ? it.posts.map(p => `<div class="post"><div class="who">${esc(p.user_name)}<span class="t">${esc(p.created_at)}</span>` +
+      ((p.mine || EDITOR) ? `<button type="button" onclick="delPost(${p.id}, ${q.id})">削除</button>` : '') + `</div>${p.body_html}</div>`).join('')
+      : '<div class="pending">まだ書き込みはありません．</div>') + `</div>` +
+    `<textarea id="pBody-${id}" style="min-height:3.5em;margin-top:6px" placeholder="書き込み（Markdown可）．Ctrl+Enter で送信"></textarea>` +
+    `<div style="margin-top:4px"><button type="button" class="btn pri" onclick="sendPost(${q.id})">送信</button></div></div>` +
+    `<div class="sec"><h3>大学からの回答（とりまとめ）</h3>` + (EDITOR
+      ? `<textarea id="dAns-${id}" style="min-height:10em" placeholder="編集担当がとりまとめる回答（Markdown可）">${esc(q.answer)}</textarea>` +
+        `<div style="margin-top:4px"><button type="button" class="btn pri" onclick="saveQ(${q.id})">保存</button></div>`
+      : `<div class="ans">${q.answer_html || '<span class="pending">とりまとめ中</span>'}</div>`) + `</div></div>`;
+  return h;
+}
+function bindCards(){
+  document.querySelectorAll('.thread').forEach(th => th.scrollTop = th.scrollHeight);
+  document.querySelectorAll('textarea[id^="pBody-"]').forEach(t => t.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendPost(parseInt(t.id.slice(6))); }));
+}
+// 1件だけ読み直して差し替える（スクロール位置はそのまま）
+async function refreshOne(qid){
+  const j = await (await fetch(U.q + qid)).json(); if (!j.success) return loadAll(true);
+  const i = ITEMS.findIndex(it => it.question.id === qid);
+  j.question.posts = j.posts.length;
+  const it = {question: j.question, posts: j.posts, refs: j.refs};
+  if (i >= 0) ITEMS[i] = it; QS = ITEMS.map(x => x.question);
+  const c = document.getElementById(`qc-${qid}`); if (c) c.innerHTML = cardHtml(it);
+  bindCards(); drawList();
+}
+function newQ(){
+  if (document.getElementById('qc-new')) { jump('new'); return; }
+  const next = QS.reduce((m, q) => Math.max(m, q.q_no), 0) + 1;
+  const q = {id: null, q_no: next, kind: '質問', plan_nos: [], question: '', groups: [], answer: '', status: 'received', status_label: '新規'};
+  const div = document.createElement('div'); div.className = 'qcard'; div.id = 'qc-new'; div.innerHTML = cardHtml({question: q, posts: [], refs: []});
+  document.getElementById('cards').prepend(div); jump('new');
+}
+async function saveQ(id){
+  const v = n => document.getElementById(`${n}-${id}`);
+  const it = ITEMS.find(x => x.question.id === id);
+  const g = [...document.querySelectorAll(`#dGrp-${id} input:checked`)].map(i => i.value);
+  const data = {id: id === 'new' ? null : id, fiscal_year: YEAR, q_no: v('dNo').value, kind: v('dKind').value, status: v('dSt').value,
+    plan_nos: v('dPlans').value, question: v('dQ').value, answer: v('dAns') ? v('dAns').value : (it ? it.question.answer : '')};
+  if (g.length) data.groups = g;
+  try { const j = await post(U.save, data); toast('保存しました');
+    if (id === 'new') { await loadAll(); jump(j.id); } else if (String(data.q_no) !== String(it.question.q_no)) { await loadAll(true); } else await refreshOne(id); }
+  catch (e) { alert(e.message); }
+}
+async function delQ(id){
+  if (!confirm('この質問と書き込みをすべて削除します．よろしいですか？')) return;
+  try { await post(U.del, {id}); toast('削除しました'); loadAll(true); } catch (e) { alert(e.message); }
+}
+async function sendPost(qid){
+  const t = document.getElementById(`pBody-${qid}`), b = t.value.trim(); if (!b) return;
+  try { await post(U.post, {question_id: qid, body: b}); await refreshOne(qid); } catch (e) { alert(e.message); }
+}
+async function delPost(id, qid){
+  if (!confirm('この書き込みを削除します．よろしいですか？')) return;
+  try { await post(U.pdel, {id}); refreshOne(qid); } catch (e) { alert(e.message); }
+}
+function openImp(){ document.getElementById('imp').classList.add('open'); }
+function closeImp(){ document.getElementById('imp').classList.remove('open'); }
+async function doImp(){
+  try { const j = await post(U.imp, {fiscal_year: YEAR, text: document.getElementById('impTxt').value});
+    closeImp(); toast(`${j.imported} 件を取り込みました`); if (j.skipped.length) alert(`取り込めなかった行：${j.skipped.join('，')}`); loadAll(); }
+  catch (e) { alert(e.message); }
+}
+// 評価委員会の評点（業務実績報告の画面と同じ並び）
+let SC = null, SCR = {};
+const sbid = b => `sb-${b.mid_plan_no}-${b.annual_plan_no}`;
+async function loadScores(){
+  const body = document.getElementById('scBody');
+  try {
+    const [jr, jp] = await Promise.all([fetch(`${U.rat}?year=${YEAR}`).then(r => r.json()), fetch(`${U.prog}?year=${YEAR}&stage=result`).then(r => r.json())]);
+    if (!jp.success) { body.textContent = jp.error || '読み込めません'; return; }
+    SCR = {}; (jr.ratings || []).forEach(r => SCR[`${r.mid_plan_no}-${r.annual_plan_no}`] = r);
+    SC = jp.blocks;
+    let h = '', last = null;
+    for (const b of SC) {
+      if (b.goal !== last) { h += `<div class="goalh"><span class="code">${esc(b.goal)}</span><span class="gt">${esc(b.goal_title)}</span></div>`; last = b.goal; }
+      h += `<div class="blk" id="${sbid(b)}">${scBlock(b)}</div>`;
+    }
+    body.innerHTML = h || '<p class="pending">この年度には計画がありません．</p>';
+    scToc();
+  } catch (e) { body.textContent = '読み込めません：' + e.message; }
+}
+function scBlock(b){
+  const k = `${b.mid_plan_no}-${b.annual_plan_no}`, r = SCR[k] || {};
+  let h = `<div class="planh"><span class="no">計画番号 ${b.mid_plan_no}</span></div>`;
+  if (b.mid_plan_html) h += `<div class="midp"><div class="lbl">中期計画</div>${b.mid_plan_html}</div>`;
+  h += `<div class="thead"><div>番号・担当</div><div>年度計画</div><div>業務実績報告</div></div>`;
+  for (const d of b.details) {
+    const no = `<div class="cell cno"><span class="num">${b.annual_plan_no}-${d.detail_no}</span><span class="ow">${esc(d.owner_group || '（担当なし）')}</span></div>`;
+    if (d.done) { h += `<div class="trow done">${no}<div class="cell">対応済み（報告不要）</div><div class="cell"></div></div>`; continue; }
+    const plan = (d.same ? `<div class="samenote">同上（細目${d.plan_src || '?'}と同じ計画）</div>` : '') + (d.plan_badge ? `<span class="fb">${esc(d.plan_badge)}</span>` : '') + (d.plan_html || '<span class="pending">計画本文なし</span>');
+    const rep = d.final_text ? d.final_html : (d.author_text ? `<span class="fb">執筆者の報告・${esc({writing:'執筆中', submitted:'提出済み（確認待ち）', confirmed:'確認済み'}[d.state] || '執筆中')}</span>` + d.author_html : '<span class="pending">報告なし</span>');
+    h += `<div class="trow">${no}<div class="cell">${plan}</div><div class="cell crep">${rep}</div></div>`;
+  }
+  h += `<div class="rbox"><div class="hd"><b>計画番号 ${b.mid_plan_no} の自己評価と理由</b>` +
+       (r.self_eval != null ? `<span class="sc1">${esc(r.self_eval)}</span>` : '<span class="pending">未記入</span>') + `</div>` +
+       (r.self_eval_reason ? r.self_eval_reason_html : '') + `</div>`;
+  h += `<div class="cbox"><div class="hd"><b>評価委員会の評価</b><label>評点 <select id="cs-${k}"><option value="">—</option>` +
+       [1,2,3,4].map(n => `<option value="${n}" ${String(r.committee_score) === String(n) ? 'selected' : ''}>${n}</option>`).join('') + `</select></label>` +
+       `<button type="button" class="btn pri" onclick="saveScore(${b.mid_plan_no}, ${b.annual_plan_no})">保存</button>` +
+       (r.updated_at ? `<span class="muted" style="font-size:0.7rem">${esc(r.updated_at)}</span>` : '') + `</div>` +
+       `<textarea id="cc-${k}" placeholder="評価委員会のコメント（Markdown可）">${esc(r.committee_comment || '')}</textarea></div>`;
+  return h;
+}
+function scToc(){
+  let h = '', last = null, open = false;
+  for (const b of SC) {
+    if (b.goal !== last) { if (open) h += '</span>'; h += `<span class="tocg"><span class="gl">${esc(b.goal)}</span>`; last = b.goal; open = true; }
+    const r = SCR[`${b.mid_plan_no}-${b.annual_plan_no}`] || {};
+    h += `<a href="#${sbid(b)}" class="${r.committee_score !== '' && r.committee_score != null ? 'has' : ''}">${b.mid_plan_no}</a>`;
+  }
+  if (open) h += '</span>';
+  const t = document.getElementById('scToc'); t.innerHTML = h;
+  t.querySelectorAll('a').forEach(a => a.addEventListener('click', e => { const el = document.querySelector(a.getAttribute('href')); if (!el) return; e.preventDefault();
+    window.scrollTo({top: el.getBoundingClientRect().top + scrollY - barH() - 6, behavior:'smooth'}); }));
+}
+async function saveScore(mp, ap){
+  const k = `${mp}-${ap}`;
+  try { await post(U.com, {fiscal_year: YEAR, mid_plan_no: mp, annual_plan_no: ap,
+      committee_score: document.getElementById(`cs-${k}`).value, committee_comment: document.getElementById(`cc-${k}`).value});
+    toast(`計画番号 ${mp} を保存しました`);
+    const jr = await (await fetch(`${U.rat}?year=${YEAR}`)).json();
+    if (jr.success) { SCR = {}; jr.ratings.forEach(r => SCR[`${r.mid_plan_no}-${r.annual_plan_no}`] = r); scToc(); }
+  } catch (e) { alert(e.message); }
+}
+loadAll();
+</script>
+{% endif %}
+</body>
+</html>

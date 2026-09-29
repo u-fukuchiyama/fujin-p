@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>担当表（部門別） {{ year or '' }}年度 - 事業全貌</title>
+<style>
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif; background:#f1f5f9; color:#1f2937; font-size:13px; display:flex; flex-direction:column; }
+  .bar { background:#1f2937; color:#fff; padding:8px 14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; flex:0 0 auto; }
+  .bar h1 { font-size:1rem; margin:0 6px 0 0; white-space:nowrap; }
+  .btn { display:inline-block; padding:4px 11px; border-radius:6px; border:1px solid #c7d2fe; background:#eef2ff; color:#3730a3; text-decoration:none; font-size:0.8rem; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .btn:hover { background:#e0e7ff; }
+  .btn.top { background:#334155; color:#fff; border-color:#334155; }   /* このアプリのトップ（事業全貌） */
+  .btn.fujin { background:#e74c3c; color:#fff; border-color:#e74c3c; }   /* FUJIN-P：赤地に白字（全アプリ共通） */
+  .btn.pri { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+  select, input[type=text] { padding:4px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.82rem; font-family:inherit; }
+  .sub { flex:0 0 auto; padding:6px 14px; display:flex; gap:14px; flex-wrap:wrap; align-items:center; font-size:0.8rem; background:#fff; border-bottom:1px solid #e2e8f0; }
+  .sub .muted { color:#64748b; }
+  .sub .warn { color:#c2410c; font-weight:600; }
+  #setup { flex:0 0 auto; padding:8px 14px; background:#fffbeb; border-bottom:1px solid #fde68a; display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:0.8rem; }
+  #setup b { color:#92400e; }
+  #setup select { min-width:16em; max-width:22em; }
+  #wrap { flex:1 1 auto; overflow:scroll; background:#fff; }
+  table.mx { border-collapse:separate; border-spacing:0; }
+  table.mx th, table.mx td { border-right:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb; }
+  table.mx thead th { position:sticky; top:0; z-index:3; background:#f8fafc; }
+  th.ph { width:30px; min-width:30px; max-width:30px; padding:4px 0; text-align:center; font-size:0.72rem; font-weight:700; color:#1e3a8a; vertical-align:bottom; }
+  th.ph .ann { display:block; font-size:0.6rem; font-weight:600; color:#64748b; }
+  th.ph.none { background:#ffedd5; color:#c2410c; }
+  th.ph.gstart, td.c.gstart { border-left:2px solid #94a3b8; }
+  .lead { position:sticky; left:0; z-index:2; background:#fff; min-width:230px; max-width:230px; padding:3px 6px; }
+  thead th.lead { z-index:4; background:#f1f5f9; text-align:left; font-size:0.74rem; color:#64748b; vertical-align:bottom; }
+  .dname { display:block; font-weight:600; color:#334155; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lead:hover .dname { white-space:normal; overflow:visible; }
+  .dmeta { display:flex; gap:4px; align-items:center; font-size:0.68rem; color:#64748b; }
+  .dmeta button { padding:0 6px; font-size:0.7rem; line-height:16px; border-radius:4px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; }
+  .dmeta button.del { color:#b91c1c; border-color:#fecaca; }
+  .dmeta button.add { color:#047857; border-color:#a7f3d0; }
+  td.c { width:30px; min-width:30px; text-align:center; padding:0; cursor:pointer; }
+  td.c input { width:15px; height:15px; margin:6px 0; cursor:pointer; }
+  td.c.on { background:#dcfce7; }
+  td.c.txt::after { content:'✎'; font-size:0.6rem; color:#15803d; position:relative; top:-2px; }
+  tr.hl td, tr.hl .lead { background:#fef9c3 !important; }
+  .colhl { background:#fef9c3 !important; }
+  td.c.on.colhl, tr.hl td.c.on { background:#bbf7d0 !important; }
+  .hidden { display:none !important; }
+  @media (max-width:600px) { #setup select { min-width:0; max-width:100%; flex:1 1 12em; } .bar h1 { font-size:0.92rem; } }
+  #toast { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); background:#1f2937; color:#fff; padding:6px 14px; border-radius:8px; font-size:0.8rem; opacity:0; transition:opacity .3s; pointer-events:none; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>{% if readonly %}🗂 担当表（部門別）{% else %}🧭 担当エディタ（部門別）{% endif %}</h1>
+  <form method="get" style="display:flex;gap:6px;align-items:center;">
+    <input type="hidden" name="view" value="rows">
+    <label for="yearSel" style="font-size:0.8rem;">年度</label>
+    <select id="yearSel" name="year" onchange="this.form.submit()">
+      {% for y in years %}<option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}年度</option>{% endfor %}
+    </select>
+  </form>
+  <button class="btn" type="button" id="modeBtn" onclick="setMode(!document.body.classList.contains('setup'))">🏢 部門の設定</button>
+  <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
+    <a class="btn" href="?year={{ year }}">🗂 担当表（計画別）</a>
+    {% if can_edit %}<a class="btn" href="{{ url_for('mid_term_progress.editor') }}?year={{ year }}">🧩 編集者ダッシュボード</a>{% endif %}
+    <a class="btn" href="{{ url_for('mid_term_progress.view') }}?years={{ year }}" target="_blank" rel="noopener">📊 この年度を別ウィンドウで</a>
+    <a class="btn top" href="{{ url_for('mid_term_progress.view') }}" title="事業全貌（このアプリのトップ）">📊 トップ</a>
+    <a class="btn fujin" href="{{ url_for('mid_term_progress.return_to_fujin') }}">🏠 FUJIN-P</a>
+  </span>
+</div>
+<div class="sub">
+  <b>{{ year }}年度</b>
+  <span>年度計画 <span id="nRows"></span></span>
+  <span>担当あり <span id="nAssigned"></span></span>
+  <span class="warn">担当なし <span id="nNone"></span>（見出しが橙色）</span>
+  <span class="muted">{% if readonly %}閲覧のみ．{% endif %}行＝部門，列＝計画番号．交点に印のある部門が担当．見出しにマウスを置くと年度計画の冒頭が出ます．</span>
+</div>
+{% if not readonly %}<div id="setup">
+  <b>部門の設定</b>
+  <input type="text" id="gq" placeholder="部門名で探す" style="width:10em;" aria-label="部門名で探す">
+  <select id="gsel" aria-label="加える部門"></select>
+  <button class="btn pri" type="button" onclick="addAt(COLS.length)">下端に加える ⤓</button>
+  <button class="btn" type="button" onclick="addAt(0)">⤒ 上端に加える</button>
+  <span class="muted">各行の「＋」でその行の下に，「✕」でその行を外します．並びは計画別の画面と共通です．</span>
+</div>{% else %}<div id="setup" class="hidden"><select id="gsel"></select><input id="gq"></div>{% endif %}
+<div id="wrap"><table class="mx" id="mx"></table></div>
+<div id="toast"></div>
+
+<script>
+const YEAR = {{ year|tojson }};
+const RO = {{ 'true' if readonly else 'false' }};   // 閲覧だけ（管理者以外）
+const ROWS = {{ rows|tojson }};          // 年度計画（列になる）
+const GROUPS = {{ groups|tojson }};
+let COLS = {{ columns|tojson }};          // 部門の並び（行になる）
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.opacity=1; clearTimeout(t._h); t._h=setTimeout(()=>t.style.opacity=0, 2200); }
+function owners(r){ return new Set(r.details.map(d => d.owner).filter(Boolean)); }
+function render(){
+  let h = '<thead><tr><th class="lead">部門 ＼ 計画番号</th>', lastGoal = null;
+  ROWS.forEach((r, i) => {
+    const gk = r.goal + ' ' + r.goal_title, gs = gk !== lastGoal; lastGoal = gk;
+    h += `<th class="ph${owners(r).size ? '' : ' none'}${gs ? ' gstart' : ''}" data-col="${i}" title="${esc(gk)}\n${r.mid}${r.ann != r.mid ? '（年度計画 ' + r.ann + '）' : ''}：${esc(r.plan || r.mid_plan)}">${r.mid}${r.ann != r.mid ? `<span class="ann">${r.ann}</span>` : ''}</th>`;
+  });
+  h += '</tr></thead><tbody>';
+  COLS.forEach((g, j) => { h += rowHtml(g, j); });
+  document.getElementById('mx').innerHTML = h + '</tbody>';
+  const setup = document.body.classList.contains('setup');
+  document.querySelectorAll('.setup-only').forEach(x => x.classList.toggle('hidden', !setup));
+  summary();
+}
+function rowHtml(g, j){
+  const n = ROWS.filter(r => owners(r).has(g)).length;
+  let h = `<tr data-j="${j}"><td class="lead" title="${esc(g)}"><span class="dname">${j + 1}. ${esc(g)}</span>`
+        + `<span class="dmeta">担当 ${n}<span class="setup-only"><button type="button" class="add" onclick="addAt(${j + 1})" title="選んだ部門をこの下に加える">＋</button> `
+        + `<button type="button" class="del" onclick="removeRow(${j})" title="この行を外す">✕</button></span></span></td>`;
+  let lastGoal = null;
+  ROWS.forEach((r, i) => {
+    const gk = r.goal + ' ' + r.goal_title, gs = gk !== lastGoal; lastGoal = gk;
+    const d = r.details.find(x => x.owner === g), on = !!d;
+    h += `<td class="c${on ? ' on' : ''}${d && d.has_text ? ' txt' : ''}${gs ? ' gstart' : ''}" data-col="${i}" title="${esc(g)} × 計画番号 ${r.mid}"><input type="checkbox" ${on ? 'checked' : ''} ${RO ? 'disabled' : ''} aria-label="${esc(g)} 計画番号 ${r.mid}"></td>`;
+  });
+  return h + '</tr>';
+}
+function summary(){
+  const a = ROWS.filter(r => owners(r).size).length;
+  document.getElementById('nRows').textContent = ROWS.length;
+  document.getElementById('nAssigned').textContent = a;
+  document.getElementById('nNone').textContent = ROWS.length - a;
+}
+async function toggle(td){
+  const tr = td.closest('tr'), j = +tr.dataset.j, g = COLS[j], i = +td.dataset.col, r = ROWS[i];
+  const cb = td.querySelector('input'), on = cb.checked;
+  try {
+    const res = await fetch(''  /* 割り当ては細目編集へ移した */, {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({year: YEAR, mid_plan_no: r.mid, annual_plan_no: r.ann, group: g, on})});
+    const js = await res.json();
+    if (!js.success) throw new Error(js.error || '失敗しました');
+    r.details = js.details;
+    td.classList.toggle('on', on);
+    const d = r.details.find(x => x.owner === g); td.classList.toggle('txt', !!(d && d.has_text));
+    document.querySelector(`th.ph[data-col="${i}"]`).classList.toggle('none', !owners(r).size);
+    tr.querySelector('.dmeta').firstChild.textContent = '担当 ' + ROWS.filter(x => owners(x).has(g)).length;
+    summary(); if (js.note) toast(js.note);
+  } catch(e){ cb.checked = !on; alert(e.message); }
+}
+document.getElementById('mx').addEventListener('click', e => {
+  const td = e.target.closest('td.c'); if (!td || RO) return;
+  if (e.target.tagName !== 'INPUT') { const cb = td.querySelector('input'); cb.checked = !cb.checked; }
+  toggle(td);
+});
+let lastCol = null;
+document.getElementById('mx').addEventListener('mouseover', e => {
+  const cell = e.target.closest('td, th'); if (!cell) return;
+  document.querySelectorAll('tr.hl').forEach(t => t.classList.remove('hl'));
+  const tr = cell.closest('tbody tr[data-j]'); if (tr) tr.classList.add('hl');
+  const col = cell.dataset.col ?? null;
+  if (col !== lastCol) {
+    document.querySelectorAll('.colhl').forEach(x => x.classList.remove('colhl'));
+    if (col !== null) document.querySelectorAll(`[data-col="${col}"]`).forEach(x => x.classList.add('colhl'));
+    lastCol = col;
+  }
+});
+document.getElementById('mx').addEventListener('mouseleave', () => {
+  document.querySelectorAll('tr.hl').forEach(t => t.classList.remove('hl'));
+  document.querySelectorAll('.colhl').forEach(x => x.classList.remove('colhl')); lastCol = null;
+});
+// 部門の並び（計画別の画面と共通．サーバに保存）
+function fillSelect(){
+  const q = document.getElementById('gq').value.trim(), sel = document.getElementById('gsel');
+  const cand = GROUPS.filter(g => !COLS.includes(g) && (!q || g.includes(q)));
+  sel.innerHTML = cand.length ? cand.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('') : '<option value="">（該当なし）</option>';
+}
+async function saveCols(next){
+  const res = await fetch('{{ url_for("mid_term_progress.api_manage_columns") }}', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({columns: next})});
+  const j = await res.json();
+  if (!j.success) { alert(j.error || '保存できませんでした'); return; }
+  COLS = j.columns; fillSelect(); render();
+}
+function addAt(pos){
+  const g = document.getElementById('gsel').value;
+  if (!g) { alert('加える部門を選んでください'); return; }
+  const next = COLS.slice(); next.splice(pos, 0, g); saveCols(next).then(() => {
+    const tr = document.querySelector(`tr[data-j="${pos}"]`); if (tr) tr.scrollIntoView({block:'nearest'});
+  });
+}
+async function removeRow(j){
+  const g = COLS[j], n = ROWS.filter(r => owners(r).has(g)).length;
+  if (n && !confirm(`「${g}」の行を外すと，この年度の「${g}」の担当 ${n} 件も外れます．よろしいですか？`)) return;
+  const next = COLS.slice(); next.splice(j, 1);
+  await saveCols(next); await prune();
+}
+async function prune(){
+  const cols = new Set(COLS);
+  if (!ROWS.some(r => r.details.some(d => d.owner && !cols.has(d.owner)))) return;
+  const res = await fetch(''  /* 割り当ては細目編集へ移した */, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year: YEAR, columns: COLS})});
+  const j = await res.json();
+  if (!j.success) { alert(j.error || '失敗しました'); return; }
+  if (j.removed || j.cleared) location.reload();
+}
+function setMode(setup){
+  if (!RO) { try { localStorage.setItem('mtp_setup_hidden', setup ? '0' : '1'); } catch(e) {} }
+  document.getElementById('modeBtn').textContent = setup ? '🏢 部門の設定を隠す' : '🏢 部門の設定を表示';
+  document.body.classList.toggle('setup', setup);
+  document.getElementById('setup').classList.toggle('hidden', !setup);
+  document.querySelectorAll('.setup-only').forEach(x => x.classList.toggle('hidden', !setup));
+  if (setup) fillSelect();
+}
+document.getElementById('gq').addEventListener('input', fillSelect);
+render();
+if (RO) { setMode(false); document.getElementById('modeBtn').classList.add('hidden'); }
+else { setMode(localStorage.getItem('mtp_setup_hidden') !== '1'); prune(); }
+</script>
+</body>
+</html>

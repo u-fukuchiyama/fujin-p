@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>編集者ダッシュボード - 事業全貌</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans",sans-serif; background:#f1f5f9; color:#1f2937; font-size:14px; }
+  .bar { background:#1f2937; color:#fff; padding:10px 16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .bar h1 { font-size:1.05rem; margin:0 8px 0 0; white-space:nowrap; }
+  .btn { display:inline-block; padding:5px 12px; border-radius:6px; border:1px solid #c7d2fe; background:#eef2ff; color:#3730a3; text-decoration:none; font-size:0.82rem; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .btn:hover { background:#e0e7ff; }
+  .btn.pri { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+  .btn.top { background:#334155; color:#fff; border-color:#334155; }   /* このアプリのトップ（事業全貌） */
+  .btn.fujin { background:#e74c3c; color:#fff; border-color:#e74c3c; }   /* FUJIN-P：赤地に白字（全アプリ共通） */
+  .btn.red { background:#e74c3c; color:#fff; border-color:#e74c3c; }
+  .btn.teal { background:#0f766e; color:#fff; border-color:#0f766e; }
+  .btn:disabled { opacity:.45; cursor:default; }
+  select { padding:5px 9px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem; font-family:inherit; }
+  .wrap { max-width:1100px; margin:0 auto; padding:18px 16px 60px; }
+  .yearbox { background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.08); padding:14px 18px; margin-bottom:16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .yearbox .y { font-size:1.35rem; font-weight:800; color:#1e3a8a; }
+  .yearbox .muted { color:#64748b; font-size:0.82rem; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; }
+  .card.hojin { border-top-color:#7c3aed; }
+  .card { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.08); padding:16px 18px; display:flex; flex-direction:column; gap:8px; border-top:5px solid #6366f1; }
+  .card.plan { border-top-color:#0f766e; }
+  .card.prog { border-top-color:#2563eb; }
+  .card.res { border-top-color:#94a3b8; }
+  .card h2 { font-size:1.05rem; margin:0; }
+  .card .desc { font-size:0.8rem; color:#64748b; line-height:1.6; }
+  .card .stat { font-size:0.82rem; color:#334155; display:flex; flex-wrap:wrap; gap:4px 12px; }
+  .card .stat b { font-variant-numeric:tabular-nums; }
+  .card .rec { font-size:0.78rem; color:#475569; display:flex; gap:8px; align-items:center; flex-wrap:wrap; border-top:1px dashed #e2e8f0; padding-top:8px; }
+  .card .rec button { font-size:0.74rem; padding:2px 9px; border-radius:5px; border:1px solid #93c5fd; background:#fff; color:#1e40af; cursor:pointer; font-family:inherit; }
+  .card .go { margin-top:auto; padding-top:6px; }
+  .card .go .btn { font-size:0.9rem; padding:7px 16px; }
+  .actbar { background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.08); padding:8px 18px; margin-bottom:14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:0.85rem; }
+  .actbar .act { background:#dcfce7; color:#166534; border:1px solid #86efac; border-radius:12px; padding:1px 10px; font-weight:700; font-size:0.8rem; }
+  .links { margin-bottom:14px; display:flex; gap:8px; flex-wrap:wrap; }
+  .empty { color:#94a3b8; }
+  #toast { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); background:#1f2937; color:#fff; padding:6px 14px; border-radius:8px; font-size:0.8rem; opacity:0; transition:opacity .3s; pointer-events:none; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>🧩 編集者ダッシュボード</h1>
+  <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
+    <a class="btn top" href="{{ url_for('mid_term_progress.view') }}" title="事業全貌（このアプリのトップ）">📊 トップ</a>
+    <a class="btn fujin" href="{{ url_for('mid_term_progress.return_to_fujin') }}">🏠 FUJIN-P</a>
+  </span>
+</div>
+<div class="wrap">
+  <div class="links">
+    <a class="btn teal" href="{{ url_for('mid_term_progress.manage') }}?year={{ year or '' }}&view=rows">🗂 担当表（部門別）</a>
+    <a class="btn" href="{{ url_for('mid_term_progress.manage') }}?year={{ year or '' }}">🗂 担当表（計画別）</a>
+    <a class="btn" href="{{ url_for('mid_term_progress.upload_page') }}">📁 データダウンロード／アップロード</a>
+    <a class="btn" href="{{ url_for('mid_term_progress.author') }}?year={{ year or '' }}">✍️ 執筆者ダッシュボード</a>
+  </div>
+  <div class="yearbox">
+    <form method="get" style="display:flex;gap:8px;align-items:center;">
+      <label for="yearSel">年度</label>
+      <select id="yearSel" name="year" onchange="this.form.submit()">
+        {% for y in years %}<option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}年度</option>{% endfor %}
+      </select>
+    </form>
+    {% if year %}<span class="y">{{ year }}年度</span><span class="muted" id="yearSum"></span>{% endif %}
+    {% if years %}<button class="btn pri" type="button" style="margin-left:auto" onclick="openYear()">＋ {{ years[-1] + 1 }}年度を開く</button>{% endif %}
+  </div>
+
+  <div class="actbar"><span>執筆者に開いている依頼：</span><span id="actList"></span>
+    <span class="muted" style="margin-left:auto">各カードの「執筆者に開く」で切り替えます（年度をまたいで複数開けます）．</span></div>
+  {% if not year %}
+  <p class="empty">年度の行がありません．</p>
+  {% else %}
+  <div class="cards">
+    <div class="card plan">
+      <h2>📝 年度計画策定</h2>
+      <div class="desc">細目の新設・廃止・同上・対応済みと，担当部門の割り当て．部門から上がった計画の提案を編集します．</div>
+      <div class="stat" id="stPlan"></div>
+      <div class="rec" id="recPlan"></div>
+      <div class="go"><a class="btn teal" href="{{ url_for('mid_term_progress.structure') }}?year={{ year }}">年度計画策定へ →</a></div>
+    </div>
+    <div class="card prog">
+      <h2>📈 年度計画進捗状況報告</h2>
+      <div class="desc">執筆者からの報告を受け取り，コメントを付け，評価室として報告をまとめて承認します．</div>
+      <div class="stat" id="stProg"></div>
+      <div class="rec" id="recProg"></div>
+      <div class="go"><a class="btn pri" style="background:#2563eb;border-color:#2563eb" href="{{ url_for('mid_term_progress.progress') }}?year={{ year }}">進捗状況報告へ →</a></div>
+    </div>
+    <div class="card res">
+      <h2>📘 業務実績報告</h2>
+      <div class="desc">執筆者からの業務実績報告と自己評価案を受け取り，コメントを付け，評価室として報告と自己評価をまとめて承認します．</div>
+      <div class="stat" id="stRes"></div>
+      <div class="rec" id="recRes"></div>
+      <div class="go"><a class="btn" style="background:#475569;color:#fff;border-color:#475569" href="{{ url_for('mid_term_progress.result') }}?year={{ year }}">業務実績報告へ →</a></div>
+    </div>
+    <div class="card hojin">
+      <h2>🏛 法人評価</h2>
+      <div class="desc">評価委員会からの質問・意見への回答を，責任部門と連絡を取りながらとりまとめます．評価委員会からの評点とコメント（計画番号ごと）も記録します．</div>
+      <div class="stat" id="stHojin"></div>
+      <div class="go"><a class="btn" style="background:#7c3aed;color:#fff;border-color:#7c3aed" href="{{ url_for('mid_term_progress.hojin') }}?year={{ year }}">法人評価へ →</a></div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+</div>
+<div id="toast"></div>
+<script>
+const YEAR = {{ year|tojson }}, LASTYEAR = {{ (years[-1] if years else None)|tojson }};
+const U = {
+  sum: '{{ url_for("mid_term_progress.api_editor_summary") }}',
+  active: '{{ url_for("mid_term_progress.api_editor_active") }}',
+  open: '{{ url_for("mid_term_progress.api_manage_open_year") }}',
+};
+const LBL = {plan:'計画', progress:'進捗報告', result:'業務実績報告'};
+function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2200); }
+async function post(url, data){
+  const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+  const j = await r.json().catch(() => ({success:false, error:'応答を読めません（' + r.status + '）'}));
+  if (!j.success) throw new Error(j.error || '失敗しました');
+  return j;
+}
+async function load(){
+  if (!YEAR) return;
+  const j = await (await fetch(`${U.sum}?year=${YEAR}`)).json();
+  if (!j.success) return;
+  document.getElementById('yearSum').textContent = `年度計画 ${j.plans}　細目 ${j.details}（担当なし ${j.unassigned}）　対応済み ${j.done}`;
+  document.getElementById('stPlan').innerHTML = `<span>細目 <b>${j.details}</b></span><span>担当なし <b>${j.unassigned}</b></span><span>対応済み <b>${j.done}</b></span>`;
+  const st = s => { const c = j.stages[s];
+    return `<span>依頼中（未入力） <b>${c.requested}</b></span><span>執筆中 <b>${c.writing}</b></span>` +
+           `<span>提出済み <b>${c.submitted}</b></span><span>確認済み <b>${c.confirmed}</b></span>`; };
+  document.getElementById('stProg').innerHTML = st('progress');
+  document.getElementById('stRes').innerHTML = st('result');
+  const hj = j.hojin, HL = {received:'受付', discussing:'検討中', drafting:'回答案作成', fixed:'確定'};
+  document.getElementById('stHojin').innerHTML = hj === null ? '<span class="muted">（表の準備がまだです）</span>'
+    : (Object.keys(hj).length ? Object.entries(HL).map(([k, l]) => `<span>${l} <b>${hj[k] || 0}</b></span>`).join('') : '<span class="muted">この年度の質問はまだありません</span>');
+  const act = new Set((j.active || []).map(a => `${a.year}-${a.stage}`));
+  const rec = s => { const c = j.stages[s], on = act.has(`${YEAR}-${s}`);
+    return `<label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer;font-weight:700;color:${on ? '#15803d' : '#475569'}">` +
+           `<input type="checkbox" ${on ? 'checked' : ''} onchange="setActive('${s}', this.checked)">執筆者に開く</label>` +
+           `<span>依頼中 ${c.recorded}/${j.assigned}</span>`; };
+  document.getElementById('recPlan').innerHTML = rec('plan');
+  document.getElementById('recProg').innerHTML = rec('progress');
+  document.getElementById('recRes').innerHTML = rec('result');
+  const lbl = {plan:'年度計画策定', progress:'年度計画進捗状況報告', result:'業務実績報告'};
+  document.getElementById('actList').innerHTML = (j.active || []).length
+    ? (j.active || []).map(a => `<span class="act">${a.year}年度 ${lbl[a.stage]}</span>`).join('')
+    : '<span class="muted">（なし）</span>';
+}
+async function setActive(stage, on){
+  const msg = on ? `${YEAR}年度の${LBL[stage]}を執筆者に開きます．担当のある細目（対応済みを除く）が「依頼中」になり，執筆者ダッシュボードで入力できるようになります．` +
+                   (stage !== 'plan' ? '\nあわせて，この年度の細目構造は固定されます．' : '') + '\nよろしいですか？'
+                 : `${YEAR}年度の${LBL[stage]}を執筆者ダッシュボードから外します（入力済みの内容と状態は残ります）．よろしいですか？`;
+  if (!confirm(msg)) { load(); return; }
+  try { await post(U.active, {year: YEAR, stage, on}); toast(on ? '執筆者に開きました' : '執筆者ダッシュボードから外しました'); load(); }
+  catch (e) { alert(e.message); load(); }
+}
+async function openYear(){
+  const y = LASTYEAR + 1;
+  if (!confirm(`${y}年度を開きます．${LASTYEAR}年度の細目集（細目・担当・同上・対応済み）を写し，本文は空で作ります．よろしいですか？`)) return;
+  try { const j = await post(U.open, {year: y, from: LASTYEAR}); alert(`${j.added} 細目を作りました`); location.href = `?year=${y}`; }
+  catch (e) { alert(e.message); }
+}
+load();
+</script>
+</body>
+</html>

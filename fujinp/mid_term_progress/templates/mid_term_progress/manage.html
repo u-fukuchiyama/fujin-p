@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>担当の割り当て {{ year or '' }}年度 - 事業全貌</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans",sans-serif; background:#f1f5f9; color:#1f2937; font-size:14px; }
+  .bar { position:sticky; top:0; z-index:10; background:#1f2937; color:#fff; padding:10px 16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .bar h1 { font-size:1.05rem; margin:0 8px 0 0; }
+  .bar a, .bar button, .bar select { font-family:inherit; }
+  .btn { display:inline-block; padding:5px 12px; border-radius:6px; border:1px solid #c7d2fe; background:#eef2ff; color:#3730a3; text-decoration:none; font-size:0.82rem; cursor:pointer; }
+  .btn:hover { background:#e0e7ff; }
+  .btn.top { background:#334155; color:#fff; border-color:#334155; }   /* このアプリのトップ（事業全貌） */
+  .btn.fujin { background:#e74c3c; color:#fff; border-color:#e74c3c; }   /* FUJIN-P：赤地に白字（全アプリ共通） */
+  .btn.pri { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+  .btn.pri:hover { background:#4338ca; }
+  .btn.sm { padding:2px 8px; font-size:0.76rem; }
+  .btn.del { color:#b91c1c; border-color:#fecaca; background:#fff; }
+  select, input[type=text], input[list] { padding:5px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.84rem; font-family:inherit; }
+  .wrap { max-width:1300px; margin:0 auto; padding:14px 16px 60px; }
+  .summary { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; margin-bottom:12px; display:flex; gap:14px; flex-wrap:wrap; align-items:center; font-size:0.84rem; }
+  .summary .muted { color:#64748b; }
+  .plan { background:#fff; border:1px solid #e2e8f0; border-radius:10px; margin-bottom:10px; overflow:hidden; }
+  .plan-h { background:#334155; color:#fff; padding:7px 12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .badge { background:#4f46e5; border-radius:12px; padding:1px 9px; font-weight:700; font-size:0.8rem; white-space:nowrap; }
+  .goal { font-size:0.76rem; opacity:.85; }
+  .mid { font-size:0.8rem; color:#334155; background:#f8fafc; padding:6px 12px; border-bottom:1px solid #e2e8f0; }
+  .bulk { margin-left:auto; display:flex; gap:6px; align-items:center; }
+  .bulk input { width:14em; background:#fff; }
+  table.rows { width:100%; border-collapse:collapse; }
+  table.rows th { text-align:left; font-size:0.74rem; color:#64748b; font-weight:600; padding:5px 10px; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+  table.rows td { padding:6px 10px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+  td.no { white-space:nowrap; font-weight:600; color:#1e3a8a; font-variant-numeric:tabular-nums; width:6em; }
+  td.txt { color:#334155; font-size:0.82rem; }
+  td.txt .empty { color:#94a3b8; font-style:italic; }
+  td.own { width:17em; }
+  td.own input { width:100%; }
+  td.own input.unset { background:#fff7ed; border-color:#fdba74; }
+  td.ops { width:9em; white-space:nowrap; text-align:right; }
+  .saved { color:#15803d; font-size:0.72rem; margin-left:4px; }
+  .hidden { display:none !important; }
+  @media (max-width:760px) {
+    table.rows, table.rows tbody, table.rows tr, table.rows td { display:block; width:100% !important; }
+    table.rows thead { display:none; }
+    table.rows tr { border-bottom:3px solid #e2e8f0; padding:4px 0; }
+    td.ops { text-align:left; }
+    .bulk { margin-left:0; width:100%; }
+    .bulk input { flex:1; }
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>🧭 担当の割り当て</h1>
+  <form method="get" style="display:flex;gap:6px;align-items:center;">
+    <input type="hidden" name="view" value="list">
+    <label for="yearSel" style="font-size:0.82rem;">年度</label>
+    <select id="yearSel" name="year" onchange="this.form.submit()">
+      {% for y in years %}<option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}年度</option>{% endfor %}
+    </select>
+  </form>
+  {% if years %}<button class="btn pri" type="button" onclick="openYear()">＋ {{ years[-1] + 1 }}年度を開く</button>{% endif %}
+  <input type="text" id="flt" placeholder="計画番号・グループで絞り込み" style="width:15em;" aria-label="絞り込み">
+  <label style="font-size:0.8rem;"><input type="checkbox" id="onlyUnset"> 未割り当てのみ</label>
+  <span style="margin-left:auto;display:flex;gap:6px;">
+    <a class="btn" href="?year={{ year }}">▦ 交点で割り当て</a>
+    {% if not readonly %}<a class="btn" href="{{ url_for('mid_term_progress.editor') }}?year={{ year }}">🧭 編集者ダッシュボード</a>{% endif %}
+    <a class="btn top" href="{{ url_for('mid_term_progress.view') }}" title="事業全貌（このアプリのトップ）">📊 トップ</a>
+    <a class="btn fujin" href="{{ url_for('mid_term_progress.return_to_fujin') }}">🏠 FUJIN-P</a>
+    <a class="btn" href="{{ url_for('mid_term_progress.upload_page') }}">📁 データ管理</a>
+  </span>
+</div>
+<datalist id="groups">{% for g in groups %}<option value="{{ g }}">{% endfor %}</datalist>
+
+<div class="wrap">
+  <div class="summary">
+    <b>{{ year }}年度</b>
+    <span>行（細目） {{ counts.rows }}</span>
+    <span>担当あり {{ counts.assigned }}</span>
+    <span class="muted">未割り当て {{ counts.rows - counts.assigned }}</span>
+    <span class="muted">担当はグループ名で入れます（候補はユーザとグループのグループ）．担当は「年度を開く」で次年度に引き継がれます．</span>
+  </div>
+
+  {% for pno, p in plans.items() %}
+  <div class="plan" data-plan="{{ pno }}" data-text="{{ pno }} {{ p.goal }} {{ p.goal_title }} {% for r in p.rows %}{{ r.owner_group or '' }} {% endfor %}">
+    <div class="plan-h">
+      <span class="badge">計画番号 {{ pno }}</span>
+      <span class="goal">{{ p.goal }} {{ p.goal_title }}</span>
+      <span class="bulk">
+        <input list="groups" placeholder="この計画の全細目に一括" aria-label="一括の担当グループ">
+        <button class="btn sm" type="button" onclick="bulkSet(this)">一括設定</button>
+      </span>
+    </div>
+    {% if p.mid_plan %}<div class="mid">{{ p.mid_plan }}{% if p.mid_plan|length >= 160 %}…{% endif %}</div>{% endif %}
+    <table class="rows">
+      <thead><tr><th>番号-細目</th><th>年度計画（冒頭）</th><th>担当グループ</th><th></th></tr></thead>
+      <tbody>
+      {% for r in p.rows %}
+      <tr data-id="{{ r.id }}" data-owner="{{ r.owner_group or '' }}">
+        <td class="no">{{ r.annual_plan_no }}-{{ r.detail_no }}</td>
+        <td class="txt">{% if r.plan_short %}{{ r.plan_short }}{% if r.plan_short|length >= 120 %}…{% endif %}{% else %}<span class="empty">（本文なし）</span>{% endif %}</td>
+        <td class="own"><input list="groups" value="{{ r.owner_group or '' }}" class="{{ '' if r.owner_group else 'unset' }}"
+                               onchange="setOwner(this)" aria-label="担当グループ"><span class="saved"></span></td>
+        <td class="ops">
+          <button class="btn sm" type="button" onclick="splitRow({{ r.id }})" title="同じ年度計画に細目を足す">＋細目</button>
+          {% if r.detail_no > 1 and not r.has_text %}<button class="btn sm del" type="button" onclick="removeRow({{ r.id }})" title="空の細目を消す">✕</button>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="summary">この年度には行がありません．</div>
+  {% endfor %}
+</div>
+
+<script>
+async function post(url, body){
+  const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const j = await r.json().catch(() => ({success:false, error:'応答を読めません'}));
+  if (!j.success) throw new Error(j.error || '失敗しました');
+  return j;
+}
+async function setOwner(inp){
+  const tr = inp.closest('tr'), mark = tr.querySelector('.saved');
+  try {
+    await post('{{ url_for("mid_term_progress.api_manage_owner") }}', {id: tr.dataset.id, owner_group: inp.value});
+    tr.dataset.owner = inp.value.trim(); inp.classList.toggle('unset', !inp.value.trim());
+    mark.textContent = '保存'; setTimeout(() => mark.textContent = '', 1500);
+  } catch(e){ alert(e.message); }
+}
+async function bulkSet(btn){
+  const box = btn.closest('.plan'), val = btn.previousElementSibling.value;
+  const ids = [...box.querySelectorAll('tr[data-id]')].map(t => t.dataset.id);
+  if (!confirm(`計画番号 ${box.dataset.plan} の ${ids.length} 細目の担当を「${val || '（解除）'}」にします．よろしいですか？`)) return;
+  try {
+    await post('{{ url_for("mid_term_progress.api_manage_owner") }}', {ids, owner_group: val});
+    box.querySelectorAll('td.own input').forEach(i => { i.value = val; i.classList.toggle('unset', !val.trim()); i.closest('tr').dataset.owner = val.trim(); });
+  } catch(e){ alert(e.message); }
+}
+async function splitRow(id){
+  const owner = prompt('足す細目の担当グループ（空でも可）', '');
+  if (owner === null) return;
+  try { await post('{{ url_for("mid_term_progress.api_manage_split") }}', {id, owner_group: owner}); location.reload(); }
+  catch(e){ alert(e.message); }
+}
+async function removeRow(id){
+  if (!confirm('この空の細目を消します．よろしいですか？')) return;
+  try { await post('{{ url_for("mid_term_progress.api_manage_remove") }}', {id}); location.reload(); }
+  catch(e){ alert(e.message); }
+}
+async function openYear(){
+  {% if years %}
+  const y = {{ years[-1] + 1 }}, from = {{ years[-1] }};
+  if (!confirm(`${y}年度を開きます．${from}年度の行（中期計画番号・年度計画番号・細目・担当）を写し，本文は空で作ります．よろしいですか？`)) return;
+  try {
+    const j = await post('{{ url_for("mid_term_progress.api_manage_open_year") }}', {year: y, from});
+    alert(`${y}年度の行を ${j.added} 行作りました（評価の行 ${j.added_evals}）．`);
+    location.href = '?year=' + y;
+  } catch(e){ alert(e.message); }
+  {% endif %}
+}
+function applyFilter(){
+  const q = document.getElementById('flt').value.trim(), only = document.getElementById('onlyUnset').checked;
+  document.querySelectorAll('.plan').forEach(box => {
+    let any = false;
+    box.querySelectorAll('tr[data-id]').forEach(tr => {
+      const ok = (!only || !tr.dataset.owner) ;
+      tr.classList.toggle('hidden', !ok); if (ok) any = true;
+    });
+    const hit = !q || (box.dataset.text || '').includes(q);
+    box.classList.toggle('hidden', !(hit && any));
+  });
+}
+document.getElementById('flt').addEventListener('input', applyFilter);
+document.getElementById('onlyUnset').addEventListener('change', applyFilter);
+</script>
+</body>
+</html>

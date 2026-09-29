@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>事業全貌 - 管理 - FUJIN-P</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", sans-serif;
+            background:linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            min-height:100vh; padding:20px; color:#1f2937;
+        }
+        .container { max-width:960px; margin:0 auto; }
+        .header {
+            background:white; padding:16px 22px; border-radius:10px; margin-bottom:16px;
+            display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+            box-shadow:0 2px 6px rgba(0,0,0,.1);
+        }
+        .header h1 { font-size:1.3rem; }
+        .btn {
+            display:inline-block; padding:7px 14px; background:#6366f1; color:white; border:none;
+            border-radius:6px; text-decoration:none; font-size:0.86rem; cursor:pointer; font-family:inherit;
+        }
+        .btn:hover { background:#4f46e5; }
+        .btn.top { background:#334155; color:#fff; border:1px solid #334155; }
+        .btn.fujin { background:#e74c3c; color:#fff; border:1px solid #e74c3c; }
+        .btn.sub { background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; }
+        .btn.danger { background:#b91c1c; }
+        .card { background:white; padding:22px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,.1); margin-bottom:16px; }
+        .card h2 { font-size:0.98rem; color:#374151; margin-bottom:14px; padding-bottom:10px; border-bottom:2px solid #e5e7eb; }
+        .note { font-size:0.8rem; color:#6b7280; line-height:1.7; margin-bottom:10px; }
+        table.st { width:100%; border-collapse:collapse; font-size:0.82rem; margin-bottom:12px; }
+        table.st th, table.st td { border-bottom:1px solid #eef0f4; padding:5px 8px; text-align:left; }
+        table.st th { color:#6b7280; font-weight:600; background:#f9fafb; }
+        .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+        input[type=number] { width:7em; padding:5px 8px; border:1px solid #d1d5db; border-radius:5px; font-size:0.86rem; }
+        .warn { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:8px; padding:10px 12px; font-size:0.82rem; line-height:1.7; margin-bottom:12px; }
+        .msg { font-size:0.84rem; margin-top:8px; white-space:pre-wrap; }
+        .msg.ok { color:#15803d; } .msg.ng { color:#b91c1c; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📦 事業全貌 — データ管理</h1>
+        <div>
+            <a href="{{ url_for('mid_term_progress.editor') }}" class="btn sub">🧩 編集者ダッシュボード</a>
+            <a href="{{ url_for('mid_term_progress.view') }}" class="btn top" title="事業全貌（このアプリのトップ）">📊 トップ</a>
+            <a href="{{ url_for('mid_term_progress.return_to_fujin') }}" class="btn fujin">🏠 FUJIN-P</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🗄️ 常設テーブルの格納状況（nishida$fujinp）</h2>
+        <p class="note">データは T_mid_plan_details／T_mid_plan_evaluations／T_ann_plan_details／T_ann_plan_evaluations の4表にあります．ふだんの書き込みは事業全貌の各画面で行います．</p>
+        <div id="status">読み込み中…</div>
+    </div>
+
+    <div class="card">
+        <h2>⬇️ ダウンロード（xlsx）</h2>
+        <p class="note">テーブルの列をそのまま出します．シート名はテーブル名です．このファイルは下の非常用アップロードでそのまま書き戻せます．</p>
+        <div class="row"><b style="font-size:0.86rem">中期計画（期ごと）</b><span id="termButtons"></span></div>
+        <div class="row">
+            <b style="font-size:0.86rem">年度実績</b>
+            <input type="number" id="yFrom" min="2016" max="2100" aria-label="開始年度"> 〜
+            <input type="number" id="yTo" min="2016" max="2100" aria-label="終了年度"> 年度
+            <button class="btn" type="button" onclick="dlAnn()">⬇ ダウンロード</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🚨 非常用アップロード（xlsx → 常設テーブル）</h2>
+        <div class="warn">ふだんは使いません．サイト間でデータを移すときや，画面から直せないときの非常用です．<br>
+            上のダウンロードと同じ形（シート名＝テーブル名，1行目＝列名）の xlsx を読み，キー（年度・期などの組）が同じ行は上書き，無い行は追加します．
+            id・created_at・updated_at・updated_by の列は読みません．実行の前に SQL Saver などで控えを取ってください．</div>
+        <div class="row">
+            <input type="file" id="upFile" accept=".xlsx">
+            <label style="font-size:0.84rem"><input type="checkbox" id="upReplace"> 置き換え（ファイルに現れた年度／期の行を先に消す）</label>
+            <button class="btn danger" type="button" onclick="upload()">📥 書き戻す</button>
+        </div>
+        <div id="upMsg" class="msg"></div>
+    </div>
+</div>
+
+<script>
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+async function loadStatus(){
+  const box = document.getElementById('status');
+  try {
+    const r = await (await fetch('{{ url_for("mid_term_progress.api_status") }}')).json();
+    if (!r.success) { box.textContent = 'エラー: ' + r.error; return; }
+    let h = '<table class="st"><tr><th>中期計画</th><th>版</th><th>有効年度</th><th>計画数</th><th>行数</th><th>最終更新</th></tr>';
+    r.mid.forEach(m => { h += `<tr><td>${esc(m.label)}</td><td>${esc(m.sub_term)}</td><td>${esc(m.vf)}〜${esc(m.vt || '')}</td><td>${esc(m.plans)}</td><td>${esc(m.n)}</td><td>${esc(m.last_update || '')}</td></tr>`; });
+    h += '</table>';
+    if (r.mid_evals.length) {
+      h += '<table class="st"><tr><th>中期評価</th><th>版</th><th>時期</th><th>行数</th></tr>';
+      r.mid_evals.forEach(m => { h += `<tr><td>第${esc(m.term)}期</td><td>${esc(m.sub_term)}</td><td>${esc(m.phase)}</td><td>${esc(m.n)}</td></tr>`; });
+      h += '</table>';
+    }
+    h += '<table class="st"><tr><th>年度</th><th>細目の行</th><th>年度計画数</th><th>評価の行</th><th>最終更新</th></tr>';
+    r.annual.forEach(a => { h += `<tr><td>${esc(a.fiscal_year)}</td><td>${esc(a.n)}</td><td>${esc(a.plans)}</td><td>${esc(a.evals)}</td><td>${esc(a.last_update || '')}</td></tr>`; });
+    h += '</table>';
+    box.innerHTML = h;
+    const terms = [...new Set(r.mid.map(m => m.term))];
+    document.getElementById('termButtons').innerHTML = terms.map(t =>
+      `<a class="btn" href="{{ url_for('mid_term_progress.download_mid') }}?term=${t}">⬇ 第${t}期</a>`).join(' ');
+    const ys = r.annual.map(a => a.fiscal_year);
+    if (ys.length) { document.getElementById('yFrom').value = ys[0]; document.getElementById('yTo').value = ys[ys.length - 1]; }
+  } catch (e) { box.textContent = '読み込めませんでした: ' + e; }
+}
+function dlAnn(){
+  const a = document.getElementById('yFrom').value, b = document.getElementById('yTo').value;
+  if (!a || !b) { alert('年度を入れてください'); return; }
+  location.href = `{{ url_for('mid_term_progress.download_ann') }}?year_from=${a}&year_to=${b}`;
+}
+async function upload(){
+  const f = document.getElementById('upFile').files[0], msg = document.getElementById('upMsg');
+  if (!f) { alert('xlsx を選んでください'); return; }
+  const rep = document.getElementById('upReplace').checked;
+  if (!confirm((rep ? '【置き換え】ファイルに現れた年度／期の行を消してから書き込みます．' : '同じキーの行を上書きします．') + '\nよろしいですか？')) return;
+  const fd = new FormData(); fd.append('file', f); fd.append('replace', rep ? '1' : '0');
+  msg.className = 'msg'; msg.textContent = '書き戻し中…';
+  try {
+    const r = await (await fetch('{{ url_for("mid_term_progress.upload_tables") }}', {method:'POST', body:fd})).json();
+    msg.className = 'msg ' + (r.success ? 'ok' : 'ng');
+    msg.textContent = r.success ? r.message : ('エラー: ' + r.error);
+    if (r.success) loadStatus();
+  } catch (e) { msg.className = 'msg ng'; msg.textContent = 'エラー: ' + e; }
+}
+loadStatus();
+</script>
+</body>
+</html>

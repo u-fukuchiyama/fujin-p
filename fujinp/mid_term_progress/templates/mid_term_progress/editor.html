@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>編集者ダッシュボード - 事業全貌</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans",sans-serif; background:#f1f5f9; color:#1f2937; font-size:13px; }
+  .bar { background:#1f2937; color:#fff; padding:8px 14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:50; }
+  .bar h1 { font-size:1rem; margin:0 6px 0 0; white-space:nowrap; }
+  .btn { display:inline-block; padding:4px 11px; border-radius:6px; border:1px solid #c7d2fe; background:#eef2ff; color:#3730a3; text-decoration:none; font-size:0.8rem; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .btn:hover { background:#e0e7ff; }
+  .btn.pri { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+  .btn.teal { background:#0f766e; color:#fff; border-color:#0f766e; }
+  .btn.top { background:#334155; color:#fff; border-color:#334155; }   /* このアプリのトップ（事業全貌） */
+  .btn.fujin { background:#e74c3c; color:#fff; border-color:#e74c3c; }   /* FUJIN-P：赤地に白字（全アプリ共通） */
+  .btn.red { background:#e74c3c; color:#fff; border-color:#e74c3c; }
+  select, input[type=text] { padding:4px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.82rem; font-family:inherit; }
+  .wrap { max-width:1300px; margin:0 auto; padding:12px 14px 60px; }
+  .card { background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.08); padding:12px 14px; margin-bottom:12px; }
+  .card h2 { font-size:0.92rem; margin:0 0 8px; color:#334155; }
+  .tools { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .stg { display:inline-flex; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; }
+  .stg a { padding:4px 14px; text-decoration:none; color:#334155; font-size:0.82rem; background:#fff; }
+  .stg a.on { background:#1e40af; color:#fff; font-weight:700; }
+  table { border-collapse:collapse; width:100%; }
+  th, td { border-bottom:1px solid #eef2f7; padding:5px 8px; text-align:left; vertical-align:top; }
+  th { background:#f8fafc; color:#64748b; font-size:0.74rem; font-weight:600; position:sticky; top:0; }
+  .sum td.n { text-align:right; font-variant-numeric:tabular-nums; }
+  .sum td.n.z { color:#cbd5e1; }
+  .sum tr:hover td { background:#f8fafc; cursor:pointer; }
+  .pno { font-weight:700; color:#1e3a8a; white-space:nowrap; }
+  .pno small { color:#64748b; font-weight:600; }
+  .goal { font-size:0.72rem; color:#64748b; }
+  .none { color:#c2410c; font-size:0.74rem; font-weight:700; }
+  .dot { font-size:0.7rem; color:#15803d; }
+  td.act { white-space:nowrap; }
+  td.act button { font-size:0.74rem; padding:2px 9px; border-radius:6px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; font-family:inherit; }
+  td.act button.pri { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+  .chip { display:inline-block; font-size:0.72rem; font-weight:700; padding:1px 9px; border-radius:10px; white-space:nowrap; }
+  .muted { color:#64748b; font-size:0.78rem; }
+  .warn { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:8px; padding:10px 12px; font-size:0.82rem; line-height:1.7; }
+  .tblwrap { overflow-x:auto; }
+  #toast { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); background:#1f2937; color:#fff; padding:6px 14px; border-radius:8px; font-size:0.8rem; opacity:0; transition:opacity .3s; pointer-events:none; z-index:999; }
+  @media (max-width:700px) { th.hide-s, td.hide-s { display:none; } }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>🧭 編集者ダッシュボード</h1>
+  <form method="get" style="display:flex;gap:6px;align-items:center;">
+    <label for="yearSel" style="font-size:0.8rem;">年度</label>
+    <select id="yearSel" name="year" onchange="this.form.submit()">
+      {% for y in years %}<option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}年度</option>{% endfor %}
+    </select>
+    <input type="hidden" name="stage" value="{{ stage }}">
+  </form>
+  <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
+    <a class="btn teal" href="{{ url_for('mid_term_progress.structure') }}?year={{ year or '' }}">🧩 細目編集（部門の割り当て）</a>
+    <a class="btn" href="{{ url_for('mid_term_progress.manage') }}?year={{ year or '' }}">🗂 担当表</a>
+    <a class="btn pri" href="{{ url_for('mid_term_progress.upload_page') }}">📁 データダウンロード／アップロード</a>
+    <a class="btn" href="{{ url_for('mid_term_progress.author') }}">✍️ 執筆者ダッシュボード</a>
+    <a class="btn top" href="{{ url_for('mid_term_progress.view') }}" title="事業全貌（このアプリのトップ）">📊 トップ</a>
+    <a class="btn fujin" href="{{ url_for('mid_term_progress.return_to_fujin') }}">🏠 FUJIN-P</a>
+  </span>
+</div>
+
+<div class="wrap">
+{% if not ready %}
+  <div class="warn">依頼の状態を置くテーブル <b>{{ req_table }}</b> がまだありません．
+    同梱の SQL を nishida$fujinp で実行してから，このページを開き直してください．</div>
+{% elif not year %}
+  <div class="warn">年度の行がありません．細目編集の画面で年度を開いてください．</div>
+{% else %}
+  <div class="card">
+    <div class="tools">
+      <span class="stg">
+        {% for s, lbl in stages %}<a href="?year={{ year }}&stage={{ s }}" class="{{ 'on' if s == stage else '' }}">{{ lbl }}</a>{% endfor %}
+      </span>
+      <button class="btn pri" type="button" onclick="requestAll('')">📨 担当のある細目すべてに依頼を出す</button>
+      <input type="text" id="flt" placeholder="計画番号・担当で絞り込み" style="width:14em;" aria-label="絞り込み">
+      <select id="stFlt" aria-label="状態で絞り込み">
+        <option value="">状態：すべて</option>
+        <option value="none">未依頼</option>
+        <option value="requested">依頼中（執筆者の状態なし）</option>
+        <option value="writing">執筆中</option>
+        <option value="done">執筆完了</option>
+        <option value="revised">改訂済み</option>
+        <option value="confirmed">確認済み</option>
+      </select>
+      <span class="muted" id="cnt"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>担当グループ別の状況（{{ year }}年度・{{ dict(stages)[stage] }}）</h2>
+    <div class="tblwrap"><table class="sum" id="sumTbl"></table></div>
+    <div class="muted" style="margin-top:6px;">行を押すと下の一覧をそのグループに絞ります．</div>
+  </div>
+
+  <div class="card">
+    <h2>細目の一覧</h2>
+    <div class="tblwrap"><table id="listTbl"></table></div>
+  </div>
+{% endif %}
+</div>
+<div id="toast"></div>
+
+{% include 'mid_term_progress/_item_panel.html' %}
+
+<script>
+const YEAR = {{ year|tojson }}, STAGE = {{ stage|tojson }}, READY = {{ 'true' if ready else 'false' }};
+const URL_LIST = '{{ url_for("mid_term_progress.api_editor_list") }}';
+const URL_ALL = '{{ url_for("mid_term_progress.api_editor_request_all") }}';
+const URL_ES = '{{ url_for("mid_term_progress.api_editor_status") }}';
+let ROWS = [];
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2200); }
+function stateOf(r){
+  if (!r.req || !r.req.editor_status) return 'none';
+  if (r.req.editor_status === 'confirmed') return 'confirmed';
+  return r.req.author_status || 'requested';
+}
+async function load(){
+  if (!YEAR || !READY) return;
+  const j = await (await fetch(`${URL_LIST}?year=${YEAR}&stage=${STAGE}`)).json();
+  if (!j.success) { alert(j.error || '読み込めません'); return; }
+  ROWS = j.rows; draw();
+}
+window.onItemChanged = load;
+function draw(){
+  const f = document.getElementById('flt').value.trim(), sf = document.getElementById('stFlt').value;
+  const shown = ROWS.filter(r => (!f || String(r.mid_plan_no) === f || (r.owner_group || '').includes(f) || (r.goal || '').includes(f)) &&
+                                 (!sf || stateOf(r) === sf));
+  document.getElementById('cnt').textContent = `${shown.length} / ${ROWS.length} 細目`;
+  let h = '<tr><th>計画番号</th><th>細目</th><th>担当グループ</th><th>状態</th><th class="hide-s">本文</th><th class="hide-s">依頼日時</th><th></th></tr>';
+  for (const r of shown) {
+    const q = r.req || {};
+    h += `<tr><td><span class="pno">${r.mid_plan_no}${r.annual_plan_no !== r.mid_plan_no ? ` <small>（年度計画 ${r.annual_plan_no}）</small>` : ''}</span>` +
+         `<div class="goal">${esc(r.goal)} ${esc(r.goal_title)}</div></td>` +
+         `<td>${r.detail_no}</td>` +
+         `<td>${r.owner_group ? esc(r.owner_group) : '<span class="none">担当なし</span>'}</td>` +
+         `<td>${statusChips(q.editor_status, q.author_status)}${q.has_comment ? ' <span title="評価室からのコメントあり">💬</span>' : ''}</td>` +
+         `<td class="hide-s">${r.has_text ? '<span class="dot">● あり</span>' : '<span class="muted">—</span>'}</td>` +
+         `<td class="hide-s muted">${esc(q.requested_at || '')}</td>` +
+         `<td class="act"><button type="button" class="pri" onclick='openItem(${JSON.stringify(key(r))})'>詳細</button> ` +
+         (r.owner_group && !q.editor_status ? `<button type="button" onclick='quick(${JSON.stringify(key(r))},"requested")'>依頼</button> ` : '') +
+         (q.editor_status === 'requested' ? `<button type="button" onclick='quick(${JSON.stringify(key(r))},"confirmed")'>確認済みに</button>` : '') +
+         '</td></tr>';
+  }
+  document.getElementById('listTbl').innerHTML = h;
+  // グループ別集計
+  const cols = [['none','未依頼'],['requested','依頼中'],['writing','執筆中'],['done','執筆完了'],['revised','改訂済み'],['confirmed','確認済み']];
+  const g = {};
+  for (const r of ROWS) {
+    const k = r.owner_group || '（担当なし）';
+    g[k] = g[k] || {}; const s = stateOf(r); g[k][s] = (g[k][s] || 0) + 1;
+  }
+  let sh = '<tr><th>担当グループ</th>' + cols.map(c => `<th style="text-align:right">${c[1]}</th>`).join('') + '<th></th></tr>';
+  for (const name of Object.keys(g).sort()) {
+    const real = name !== '（担当なし）';
+    sh += `<tr onclick="pickGroup(${real ? esc(JSON.stringify(name)) : "''"})"><td>${esc(name)}</td>` +
+          cols.map(c => `<td class="n ${g[name][c[0]] ? '' : 'z'}">${g[name][c[0]] || 0}</td>`).join('') +
+          `<td class="act">${real && g[name].none ? `<button type="button" onclick='event.stopPropagation();requestAll(${esc(JSON.stringify(name))})'>このグループに依頼</button>` : ''}</td></tr>`;
+  }
+  document.getElementById('sumTbl').innerHTML = sh;
+}
+function key(r){ return {fiscal_year:r.fiscal_year, mid_plan_no:r.mid_plan_no, annual_plan_no:r.annual_plan_no, detail_no:r.detail_no}; }
+function pickGroup(n){ document.getElementById('flt').value = n; draw(); document.getElementById('listTbl').scrollIntoView({behavior:'smooth'}); }
+async function post(url, data){
+  const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+  const j = await r.json().catch(() => ({success:false, error:'応答を読めません（' + r.status + '）'}));
+  if (!j.success) throw new Error(j.error || '失敗しました');
+  return j;
+}
+async function requestAll(group){
+  const lbl = {plan:'計画', progress:'進捗報告', result:'業務実績報告'}[STAGE];
+  if (!confirm(`${YEAR}年度の${lbl}について，${group ? '「' + group + '」の' : '担当のある'}未依頼の細目すべてに依頼を出します．よろしいですか？`)) return;
+  try { const j = await post(URL_ALL, {year: YEAR, stage: STAGE, group}); toast(`${j.requested} 件の依頼を出しました`); load(); }
+  catch (e) { alert(e.message); }
+}
+async function quick(k, status){
+  try { await post(URL_ES, Object.assign({stage: STAGE, status}, k)); load(); }
+  catch (e) { alert(e.message); }
+}
+document.addEventListener('input', e => { if (e.target.id === 'flt') draw(); });
+document.addEventListener('change', e => { if (e.target.id === 'stFlt') draw(); });
+load();
+</script>
+</body>
+</html>

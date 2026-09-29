@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>年度計画進捗状況報告 {{ year }}年度 - 事業全貌</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans",sans-serif; background:#f1f5f9; color:#1f2937; font-size:14px; }
+  /* 上部の帯（年度計画策定・執筆者ダッシュボードと同じ作り） */
+  .bar { background:#1f2937; color:#fff; position:sticky; top:0; z-index:60; box-shadow:0 2px 6px rgba(0,0,0,.25); }
+  .row1 { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:6px 14px; }
+  .ttl { font-weight:700; font-size:0.95rem; white-space:nowrap; margin-right:6px; }
+  .quick { margin-left:auto; display:inline-flex; gap:5px; align-items:center; flex-wrap:wrap; }
+  .q { font-size:0.74rem; font-weight:700; color:#fff; text-decoration:none; padding:3px 9px; border-radius:6px; white-space:nowrap; }
+  .q:hover { filter:brightness(1.12); }
+  .q.home { background:#e74c3c; color:#fff; }
+  .q.back { background:#4f46e5; } .q.teal { background:#0f766e; } .q.gray { background:#475569; } .q.purple { background:#7c3aed; }
+  .tg { background:#374151; color:#e5e7eb; border:1px solid #4b5563; border-radius:6px; font-size:0.76rem; padding:3px 10px; cursor:pointer; white-space:nowrap; font-family:inherit; }
+  .tg:hover { background:#4b5563; }
+  .panel { border-top:1px solid #374151; padding:6px 14px; }
+  .panel[hidden] { display:none !important; }
+  .panel.toc { max-height:40vh; overflow:auto; }
+  .flt { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:0.78rem; color:#cbd5e1; }
+  .flt select { padding:2px 6px; border-radius:5px; border:1px solid #4b5563; background:#111827; color:#e5e7eb; font-size:0.78rem; }
+  .sum { display:flex; gap:10px; flex-wrap:wrap; } .sum b { color:#fff; }
+  .wid { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:0.76rem; color:#cbd5e1; margin-top:6px; }
+  .wid label { display:inline-flex; gap:5px; align-items:center; white-space:nowrap; }
+  .wid input[type=range] { width:110px; accent-color:#6366f1; }
+  .wid .v { min-width:2.6em; color:#fff; }
+  .wid button { font-size:0.72rem; padding:1px 9px; border-radius:5px; border:1px solid #4b5563; background:#374151; color:#e5e7eb; cursor:pointer; font-family:inherit; }
+  .tocin { background:#fff; border-radius:6px; padding:5px 10px; display:flex; flex-wrap:wrap; gap:3px 10px; align-items:center; font-size:0.66rem; }
+  .tocg { display:inline-flex; gap:2px; align-items:center; flex-wrap:wrap; }
+  .tocg .gl { color:#9ca3af; margin-right:1px; white-space:nowrap; }
+  .tocin a { display:inline-block; padding:0 4px; min-width:1.9em; text-align:center; border:1px solid #d1d5db; color:#374151; border-radius:3px; text-decoration:none; line-height:1.5; }
+  .tocin a:hover { background:#eef2ff; border-color:#6366f1; }
+  .tocin a.sub { background:#dbeafe; border-color:#60a5fa; color:#1e40af; }
+  .tocin a.rated { background:#fef3c7; border-color:#fbbf24; color:#92400e; font-weight:700; }
+  .tocin a.appr { background:#dcfce7; border-color:#86efac; color:#166534; font-weight:700; }
+  .warn { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:8px; padding:10px 12px; font-size:0.84rem; line-height:1.7; margin:14px; }
+  /* 本文 */
+  .wrap { max-width:1600px; margin:0 auto; padding:10px 14px 80px; }
+  .goalh { background:#4c2c7f; color:#fff; border-radius:8px 8px 0 0; padding:6px 14px; margin-top:14px; display:flex; gap:10px; align-items:center; }
+  .goalh .code { background:rgba(0,0,0,.25); border-radius:10px; padding:1px 10px; font-size:0.78rem; font-weight:700; }
+  .goalh .gt { font-weight:700; font-size:0.9rem; }
+  .blk { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.08); scroll-margin-top:60px; }
+  .planh { background:#374151; color:#fff; padding:6px 14px; display:flex; gap:10px; align-items:center; }
+  .planh .no { background:#6d28d9; border-radius:12px; padding:1px 12px; font-weight:800; font-size:0.9rem; }
+  .midp { background:#eef2ff; border-left:4px solid #6366f1; padding:6px 14px; font-size:0.84rem; }
+  .lbl { font-size:0.7rem; font-weight:700; color:#4f46e5; margin-bottom:2px; }
+  .midp ul, .midp p, .cell ul, .cell ol, .cell p, .rbox ul, .rbox p { margin:2px 0; } .cell ul, .cell ol, .midp ul { padding-left:18px; }
+  :root { --cNo:9em; --cPlan:1fr; --cRep:1.2fr; --cFin:1.2fr; --cCmt:0.7fr; }
+  .thead, .trow { display:grid; grid-template-columns:var(--cNo) var(--cPlan) var(--cRep) var(--cFin) var(--cCmt); }
+  .thead { background:#4b5563; color:#fff; font-size:0.78rem; font-weight:700; }
+  .thead > div { padding:5px 10px; }
+  .trow { border-bottom:1px solid #e5e7eb; font-size:0.86rem; line-height:1.65; }
+  .trow > .cell { padding:8px 10px; border-right:1px solid #eef2f7; min-width:0; }
+  .trow > .cell:last-child { border-right:none; }
+  .cno { background:#f8fafc; }
+  .cno .num { font-weight:800; color:#1e3a8a; font-size:0.95rem; }
+  .cno .ow { display:block; font-size:0.7rem; color:#0f766e; font-weight:600; word-break:break-all; margin:2px 0 4px; }
+  .cno .line { display:flex; gap:4px; align-items:center; flex-wrap:wrap; margin-top:4px; }
+  .trow.done { color:#9ca3af; }
+  .trow.done > .cell { font-size:0.8rem; }   /* 行に文字サイズを付けると em 指定の番号列がずれる */
+  .crep { background:#f0fdf4; }
+  .crep .at { font-size:0.68rem; color:#166534; font-weight:700; }
+  .sub2 { margin-top:5px; padding-top:4px; border-top:1px dashed #bbf7d0; font-size:0.8rem; }
+  .sub2 .lbl { color:#166534; }
+  .se { display:inline-block; background:#166534; color:#fff; border-radius:10px; padding:0 9px; font-weight:800; font-size:0.78rem; }
+  .cfin { background:#eff6ff; }
+  .cfin textarea { width:100%; min-height:8em; font-family:inherit; font-size:0.84rem; border:1px solid #93c5fd; border-radius:5px; padding:4px 6px; line-height:1.55; }
+  .cfin .ops { display:flex; gap:4px; flex-wrap:wrap; margin-top:5px; }
+  .ccmt { background:#fffbeb; }
+  .ccmt textarea { width:100%; min-height:5em; font-family:inherit; font-size:0.8rem; border:1px solid #fde68a; border-radius:5px; padding:4px 6px; }
+  .ccmt .at { font-size:0.66rem; color:#92400e; }
+  .fb { display:inline-block; font-size:0.66rem; font-weight:700; color:#92400e; background:#fef3c7; border:1px solid #fcd34d; border-radius:9px; padding:0 8px; margin-bottom:3px; }   /* 正本以外の内容を出しているときの状態バッジ */
+  .samenote { font-size:0.72rem; font-weight:700; color:#6d28d9; margin-bottom:2px; }
+  .pending { color:#9ca3af; font-style:italic; }
+  .chip { display:inline-block; font-size:0.64rem; font-weight:700; padding:0 7px; border-radius:10px; white-space:nowrap; }
+  .chip.none { background:#f1f5f9; color:#94a3b8; } .chip.requested { background:#e0e7ff; color:#3730a3; }
+  .chip.writing { background:#fef3c7; color:#92400e; } .chip.submitted { background:#dbeafe; color:#1e40af; }
+  .chip.confirmed { background:#dcfce7; color:#166534; } .chip.done { background:#f1f5f9; color:#64748b; }
+  .sbtn { font-size:0.7rem; padding:1px 8px; border-radius:5px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; font-family:inherit; }
+  .sbtn.ok { background:#15803d; color:#fff; border-color:#15803d; }
+  /* 計画番号の自己評価（とりまとめ） */
+  .rbox { background:#fffbeb; border-top:3px solid #fbbf24; padding:8px 14px 10px; }
+  .rbox .hd { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:0.8rem; }
+  .rbox .hd b { color:#92400e; font-size:0.84rem; }
+  .rbox .props { font-size:0.74rem; color:#475569; }
+  .rbox .props span { display:inline-block; background:#fff; border:1px solid #fde68a; border-radius:10px; padding:0 8px; margin-right:4px; }
+  .rbox textarea { width:100%; min-height:5em; margin-top:5px; font-family:inherit; font-size:0.84rem; border:1px solid #fcd34d; border-radius:5px; padding:5px 7px; line-height:1.55; }
+  .rbox select { font-size:0.8rem; padding:1px 4px; }
+  .rbox .row { display:flex; gap:8px; align-items:center; margin-top:4px; }
+  .rbox .row button { font-size:0.74rem; padding:2px 12px; border-radius:5px; border:1px solid #1e40af; background:#1e40af; color:#fff; cursor:pointer; font-family:inherit; }
+  .rbox .st-approved { background:#dcfce7; color:#166534; } .rbox .st-drafting { background:#fef3c7; color:#92400e; }
+  .hidden { display:none !important; }
+  #toast { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); background:#1f2937; color:#fff; padding:6px 14px; border-radius:8px; font-size:0.8rem; opacity:0; transition:opacity .3s; pointer-events:none; z-index:999; }
+  @media (max-width:760px) {
+    .thead { display:none; }
+    .thead, .trow { grid-template-columns:1fr; }
+    .trow > .cell { border-right:none; border-bottom:1px dashed #eef2f7; }
+    .trow > .cell[data-h]::before { content:attr(data-h); display:block; font-size:0.68rem; font-weight:700; color:#64748b; }
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="row1">
+    <span class="ttl">📈 年度計画進捗状況報告　{{ year }}年度</span>
+    <span class="quick">
+      <a class="q back" href="{{ url_for('mid_term_progress.editor') }}?year={{ year }}">🧩 編集者⇒</a>
+      <a class="q gray" href="{{ url_for('mid_term_progress.author') }}?set={{ year }}-progress">✍️ 執筆者⇒</a>
+      <a class="q teal" href="{{ url_for('mid_term_progress.manage') }}?year={{ year }}&view=rows">🗂 担当表</a>
+      <a class="q gray" href="{{ url_for('mid_term_progress.view') }}" title="事業全貌（このアプリのトップ）">📊 トップ</a>
+      <a class="q home" href="{{ url_for('mid_term_progress.return_to_fujin') }}">🏠 FUJIN-P</a>
+    </span>
+    {% if ready %}
+    <button type="button" class="tg" id="tocT" onclick="tog('toc')">📋 目次 <span>▾</span></button>
+    <button type="button" class="tg" id="fltT" onclick="tog('flt')">⚙ 絞り込みと列幅 <span>▾</span></button>
+    {% endif %}
+  </div>
+  {% if ready %}
+  <div class="panel toc" id="toc" hidden><div class="tocin" id="tocin"></div></div>
+  <div class="panel" id="flt" hidden>
+    <div class="flt">
+      <label>部門 <select id="fOwner"><option value="">すべて</option>{% for o in owners %}<option>{{ o }}</option>{% endfor %}</select></label>
+      <label>状態 <select id="fState"><option value="">すべて</option>{% for k, v in state_label.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+      <span class="sum" id="sum"></span>
+    </div>
+    <div class="wid">
+      <span>列の幅</span>
+      <label>番号 <input type="range" id="wNo" min="5" max="16" step="0.5"><span class="v" id="vNo"></span></label>
+      <label>年度計画 <input type="range" id="wPlan" min="0.3" max="4" step="0.1"><span class="v" id="vPlan"></span></label>
+      <label>執筆者の報告 <input type="range" id="wRep" min="0.3" max="4" step="0.1"><span class="v" id="vRep"></span></label>
+      <label>評価室の版 <input type="range" id="wFin" min="0.3" max="4" step="0.1"><span class="v" id="vFin"></span></label>
+      <label>コメント <input type="range" id="wCmt" min="0.3" max="4" step="0.1"><span class="v" id="vCmt"></span></label>
+      <button type="button" onclick="resetW()">初期値に戻す</button>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if not ready %}
+<div class="warn">依頼の表（T_ann_plan_requests）の準備がまだ整っていません．</div>
+{% else %}
+<div class="wrap" id="wrap">読み込み中…</div>
+{% endif %}
+<div id="toast"></div>
+
+{% if ready %}
+<script>
+const YEAR = {{ year|tojson }}, STAGE = 'progress';
+const STATE = {{ state_label|tojson }};
+const U = {
+  data: '{{ url_for("mid_term_progress.api_progress") }}',
+  cmt: '{{ url_for("mid_term_progress.api_editor_comment") }}',
+  st: '{{ url_for("mid_term_progress.api_editor_status") }}',
+  text: '{{ url_for("mid_term_progress.api_item_text") }}',
+};
+let DATA = null;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2200); }
+function tog(id){ const p = document.getElementById(id); p.hidden = !p.hidden; document.querySelector(`#${id}T span`).textContent = p.hidden ? '▾' : '▴'; }
+async function post(url, data){
+  const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+  const j = await r.json().catch(() => ({success:false, error:'応答を読めません（' + r.status + '）'}));
+  if (!j.success) throw new Error(j.error || '失敗しました');
+  return j;
+}
+const bid = b => `b-${b.mid_plan_no}-${b.annual_plan_no}`;
+const pendingText = d => ({none:'未依頼', requested:'未入力', writing:'執筆中（本文なし）', submitted:'提出済み（本文なし）', confirmed:'確認済み'}[d.state] || '');
+
+async function load(onlyKey){
+  const j = await (await fetch(`${U.data}?year=${YEAR}&stage=${STAGE}`)).json();
+  const wrap = document.getElementById('wrap');
+  if (!j.success) { wrap.textContent = j.error || '読み込めません'; return; }
+  DATA = j;
+  if (!wrap.dataset.built) {
+    let h = '', last = null;
+    for (const b of j.blocks) {
+      if (b.goal !== last) { h += `<div class="goalh"><span class="code">${esc(b.goal)}</span><span class="gt">${esc(b.goal_title)}</span></div>`; last = b.goal; }
+      h += `<div class="blk" id="${bid(b)}"></div>`;
+    }
+    wrap.innerHTML = h || '<p class="pending">この年度には細目がありません．</p>'; wrap.dataset.built = '1';
+  }
+  j.blocks.filter(b => !onlyKey || bid(b) === onlyKey).forEach(b => { const el = document.getElementById(bid(b)); if (el) el.innerHTML = renderBlock(b); });
+  drawToc(); applyFilter();
+}
+
+function renderBlock(b){
+  const k0 = {fiscal_year: YEAR, mid_plan_no: b.mid_plan_no, annual_plan_no: b.annual_plan_no};
+  let h = `<div class="planh"><span class="no">計画番号 ${b.mid_plan_no}</span></div>`;
+  if (b.mid_plan_html) h += `<div class="midp"><div class="lbl">中期計画</div>${b.mid_plan_html}</div>`;
+  h += `<div class="thead"><div>番号・担当・状態</div><div>年度計画</div><div>執筆者からの進捗状況報告</div><div>評価室がまとめた／承認した進捗状況報告</div><div>評価室からのコメント</div></div>`;
+  for (const d of b.details) {
+    const label = `${b.annual_plan_no}-${d.detail_no}`;
+    const noHead = `<span class="num">${label}</span><span class="ow">${esc(d.owner_group || '（担当なし）')}</span>`;
+    if (d.done) {
+      h += `<div class="trow done" data-owner="${esc(d.owner_group)}" data-state="done"><div class="cell cno">${noHead}<span class="chip done">対応済み</span></div>` +
+           `<div class="cell">対応済み（報告不要）</div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>`;
+      continue;
+    }
+    const k = Object.assign({detail_no: d.detail_no}, k0), J = esc(JSON.stringify(k));
+    const id = `${b.mid_plan_no}-${b.annual_plan_no}-${d.detail_no}`;
+    const approve = d.state === 'confirmed'
+      ? `<button type="button" class="sbtn" onclick='setSt(${J}, "requested", "${bid(b)}")'>承認を取り消す</button>`
+      : (d.editor_status ? `<button type="button" class="sbtn ok" onclick='setSt(${J}, "confirmed", "${bid(b)}")'>✔ 承認</button>` : '');
+    const noCell = `<div class="cell cno">${noHead}<span class="chip ${d.state}">${esc(STATE[d.state])}</span><div class="line">${approve}</div></div>`;
+    const plan = `<div class="cell" data-h="年度計画">` + (d.same ? `<div class="samenote">同上（細目${d.plan_src || '?'}と同じ計画）</div>` : '') + (d.plan_badge ? `<span class="fb">${esc(d.plan_badge)}</span>` : '') + 
+                 (d.plan_html || '<span class="pending">計画本文なし</span>') + `</div>`;
+    const rep = `<div class="cell crep" data-h="執筆者からの進捗状況報告">` +
+      (d.author_text_at ? `<div class="at">${esc(d.author_text_at)}</div>` : '') + (d.author_text && d.state === 'writing' ? `<span class="fb">執筆中</span>` : '') + 
+      (d.author_text ? d.author_html : `<span class="pending">${pendingText(d)}</span>`) + `</div>`;
+    const fin = `<div class="cell cfin" data-h="評価室がまとめた／承認した進捗状況報告">` +
+      `<div id="v-${id}">${d.final_html || '<span class="pending">まだありません</span>'}</div>` +
+      `<div id="e-${id}" class="hidden"><textarea id="t-${id}" data-base="${esc(d.updated_at || '')}">${esc(d.final_text)}</textarea></div>` +
+      `<div class="ops"><button type="button" class="sbtn" id="eb-${id}" onclick='editOn("${id}")'>✎ 編集</button>` +
+      (d.author_text ? `<button type="button" class="sbtn" id="ab-${id}" onclick='adopt(${J}, "${id}")'>執筆者の報告を取り込む</button>` : '') +
+      `<button type="button" class="sbtn ok hidden" id="sb-${id}" onclick='saveFinal(${J}, "${id}", "${bid(b)}")'>保存</button>` +
+      `<button type="button" class="sbtn hidden" id="cb-${id}" onclick='editOff("${id}")'>やめる</button></div></div>`;
+    const cmt = `<div class="cell ccmt" data-h="評価室からのコメント">` + (d.comment_at ? `<div class="at">${esc(d.comment_at)}</div>` : '') +
+      `<textarea id="c-${id}" placeholder="執筆者へのコメント（Markdown可）">${esc(d.comment)}</textarea>` +
+      `<button type="button" class="sbtn" onclick='saveCmt(${J}, "${id}", "${bid(b)}")'>コメントを保存</button></div>`;
+    h += `<div class="trow" data-owner="${esc(d.owner_group)}" data-state="${d.state}">${noCell}${plan}${rep}${fin}${cmt}</div>`;
+  }
+  return h;
+}
+// 評価室の版の編集（書きかけを消さないよう，保存した計画番号だけ描き直す）
+function editOn(id){ ['v','eb','ab'].forEach(p => { const e = document.getElementById(`${p}-${id}`); if (e) e.classList.add('hidden'); });
+  ['e','sb','cb'].forEach(p => document.getElementById(`${p}-${id}`).classList.remove('hidden')); document.getElementById(`t-${id}`).focus(); }
+function editOff(id){ ['v','eb','ab'].forEach(p => { const e = document.getElementById(`${p}-${id}`); if (e) e.classList.remove('hidden'); });
+  ['e','sb','cb'].forEach(p => document.getElementById(`${p}-${id}`).classList.add('hidden')); }
+function findD(k){ const b = DATA.blocks.find(x => x.mid_plan_no === k.mid_plan_no && x.annual_plan_no === k.annual_plan_no);
+  return b && b.details.find(x => x.detail_no === k.detail_no); }
+function adopt(k, id){
+  const d = findD(k); if (!d) return;
+  const ta = document.getElementById(`t-${id}`);
+  if (ta.value.trim() && ta.value !== d.author_text && !confirm('いまの本文を執筆者の報告で置き換えます．よろしいですか？')) return;
+  editOn(id); ta.value = d.author_text;
+}
+async function saveFinal(k, id, blk){
+  const ta = document.getElementById(`t-${id}`);
+  try { await post(U.text, Object.assign({stage: STAGE, text: ta.value, base_updated_at: ta.dataset.base || null}, k)); toast('保存しました'); await load(blk); }
+  catch (e) { alert(e.message); }
+}
+async function saveCmt(k, id, blk){
+  try { await post(U.cmt, Object.assign({stage: STAGE, comment: document.getElementById(`c-${id}`).value}, k)); toast('コメントを保存しました'); await load(blk); }
+  catch (e) { alert(e.message); }
+}
+async function setSt(k, status, blk){
+  try { await post(U.st, Object.assign({stage: STAGE, status}, k)); toast(status === 'confirmed' ? '承認しました' : '依頼中に戻しました'); await load(blk); }
+  catch (e) { alert(e.message); }
+}
+function drawToc(){
+  let h = '', last = null, open = false;
+  for (const b of DATA.blocks) {
+    if (b.goal !== last) { if (open) h += '</span>'; h += `<span class="tocg" title="${esc(b.goal)} ${esc(b.goal_title)}"><span class="gl">${esc(b.goal)}</span>`; last = b.goal; open = true; }
+    const live = b.details.filter(d => !d.done && d.owner_group);
+    const cls = live.length && live.every(d => d.state === 'confirmed') ? 'appr' : (live.length && live.every(d => ['submitted','confirmed'].includes(d.state)) ? 'sub' : '');
+    h += `<a href="#${bid(b)}" class="${cls}" title="${esc(b.goal_title)}">${b.mid_plan_no}</a>`;
+  }
+  if (open) h += '</span>';
+  document.getElementById('tocin').innerHTML = h +
+    '<span class="gl" style="margin-left:8px;color:#64748b">青：細目の報告がそろった　緑：すべて確認済み</span>';
+  document.querySelectorAll('#tocin a').forEach(a => a.addEventListener('click', e => {
+    const t = document.querySelector(a.getAttribute('href')); if (!t) return; e.preventDefault();
+    window.scrollTo({top: t.getBoundingClientRect().top + scrollY - document.querySelector('.bar').offsetHeight - 6, behavior:'smooth'});
+  }));
+  const c = {}; let n = 0, dn = 0;
+  DATA.blocks.forEach(b => b.details.forEach(d => { if (d.done) { dn++; return; } c[d.state] = (c[d.state] || 0) + 1; n++; }));
+  document.getElementById('sum').innerHTML = `<span>細目 <b>${n}</b></span>` +
+    ['none','requested','writing','submitted','confirmed'].map(k => `<span>${esc(STATE[k])} <b>${c[k] || 0}</b></span>`).join('') +
+    `<span>対応済み <b>${dn}</b></span>`;
+}
+function applyFilter(){
+  const o = document.getElementById('fOwner').value, st = document.getElementById('fState').value;
+  for (const b of DATA.blocks) {
+    const el = document.getElementById(bid(b)); if (!el) continue;
+    el.querySelectorAll('.trow').forEach(x => x.classList.toggle('hidden', (o && x.dataset.owner !== o) || (st && x.dataset.state !== st)));
+    const anyRow = !!el.querySelector('.trow:not(.hidden)');
+    el.classList.toggle('hidden', !!((o || st) && !anyRow));
+  }
+  document.querySelectorAll('.goalh').forEach(g => {
+    let n = g.nextElementSibling, any = false;
+    while (n && n.classList.contains('blk')) { if (!n.classList.contains('hidden')) any = true; n = n.nextElementSibling; }
+    g.classList.toggle('hidden', !any);
+  });
+}
+['fOwner','fState'].forEach(id => document.getElementById(id).addEventListener('change', applyFilter));
+// 列の幅（スライダー．ブラウザに覚えておく）
+const W_DEF = {No:9, Plan:1, Rep:1.2, Fin:1.2, Cmt:0.7}, W_KEY = 'mtp_progress_widths';
+function applyW(w){
+  const r = document.documentElement.style;
+  r.setProperty('--cNo', w.No + 'em'); r.setProperty('--cPlan', w.Plan + 'fr'); r.setProperty('--cRep', w.Rep + 'fr'); r.setProperty('--cFin', w.Fin + 'fr'); r.setProperty('--cCmt', w.Cmt + 'fr');
+  for (const k of Object.keys(W_DEF)) { const el = document.getElementById('w' + k), v = document.getElementById('v' + k);
+    if (el) el.value = w[k]; if (v) v.textContent = k === 'No' ? w[k] + 'em' : w[k]; }
+}
+function getW(){ try { return Object.assign({}, W_DEF, JSON.parse(localStorage.getItem(W_KEY) || '{}')); } catch (e) { return Object.assign({}, W_DEF); } }
+function setW(k, v){ const w = getW(); w[k] = parseFloat(v); try { localStorage.setItem(W_KEY, JSON.stringify(w)); } catch (e) {} applyW(w); }
+function resetW(){ try { localStorage.removeItem(W_KEY); } catch (e) {} applyW(Object.assign({}, W_DEF)); }
+for (const k of Object.keys(W_DEF)) { const el = document.getElementById('w' + k); if (el) el.addEventListener('input', () => setW(k, el.value)); }
+applyW(getW());
+load();
+</script>
+{% endif %}
+</body>
+</html>
