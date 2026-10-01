@@ -1,0 +1,150 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{# 議事録：委員会を選ぶと全回をつなげて右に出し，中央の日付は索引として働く（★2026-10-02）
+   日付を押すとその回まで右がスクロールし，右をスクロールすると今読んでいる回の日付が光る #}
+<script>
+(function(cfg){
+  const paneD=document.getElementById('pane-d'), paneM=document.getElementById('pane-m');
+  const cache=new Map();
+  let cur={c:cfg.c, m:cfg.m}, jumping=0, ticking=false;
+  function get(url){
+    if(cache.has(url)) return cache.get(url);
+    const p=fetch(url,{credentials:'same-origin'}).then(r=>{if(!r.ok) throw new Error(r.status); return r.text();});
+    cache.set(url,p); p.catch(()=>cache.delete(url)); return p;
+  }
+  function url(){
+    const q=new URLSearchParams(); if(cur.c) q.set('c',cur.c); if(cur.m) q.set(cfg.key,cur.m);
+    return cfg.base+(q.toString()?'?'+q:'');
+  }
+  const sections=()=>[...paneM.querySelectorAll('section.mt')];
+  function mark(id){
+    paneD.querySelectorAll('.dt').forEach(a=>a.classList.toggle('active',a.dataset.id==id));
+    const a=paneD.querySelector('.dt.active'); if(a) a.scrollIntoView({block:'nearest'});
+  }
+  // 日付から本文へ飛ぶ
+  function jump(id,smooth=true,doPush=true){
+    const sec=document.getElementById('m-'+id); if(!sec) return;
+    cur.m=+id; mark(id);
+    const band=paneM.querySelector('.fy-band'), off=band?band.offsetHeight+6:0;
+    jumping=Date.now();
+    paneM.scrollTo({top:Math.max(sec.offsetTop-off,0), behavior:smooth?'smooth':'auto'});
+    if(doPush) history.pushState({...cur},'',url());
+  }
+  // 本文のスクロールに日付を追従させる
+  function spy(){
+    ticking=false;
+    if(Date.now()-jumping<900) return;           // 飛んでいる最中は追わない
+    const band=paneM.querySelector('.fy-band'), line=paneM.scrollTop+(band?band.offsetHeight:0)+24;
+    let hit=null;
+    for(const s of sections()){ if(s.offsetTop<=line) hit=s; else break; }
+    if(!hit) hit=sections()[0];
+    if(hit && +hit.dataset.id!==cur.m){
+      cur.m=+hit.dataset.id; mark(cur.m);
+      history.replaceState({...cur},'',url());
+    }
+  }
+  paneM.addEventListener('scroll',()=>{ if(!ticking){ ticking=true; requestAnimationFrame(spy); } },{passive:true});
+  paneM.addEventListener('scrollend',()=>{ jumping=0; });
+  async function selectC(c,doPush=true,toId=null){
+    if(doPush && [...paneM.querySelectorAll('form.minute-edit')].some(isDirty)
+       && !confirm('編集中の議事録があります．直した内容を捨てて移りますか？')) return;
+    cur={c:c,m:null};
+    document.querySelectorAll('.cm').forEach(a=>a.classList.toggle('active',a.dataset.c===c));
+    paneD.innerHTML='<div class="p-2 small text-muted">読み込み中…</div>';
+    paneM.innerHTML='<p class="text-muted small p-2">議事録を読み込み中…</p>';
+    const q='?c='+encodeURIComponent(c);
+    const [d,m]=await Promise.all([get(cfg.listUrl+q),get(cfg.streamUrl+q)]);
+    if(cur.c!==c) return;
+    paneD.innerHTML=d; paneD.scrollTop=0;
+    paneM.innerHTML=m; paneM.scrollTop=0;
+    if(doPush) history.pushState({...cur},'',url());
+    if(toId) jump(toId,false,false);
+    else { const s=sections()[0]; if(s){ cur.m=+s.dataset.id; mark(cur.m); history.replaceState({...cur},'',url()); } }
+  }
+  document.getElementById('pane-c').addEventListener('click',e=>{
+    const a=e.target.closest('.cm'); if(!a||e.ctrlKey||e.metaKey) return; e.preventDefault(); selectC(a.dataset.c);
+  });
+  paneD.addEventListener('click',e=>{
+    const a=e.target.closest('.dt'); if(!a||e.ctrlKey||e.metaKey) return; e.preventDefault(); jump(a.dataset.id);
+  });
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='ArrowDown'&&e.key!=='ArrowUp') return;
+    if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+    if(e.altKey||e.shiftKey) return;              // 修飾なしの↑↓で前後の回へ
+    const list=[...paneD.querySelectorAll('.dt')]; if(!list.length) return;
+    let i=list.findIndex(a=>a.classList.contains('active'));
+    i = i<0 ? 0 : i+(e.key==='ArrowDown'?1:-1);
+    if(i<0||i>=list.length) return;
+    e.preventDefault(); jump(list[i].dataset.id);
+  });
+  // ── 本文の編集（admin）：その場で編集フォームに替え，保存したら描き直す ──
+  const detailUrl=id=>cfg.detailUrl.replace(/0$/,id);
+  const editUrl=id=>cfg.editUrl.replace(/0\/edit$/,id+'/edit');
+  async function load(id,url){
+    const sec=document.getElementById('m-'+id); if(!sec) return;
+    const r=await fetch(url,{credentials:'same-origin'});
+    if(!r.ok){ alert('読み込めませんでした（'+r.status+'）'); return; }
+    sec.innerHTML=await r.text();
+  }
+  paneM.addEventListener('click',async e=>{
+    const ed=e.target.closest('[data-edit]'), ca=e.target.closest('[data-cancel]'), rm=e.target.closest('[data-remove]');
+    if(ed){
+      await load(ed.dataset.edit, editUrl(ed.dataset.edit));
+      const ta=document.querySelector('#m-'+ed.dataset.edit+' textarea'); if(ta) ta.focus({preventScroll:true});
+    } else if(ca){
+      if(isDirty(ca.closest('form')) && !confirm('直した内容を捨てます．よろしいですか？')) return;
+      await load(ca.dataset.cancel, detailUrl(ca.dataset.cancel)+'?editable=1');
+    } else if(rm){
+      const f=rm.closest('form');
+      if(!confirm('この回の議事録を消します．元に戻せません．よろしいですか？')) return;
+      const r=await fetch(f.dataset.delete,{method:'POST',credentials:'same-origin',body:new FormData(f)});
+      const j=await r.json().catch(()=>({ok:false}));
+      if(!j.ok){ alert('消せませんでした'); return; }
+      cache.clear();
+      document.getElementById('m-'+rm.dataset.remove).remove();
+      const a=paneD.querySelector('.dt[data-id="'+rm.dataset.remove+'"]'); if(a) a.remove();
+    }
+  });
+  function isDirty(f){ return f && [...f.elements].some(el=>el.name && el.name!=='csrf_token' && el.value!==el.defaultValue); }
+  async function save(f){
+    const err=f.querySelector('.err'); err.textContent='保存中…';
+    const r=await fetch(f.action,{method:'POST',credentials:'same-origin',body:new FormData(f)});
+    const j=await r.json().catch(()=>({ok:false,error:'応答を読めません（'+r.status+'）'}));
+    if(!j.ok){ err.textContent=j.error||'保存できませんでした'; return; }
+    cache.clear();
+    const id=f.dataset.id, sec=document.getElementById('m-'+id);
+    if(j.moved){   // 別の委員会へ移した
+      sec.remove(); const a=paneD.querySelector('.dt[data-id="'+id+'"]'); if(a) a.remove();
+      alert('別の委員会へ移しました'); return;
+    }
+    sec.innerHTML=j.html;
+    if(j.resorted){ // 年度・開催日を変えたら並びと索引を描き直し，その回へ戻る
+      const keep=cur.c; cur.c=null; await selectC(keep,false,+id);
+    }
+  }
+  paneM.addEventListener('submit',e=>{
+    const f=e.target.closest('form.minute-edit'); if(!f) return; e.preventDefault(); save(f);
+  });
+  paneM.addEventListener('keydown',e=>{
+    const f=e.target.closest('form.minute-edit'); if(!f) return;
+    if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); save(f); }
+    else if(e.key==='Escape'){ e.preventDefault(); const b=f.querySelector('[data-cancel]'); if(b) b.click(); }
+  });
+  window.addEventListener('beforeunload',e=>{
+    if([...paneM.querySelectorAll('form.minute-edit')].some(isDirty)){ e.preventDefault(); e.returnValue=''; }
+  });
+  window.addEventListener('popstate',async e=>{
+    const s=e.state||{c:'',m:null};
+    if(s.c!==cur.c) await selectC(s.c,false,s.m);
+    else if(s.m) jump(s.m,false,false);
+  });
+  history.replaceState({...cur},'');
+  if(cfg.m) jump(cfg.m,false,false);
+  else { const s=sections()[0]; if(s){ cur.m=+s.dataset.id; mark(cur.m); } }
+  const actc=document.querySelector('.cm.active'); if(actc) actc.scrollIntoView({block:'center'});
+})(FINDER_CFG);
+</script>

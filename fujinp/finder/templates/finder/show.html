@@ -1,0 +1,15 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'finder/base.html' %}
+{% block title %}{{ m.committee }} {{ m.held_on or '' }} - ふぁいんだ{% endblock %}
+{% block content %}
+<nav class="small mb-2">
+  <a href="{{ url_for('finder.index', c=m.committee, m=m.id) }}">{{ m.committee }} の一覧で開く</a>
+  {% if q %} ／ <a href="{{ url_for('finder.search', q=q, mode=mode) }}">検索結果に戻る</a>{% endif %}
+</nav>
+{% include 'finder/_minute.html' %}
+{% endblock %}

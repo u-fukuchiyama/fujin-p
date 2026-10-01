@@ -1,0 +1,31 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'finder/base.html' %}
+{% block title %}アプリ - ふぁいんだ{% endblock %}
+{% block extra_style %}
+  .app{display:block;padding:.6rem .8rem;border:1px solid #dee2e6;border-radius:.4rem;background:#fff;color:#212529;text-decoration:none;height:100%}
+  .app:hover{border-color:#0d6efd;background:#f1f5ff}
+  .app .u{font-size:.72rem;color:#6c757d;word-break:break-all}
+{% endblock %}
+{% block content %}
+{% for g in groups %}
+  <h2 class="h6 mt-3 mb-2">{{ g.name or '（分類なし）' }}</h2>
+  <div class="row g-2">
+    {% for a in g['items'] %}
+      <div class="col-6 col-md-4 col-lg-3">
+        <a class="app" href="{{ a.url }}" target="_blank" rel="noopener">
+          <div>{{ a.title }}</div>
+          {% if a.note %}<div class="small text-muted">{{ a.note }}</div>{% endif %}
+          <div class="u">{{ a.url.split('/')[2] if a.url and '://' in a.url else '' }}</div>
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="text-muted">まだアプリがありません．「JSON入出力」でアプリの目録を読み込んでください．</p>
+{% endfor %}
+{% endblock %}

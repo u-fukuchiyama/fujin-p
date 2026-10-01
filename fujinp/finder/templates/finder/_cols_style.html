@@ -1,0 +1,20 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+
+  .cols{display:grid;grid-template-columns:minmax(11rem,16rem) minmax(9rem,11rem) 1fr;gap:.75rem;height:calc(100vh - 6.5rem)}
+  .col-pane{overflow:auto;background:#fff;border:1px solid #dee2e6;border-radius:.375rem}
+  .col-pane.body{background:transparent;border:0;padding-right:.25rem}
+  .cm{display:flex;justify-content:space-between;padding:.3rem .6rem;font-size:.88rem;color:#212529;text-decoration:none;border-bottom:1px solid #f1f3f5}
+  .cm:hover,.dt:hover{background:#f1f5ff}
+  .cm.active,.dt.active{background:#0d6efd;color:#fff}
+  .cm .n{color:#adb5bd;font-size:.78rem}
+  .cm.active .n{color:#dbe7ff}
+  .fy{position:sticky;top:0;background:#f8f9fa;font-size:.78rem;font-weight:bold;padding:.2rem .6rem;border-bottom:1px solid #dee2e6}
+  .dt{display:block;padding:.22rem .6rem;font-size:.86rem;color:#212529;text-decoration:none;font-variant-numeric:tabular-nums}
+  .dt .nob{margin-left:.4rem;font-size:.7rem;color:#dc3545}
+  .dt.active .nob{color:#ffe0e0}
+  @media (max-width:768px){.cols{grid-template-columns:1fr;height:auto}.col-pane{max-height:40vh}}

@@ -1,0 +1,23 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{# 委員会の全議事録をつなげて描く．section の id が日付の索引からの飛び先 #}
+{% if not c %}
+  <p class="text-muted small p-2">委員会を選んでください．全回の議事録がつながって表示され，中央の日付から各回へ飛べます．</p>
+{% else %}
+  {% set editable = is_admin %}
+  {% set ns = namespace(y=0) %}
+  {% for m in minutes %}
+    {% if loop.first or m.fiscal_year != ns.y %}
+      {% set ns.y = m.fiscal_year %}
+      <div class="fy-band">{{ c }}　{{ m.fiscal_year if m.fiscal_year is not none else '年度未定' }}年度</div>
+    {% endif %}
+    <section class="mt" id="m-{{ m.id }}" data-id="{{ m.id }}">{% include 'finder/_minute.html' %}</section>
+  {% else %}
+    <p class="text-muted small p-2">この委員会の議事録はまだありません．</p>
+  {% endfor %}
+  {% if minutes %}<div class="stream-end text-muted small">— {{ c }}　全 {{ minutes|length }} 回 —</div>{% endif %}
+{% endif %}

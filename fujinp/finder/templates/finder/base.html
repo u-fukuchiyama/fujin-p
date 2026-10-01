@@ -1,0 +1,44 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}ふぁいんだ{% endblock %}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+  .body-text{white-space:pre-wrap;word-break:break-all;font-size:.92rem;line-height:1.7}
+  mark{padding:0 1px;background:#ffe58a}
+  .snip{font-size:.85rem;color:#444}
+  {% block extra_style %}{% endblock %}
+</style>
+</head>
+<body class="bg-light">
+<div class="{% block container_class %}container{% endblock %} py-3" style="{% block container_style %}max-width:1100px{% endblock %}">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div class="d-flex align-items-center gap-3">
+      <h1 class="h4 m-0"><a href="{{ url_for('finder.index') }}" class="text-decoration-none text-dark">🔎 ふぁいんだ</a></h1>
+      <a href="{{ url_for('finder.index') }}" class="small">議事録</a>
+      <a href="{{ url_for('finder.docs') }}" class="small">文書類</a>
+      <a href="{{ url_for('finder.apps') }}" class="small">アプリ</a>
+      <a href="{{ url_for('finder.search') }}" class="small">検索</a>
+      {% if can_update %}<a href="{{ url_for('finder.update') }}" class="small">更新</a>{% endif %}
+      {% if is_admin %}
+      <a href="{{ url_for('finder.io') }}" class="small">JSON入出力</a>
+      <a href="{{ url_for('finder.settings') }}" class="small">設定</a>
+      {% endif %}
+    </div>
+    <a href="{{ url_for('finder.return_to_fujin') }}" class="btn btn-danger btn-sm">🏠 FUJINダッシュボードに戻る</a>
+  </div>
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}<div class="alert alert-{{ 'danger' if cat == 'error' else 'success' }} py-2">{{ m }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+<div class="card mb-2"><div class="card-body py-2">
+  <div class="d-flex justify-content-between align-items-start gap-2">
+    <div><strong>{{ m.committee }}</strong>　{{ m.fiscal_year }}年度　開催日 {{ m.held_on or '（未定）' }}　<span class="text-muted small">ID {{ m.id }}</span></div>
+    {% if editable %}<button type="button" class="btn btn-outline-secondary btn-sm py-0 text-nowrap" data-edit="{{ m.id }}">✏️ 編集</button>{% endif %}
+  </div>
+  <div class="small text-truncate">備考：{% if m.note and (m.note.startswith('http://') or m.note.startswith('https://')) %}<a href="{{ m.note }}" target="_blank" rel="noopener">{{ m.note }}</a>{% else %}{{ m.note or '' }}{% endif %}</div>
+  {% if m.note and ('drive.google.com/file/d/' in m.note or 'docs.google.com/document/d/' in m.note) %}
+  <div class="mt-1"><a class="btn btn-outline-primary btn-sm py-0" href="{{ url_for('finder.original', minute_id=m.id) }}" target="_blank" rel="noopener">📄 原本を開く</a></div>
+  {% endif %}
+  {% if terms %}<div class="small text-muted">検索語：{{ terms|join('，') }}</div>{% endif %}
+</div></div>
+{% if m.body %}
+<div class="bg-white border rounded p-3 body-text">{{ m.body|finder_mark(terms) }}</div>
+{% else %}
+<p class="text-muted small">本文はまだありません．</p>
+{% endif %}

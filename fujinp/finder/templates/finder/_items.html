@@ -1,0 +1,17 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% if not c %}
+  <div class="p-2 small text-muted">分類を選んでください．</div>
+{% else %}
+  {% for r in items %}
+    <a class="dt{{ ' active' if it and it.id == r.id }}" data-id="{{ r.id }}"
+       href="{{ url_for('finder.docs', c=c, i=r.id) }}">{{ r.title or '（題名なし）' }}{% set k = r.url|finder_url_kind %}{% if k == 'folder' %}<span class="nob" style="color:#6c757d">フォルダ</span>{% elif k == 'web' %}<span class="nob" style="color:#6c757d">Web</span>{% endif %}</a>
+  {% else %}
+    <div class="p-2 small text-muted">文書がありません．</div>
+  {% endfor %}
+  {% if is_admin %}<a class="d-block p-2 small" href="{{ url_for('finder.docs', c=c, new=1) }}">＋ この分類に文書を追加</a>{% endif %}
+{% endif %}

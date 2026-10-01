@@ -1,0 +1,59 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'finder/base.html' %}
+{% block title %}設定 - ふぁいんだ{% endblock %}
+{% block content %}
+<div class="card card-body mb-3">
+  <h2 class="h6">更新できるグループ</h2>
+  <p class="small text-muted mb-2">印を付けたグループの構成員が「更新」（議事録・文書・アプリの登録）を使えます．複数選べます．admin はいつでも使えます．閲覧はログインしている人なら誰でも，編集・削除などの操作は admin だけです．</p>
+  <form method="post" action="{{ url_for('finder.settings_groups') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="search" class="form-control form-control-sm mb-2" style="max-width:20rem" placeholder="グループ名で絞り込み"
+           oninput="const q=this.value.trim();document.querySelectorAll('#ug-list label').forEach(l=>l.style.display=(!q||l.textContent.includes(q))?'':'none')">
+    <div id="ug-list" class="border rounded bg-white p-2 mb-2" style="max-width:44rem;max-height:18rem;overflow:auto">
+      {% for gname in update_groups if gname not in groups %}
+        <label class="d-block small text-danger"><input type="checkbox" name="group" value="{{ gname }}" checked> {{ gname }}（グループが見つかりません）</label>
+      {% endfor %}
+      {% for gname in groups %}
+        <label class="d-block small"><input type="checkbox" name="group" value="{{ gname }}"{{ ' checked' if gname in update_groups }}> {{ gname }}</label>
+      {% else %}
+        <span class="small text-muted">グループがありません（ユーザとグループで作ってください）．</span>
+      {% endfor %}
+    </div>
+    <div class="small mb-2">いま選ばれているもの：{{ update_groups|join('，') if update_groups else 'なし（admin のみ）' }}</div>
+    <button class="btn btn-primary btn-sm">保存</button>
+  </form>
+</div>
+<div class="card card-body">
+  <h2 class="h6">委員会の並び</h2>
+  <p class="small text-muted mb-2">各委員会に順序数（小数点以下2桁まで）を書いて保存すると，議事録の画面の左カラムに小さい順に並びます．間に入れたいときは 2.5 のように書けば，他の数を書き換えずに済みます．空欄の委員会は末尾に名前順で付きます．「隠す」に印を付けた委員会は一覧に出しません．議事録が0件の委員会は「消す」で一覧から外せます．</p>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <table class="table table-sm align-middle bg-white border mb-2" style="max-width:44rem">
+      <thead><tr><th style="width:8rem">順序数</th><th>委員会</th><th class="text-end" style="width:5rem">件数</th><th style="width:5rem">隠す</th><th style="width:5rem">消す</th></tr></thead>
+      <tbody>
+      {% for x in committees %}
+        <tr class="{{ 'text-muted' if x.hidden }}">
+          <td><input type="hidden" name="name" value="{{ x.name }}">
+              <input type="text" inputmode="decimal" name="rank_{{ loop.index0 }}" class="form-control form-control-sm"
+                     value="{{ ('%g' % x.rank) if x.rank is not none else '' }}" style="width:6.5rem"></td>
+          <td>{{ x.name or '（委員会未定）' }}</td>
+          <td class="text-end small">{{ x.n }}</td>
+          <td><input type="checkbox" name="hide_{{ loop.index0 }}" value="1"{{ ' checked' if x.hidden }}></td>
+          <td>{% if x.n == 0 %}<input type="checkbox" name="drop" value="{{ x.name }}">{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div class="mb-2" style="max-width:44rem">
+      <label class="small">委員会を追加（1行に1つ．まだ開催のない委員会もここで一覧に加えられます）</label>
+      <textarea name="add" rows="3" class="form-control form-control-sm"></textarea>
+    </div>
+    <button class="btn btn-primary btn-sm">保存</button>
+  </form>
+</div>
+{% endblock %}

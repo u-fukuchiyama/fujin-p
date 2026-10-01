@@ -1,0 +1,39 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'finder/base.html' %}
+{% block container_class %}container-fluid{% endblock %}
+{% block container_style %}max-width:none{% endblock %}
+{% block extra_style %}{% include 'finder/_cols_style.html' %}
+  #pane-m{position:relative}
+  #pane-m .mt{margin-bottom:1.5rem}
+  #pane-m .fy-band{position:sticky;top:0;z-index:2;background:#e9ecef;border-radius:.3rem;font-size:.8rem;font-weight:bold;padding:.25rem .6rem;margin-bottom:.5rem}
+  #pane-m .stream-end{text-align:center;padding:1rem 0 40vh}
+{% endblock %}
+{% block content %}
+<div class="cols">
+  <div class="col-pane" id="pane-c">
+    {% for x in committees %}
+      <a class="cm{{ ' active' if x.name == c }}" data-c="{{ x.name }}" href="{{ url_for('finder.index', c=x.name) }}">
+        <span>{{ x.name or '（委員会未定）' }}</span><span class="n">{{ x.n }}</span></a>
+    {% else %}
+      <div class="p-2 small text-muted">まだ議事録がありません．</div>
+    {% endfor %}
+  </div>
+  <div class="col-pane" id="pane-d">{% include 'finder/_dates.html' %}</div>
+  <div class="col-pane body" id="pane-m">
+    {% include 'finder/_stream.html' %}
+  </div>
+</div>
+<script>
+const FINDER_CFG={base:{{ url_for('finder.index')|tojson }}, listUrl:{{ url_for('finder.pane_dates')|tojson }},
+  streamUrl:{{ url_for('finder.pane_stream')|tojson }}, key:'m',
+  detailUrl:{{ url_for('finder.pane_minute', minute_id=0)|tojson }},
+  editUrl:{{ url_for('finder.pane_minute_edit', minute_id=0)|tojson }},
+  c:{{ c|tojson }}, m:{{ (m.id if m else none)|tojson }}};
+</script>
+{% include 'finder/_cols_js.html' %}
+{% endblock %}

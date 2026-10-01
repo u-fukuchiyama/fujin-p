@@ -1,0 +1,71 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+<script>
+(function(cfg){
+  const tree=document.getElementById('pane-t'), paneM=document.getElementById('pane-m');
+  const cache=new Map();
+  const detailUrl=id=>cfg.detailUrl.replace(/0$/,id);
+  let cur=cfg.m;
+  function get(url){
+    if(cache.has(url)) return cache.get(url);
+    const p=fetch(url,{credentials:'same-origin'}).then(r=>{if(!r.ok) throw new Error(r.status); return r.text();});
+    cache.set(url,p); p.catch(()=>cache.delete(url)); return p;
+  }
+  // 見えている節点（閉じたフォルダの中は除く）
+  function visible(){
+    return [...tree.querySelectorAll('.dt')].filter(el=>{
+      let d = el.tagName==='SUMMARY' ? el.parentElement.parentElement.closest('details') : el.closest('details');
+      for(; d; d=d.parentElement.closest('details')) if(!d.open) return false;
+      return true;
+    });
+  }
+  async function select(id,doPush=true){
+    cur=+id;
+    tree.querySelectorAll('.dt').forEach(a=>a.classList.toggle('active',a.dataset.id==id));
+    const a=tree.querySelector('.dt.active'); if(a) a.scrollIntoView({block:'nearest'});
+    const html=await get(detailUrl(id));
+    if(cur!==+id) return;
+    paneM.innerHTML=html; paneM.scrollTop=0;
+    if(doPush) history.pushState({m:cur},'',cfg.base+'?i='+cur);
+  }
+  tree.addEventListener('click',e=>{
+    const a=e.target.closest('.dt'); if(!a||e.ctrlKey||e.metaKey) return;
+    if(a.tagName==='SUMMARY'){
+      // 三角の部分は開閉だけ，題名の部分は開閉しつつ中身を右に出す
+      if(e.target.closest('.tw')) return;
+      if(a.parentElement.open && a.classList.contains('active')) return;  // 選択中のフォルダの題名は普通に開閉
+      e.preventDefault(); a.parentElement.open=true; select(a.dataset.id); return;
+    }
+    e.preventDefault(); select(a.dataset.id);
+  });
+  document.addEventListener('keydown',e=>{
+    if(!['ArrowDown','ArrowUp','ArrowLeft','ArrowRight'].includes(e.key)) return;
+    if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+    if(document.getElementById('item-edit-form')) return;   // 編集中は動かない
+    const act=tree.querySelector('.dt.active');
+    if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
+      if(!act) return;
+      const d = act.tagName==='SUMMARY' ? act.parentElement : null;
+      if(e.key==='ArrowRight' && d){ d.open=true; e.preventDefault(); }
+      else if(e.key==='ArrowLeft'){
+        if(d && d.open){ d.open=false; }
+        else { const p=act.parentElement.closest('details'); const s=p && p.querySelector(':scope>summary.dt'); if(s) select(s.dataset.id); }
+        e.preventDefault();
+      }
+      return;
+    }
+    const list=visible(); if(!list.length) return;
+    let i=list.indexOf(act);
+    i = i<0 ? 0 : i+(e.key==='ArrowDown'?1:-1);
+    if(i<0||i>=list.length) return;
+    e.preventDefault(); select(list[i].dataset.id);
+  });
+  window.addEventListener('popstate',e=>{ const s=e.state; if(s&&s.m) select(s.m,false); });
+  history.replaceState({m:cur},'');
+  const act=tree.querySelector('.dt.active'); if(act) act.scrollIntoView({block:'center'});
+})(FINDER_TREE);
+</script>

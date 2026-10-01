@@ -1,0 +1,21 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% if not c %}
+  <div class="p-2 small text-muted">委員会を選んでください．</div>
+{% else %}
+  {% set ns = namespace(y=0) %}
+  {% for r in meetings %}
+    {% if loop.first or r.fiscal_year != ns.y %}
+      {% set ns.y = r.fiscal_year %}
+      <div class="fy">{{ r.fiscal_year if r.fiscal_year is not none else '年度未定' }}年度</div>
+    {% endif %}
+    <a class="dt{{ ' active' if m and m.id == r.id }}" data-id="{{ r.id }}"
+       href="{{ url_for('finder.index', c=c, m=r.id) }}">{{ r.held_on or '（日付なし）' }}{% if not r.chars %}<span class="nob">本文なし</span>{% endif %}</a>
+  {% else %}
+    <div class="p-2 small text-muted">この委員会の議事録はまだありません．</div>
+  {% endfor %}
+{% endif %}

@@ -1,0 +1,32 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+<form class="card minute-edit" data-id="{{ m.id }}" action="{{ url_for('finder.minute_save', minute_id=m.id) }}"
+      data-delete="{{ url_for('finder.minute_delete', minute_id=m.id) }}"><div class="card-body py-2">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <strong>議事録の編集</strong><span class="text-muted small">ID {{ m.id }}</span>
+  </div>
+  <div class="row g-2 mb-2">
+    <div class="col-md-5"><label class="form-label small mb-0">委員会</label>
+      <input name="committee" class="form-control form-control-sm" value="{{ m.committee or '' }}" required></div>
+    <div class="col-md-3"><label class="form-label small mb-0">年度</label>
+      <input name="fiscal_year" class="form-control form-control-sm" value="{{ m.fiscal_year if m.fiscal_year is not none else '' }}"></div>
+    <div class="col-md-4"><label class="form-label small mb-0">開催日（YYYY-MM-DD）</label>
+      <input name="held_on" class="form-control form-control-sm" value="{{ m.held_on or '' }}"></div>
+  </div>
+  <div class="mb-2"><label class="form-label small mb-0">備考（主に出所の URL）</label>
+    <input name="note" class="form-control form-control-sm" value="{{ m.note or '' }}"></div>
+  <div class="mb-2"><label class="form-label small mb-0">本文</label>
+    <textarea name="body" class="form-control form-control-sm" style="font-size:.9rem;line-height:1.6;min-height:24rem;field-sizing:content">{{ m.body or '' }}</textarea></div>
+  <div class="d-flex gap-2 align-items-center">
+    <button class="btn btn-primary btn-sm">保存</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" data-cancel="{{ m.id }}">取消</button>
+    <span class="small text-muted">Ctrl+Enter で保存，Esc で取消</span>
+    <span class="small text-danger ms-2 err"></span>
+    <button type="button" class="btn btn-outline-danger btn-sm py-0 ms-auto" data-remove="{{ m.id }}">この回を消す</button>
+  </div>
+</div></form>

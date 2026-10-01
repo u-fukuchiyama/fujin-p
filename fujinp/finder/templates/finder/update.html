@@ -1,0 +1,116 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'finder/base.html' %}
+{% block title %}更新 - ふぁいんだ{% endblock %}
+{% block extra_style %}
+  .log td{font-size:.82rem;vertical-align:top}
+  .log .det{font-size:.75rem;color:#6c757d;word-break:break-all;max-width:28rem}
+{% endblock %}
+{% block content %}
+<ul class="nav nav-tabs mb-3">
+  {% for key, label in [('minutes', '議事録'), ('docs', '文書'), ('apps', 'アプリ')] + ([('log', '登録ログ')] if is_admin else []) %}
+  <li class="nav-item"><a class="nav-link{{ ' active' if t == key }}" href="{{ url_for('finder.update', t=key) }}">{{ label }}</a></li>
+  {% endfor %}
+</ul>
+
+{% if t == 'minutes' %}
+<form method="post" action="{{ url_for('finder.update_minutes') }}" enctype="multipart/form-data" class="card" style="max-width:44rem"
+      onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='登録しています…'">
+<div class="card-body">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p class="small text-muted">議事録の PDF を上げ，委員会と開催日を選んで登録します．PDF は Drive の保管フォルダに入り，本文は PDF から自動で起こします．</p>
+  <div class="mb-2"><label class="form-label small mb-0">議事録の PDF</label>
+    <input type="file" name="file" accept=".pdf,application/pdf" class="form-control form-control-sm" required></div>
+  <div class="mb-2"><label class="form-label small mb-0">委員会（一覧から選ぶか，新しい名前を書く）</label>
+    <input name="committee" list="cmts" class="form-control form-control-sm" required autocomplete="off">
+    <datalist id="cmts">{% for c in committees %}<option value="{{ c }}">{% endfor %}</datalist></div>
+  <div class="row g-2 mb-2">
+    <div class="col-sm-6"><label class="form-label small mb-0">開催日</label>
+      <input type="date" name="held_on" class="form-control form-control-sm" required></div>
+    <div class="col-sm-6"><label class="form-label small mb-0">年度（空なら開催日から）</label>
+      <input name="fiscal_year" class="form-control form-control-sm" inputmode="numeric" placeholder="例 2026"></div>
+  </div>
+  <div class="form-check small mb-3"><input class="form-check-input" type="checkbox" name="extract" value="1" id="ex" checked>
+    <label class="form-check-label" for="ex">PDF から本文を起こす</label></div>
+  <button class="btn btn-primary btn-sm">登録</button>
+</div></form>
+
+{% elif t == 'docs' %}
+<form method="post" action="{{ url_for('finder.update_docs') }}" enctype="multipart/form-data" class="card" style="max-width:44rem"
+      onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='登録しています…'">
+<div class="card-body">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p class="small text-muted">置き場（分類かフォルダ）を選び，文書ファイルを上げて登録します．PDF・Word・Excel・画像を受け付けます．まとめて複数選べます．</p>
+  <div class="mb-2"><label class="form-label small mb-0">置き場</label>
+    <select name="dir" class="form-select form-select-sm">
+      <option value="">（選んでください）</option>
+      {% for v, label in dirs %}<option value="{{ v }}"{{ ' selected' if v == sel }}>{{ label }}</option>{% endfor %}
+    </select></div>
+  <div class="mb-2"><label class="form-label small mb-0">または新しい分類を作る（書いたらこちらが優先）</label>
+    <input name="new_category" class="form-control form-control-sm"></div>
+  <div class="mb-2"><label class="form-label small mb-0">文書ファイル</label>
+    <input type="file" name="files" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp" class="form-control form-control-sm" required></div>
+  <div class="mb-3"><label class="form-label small mb-0">題名（1件のときだけ使います．空ならファイル名）</label>
+    <input name="title" class="form-control form-control-sm"></div>
+  <button class="btn btn-primary btn-sm">登録</button>
+</div></form>
+
+{% elif t == 'apps' %}
+<form method="post" action="{{ url_for('finder.update_apps') }}" class="card" style="max-width:44rem"><div class="card-body">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p class="small text-muted">Web アプリを，アプリ名と URL で登録します．</p>
+  <div class="mb-2"><label class="form-label small mb-0">アプリ名</label>
+    <input name="title" class="form-control form-control-sm" required></div>
+  <div class="mb-2"><label class="form-label small mb-0">URL</label>
+    <input name="url" type="url" class="form-control form-control-sm" required placeholder="https://"></div>
+  <div class="row g-2 mb-2">
+    <div class="col-sm-6"><label class="form-label small mb-0">分類</label>
+      <select name="category" class="form-select form-select-sm"><option value="">（なし）</option>
+        {% for c in app_cats %}<option>{{ c }}</option>{% endfor %}</select></div>
+    <div class="col-sm-6"><label class="form-label small mb-0">または新しい分類</label>
+      <input name="new_category" class="form-control form-control-sm"></div>
+  </div>
+  <div class="mb-3"><label class="form-label small mb-0">ひとこと（任意）</label>
+    <input name="note" class="form-control form-control-sm"></div>
+  <button class="btn btn-primary btn-sm">登録</button>
+</div></form>
+
+{% elif t == 'log' %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+  {% for k in ['', '議事録', '文書類', 'アプリ', '文書類・アプリ', '設定'] %}
+    <a class="btn btn-sm py-0 {{ 'btn-secondary' if k == kind else 'btn-outline-secondary' }}" href="{{ url_for('finder.update', t='log', k=k) }}">{{ k or 'すべて' }}</a>
+  {% endfor %}
+  <span class="small text-muted ms-2">{{ total }} 件</span>
+</div>
+<div class="table-responsive"><table class="table table-sm table-hover bg-white log">
+  <thead><tr><th>日時</th><th>登録者</th><th>種類</th><th>操作</th><th>対象</th><th>詳細</th></tr></thead>
+  <tbody>
+  {% for r in logs %}
+    <tr><td class="text-nowrap">{{ r.at.strftime('%Y-%m-%d %H:%M') if r.at else '' }}</td><td>{{ r.user_name }}</td>
+      <td>{{ r.kind }}</td><td>{{ r.action }}</td>
+      <td>{% if r.target_id and r.kind == '議事録' and r.action != '削除' %}<a href="{{ url_for('finder.index', m=r.target_id) }}">{{ r.title or r.target_id }}</a>
+          {% elif r.target_id and r.kind == '文書類' and r.action != '削除' %}<a href="{{ url_for('finder.docs', i=r.target_id) }}">{{ r.title or r.target_id }}</a>
+          {% else %}{{ r.title or (r.target_id or '') }}{% endif %}</td>
+      <td class="det">{{ r.detail or '' }}</td></tr>
+  {% else %}
+    <tr><td colspan="6" class="text-muted small">記録はまだありません．</td></tr>
+  {% endfor %}
+  </tbody></table></div>
+<div class="d-flex gap-2 mb-4">
+  {% if page > 1 %}<a class="btn btn-sm btn-outline-secondary py-0" href="{{ url_for('finder.update', t='log', k=kind, p=page - 1) }}">← 新しい方</a>{% endif %}
+  {% if page * 100 < total %}<a class="btn btn-sm btn-outline-secondary py-0" href="{{ url_for('finder.update', t='log', k=kind, p=page + 1) }}">古い方 →</a>{% endif %}
+</div>
+<form method="post" action="{{ url_for('finder.update_archive') }}" class="card" style="max-width:44rem"><div class="card-body py-2">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="small mb-1"><strong>保管フォルダ</strong>　
+    {% if archive_id %}<a href="https://drive.google.com/drive/folders/{{ archive_id }}" target="_blank" rel="noopener">{{ archive_id }}</a>
+    {% else %}未指定（最初の登録のときに通行証のアカウントのマイドライブに finder_archive を作ります）{% endif %}</div>
+  <div class="d-flex gap-2"><input name="archive" class="form-control form-control-sm" placeholder="Drive フォルダの URL か id（空で保存すると指定を外す）">
+    <button class="btn btn-outline-primary btn-sm text-nowrap">保存</button></div>
+</div></form>
+{% endif %}
+{% endblock %}

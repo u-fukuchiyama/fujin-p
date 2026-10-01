@@ -1,0 +1,44 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'finder/base.html' %}
+{% block title %}JSON入出力 - ふぁいんだ{% endblock %}
+{% block content %}
+<div class="card card-body mb-3">
+  <h2 class="h6">書き出す</h2>
+  <form method="get" action="{{ url_for('finder.export') }}" class="d-flex flex-wrap gap-2 align-items-center">
+    <select name="year" class="form-select form-select-sm" style="width:auto"><option value="">全年度</option>
+      {% for y in years %}<option value="{{ y }}">{{ y }}年度</option>{% endfor %}</select>
+    <select name="committee" class="form-select form-select-sm" style="width:auto"><option value="">全委員会</option>
+      {% for c in committees %}<option>{{ c }}</option>{% endfor %}</select>
+    <select name="body" class="form-select form-select-sm" style="width:auto">
+      <option value="1">本文を含める</option><option value="0">本文を含めない</option></select>
+    <button class="btn btn-outline-primary btn-sm">JSON を書き出す</button>
+  </form>
+</div>
+<div class="card card-body mb-3">
+  <h2 class="h6">読み込む</h2>
+  <p class="small text-muted mb-2">id のある行はその行を，id の無い行は同じ議事録（備考の URL が同じもの．URL でなければ委員会・年度・開催日・備考が同じもの）を上書きし，見つからなければ追加します．ファイルに書かれていない列（たとえば本文）は表の値を残します．何度読み込んでも重複はできません．行を消すことはしません．文書類・アプリの目録（export_type が finder_items のもの）も同じ欄で読み込めます．こちらは種類と URL が同じ行を上書きします．</p>
+  <form method="post" action="{{ url_for('finder.import_json') }}" enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-center">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="file" name="file" accept=".json,application/json" class="form-control form-control-sm" style="width:auto" required>
+    <button class="btn btn-primary btn-sm">読み込む</button>
+  </form>
+</div>
+{% if report %}
+<div class="card card-body">
+  {% if report.errors %}
+    <h2 class="h6 text-danger">読み込めませんでした（何も書き込んでいません）</h2>
+    <ul class="small text-danger mb-0">{% for e in report.errors[:50] %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% if report.errors|length > 50 %}<p class="small mb-0">ほか {{ report.errors|length - 50 }} 件</p>{% endif %}
+  {% else %}
+    <h2 class="h6">反映しました{% if report.target %}（{{ report.target }}）{% endif %}</h2>
+    <p class="small mb-1">追加 {{ report.n_insert }} 行，上書き {{ report.n_update }} 行．</p>
+    {% if report.unknown %}<p class="small text-muted mb-0">知らない項目（無視）：{{ report.unknown|join('，') }}</p>{% endif %}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

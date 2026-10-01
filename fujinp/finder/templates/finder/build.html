@@ -1,0 +1,43 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'finder/base.html' %}
+{% block title %}データ構築 - ふぁいんだ{% endblock %}
+{% block content %}
+{% if error %}<div class="alert alert-danger py-2 small">{{ error }}</div>{% endif %}
+<div class="card card-body mb-3">
+  <h2 class="h6">SELECT で行を作る</h2>
+  <p class="small text-muted mb-2">default DB で SELECT を流し，その結果を議事録の行として追加します．結果の列名は fiscal_year・committee・held_on・body・note にしてください（AS で名前を付けます）．</p>
+  <form method="post" action="{{ url_for('finder.build') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <textarea name="sql" rows="8" class="form-control font-monospace small mb-2" placeholder="SELECT 2026 AS fiscal_year, '執行会議' AS committee, NULL AS held_on, text_content AS body, url AS note FROM ...">{{ sql }}</textarea>
+    <button name="action" value="preview" class="btn btn-outline-primary btn-sm">試す（先頭20行を見る）</button>
+    <button name="action" value="insert" class="btn btn-primary btn-sm" onclick="return confirm('結果の全行を追加しますか？');">追加する</button>
+  </form>
+  {% if preview is not none %}
+    <p class="small mt-2 mb-1">結果 {{ count }} 行．列：{{ columns|join('，') }}</p>
+    <div class="table-responsive bg-white border" style="max-height:50vh">
+      <table class="table table-sm small m-0">
+        <thead><tr>{% for c in columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+        <tbody>{% for r in preview %}<tr>{% for c in columns %}<td style="max-width:24em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ (r[c]|string)[:200] if r[c] is not none else 'NULL' }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>
+<div class="card card-body">
+  <h2 class="h6">行を消す</h2>
+  <p class="small text-muted mb-2">指定した条件をすべて満たす行を消します．消した行は戻せないので，先に JSON で書き出しておくと安心です．</p>
+  <form method="post" action="{{ url_for('finder.build') }}" class="d-flex flex-wrap gap-2 align-items-center">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <select name="year" class="form-select form-select-sm" style="width:auto"><option value="">年度を問わない</option>
+      {% for y in years %}<option value="{{ y }}">{{ y }}年度</option>{% endfor %}</select>
+    <select name="committee" class="form-select form-select-sm" style="width:auto"><option value="">委員会を問わない</option>
+      {% for c in committees %}<option>{{ c }}</option>{% endfor %}</select>
+    <input name="ids" class="form-control form-control-sm" style="width:16em" placeholder="ID（カンマ区切り，任意）">
+    <button name="action" value="delete" class="btn btn-outline-danger btn-sm" onclick="return confirm('条件に合う行を消しますか？');">消す</button>
+  </form>
+</div>
+{% endblock %}

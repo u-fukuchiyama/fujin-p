@@ -1,0 +1,46 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+<form method="post" action="{{ url_for('finder.item_save') }}" id="item-edit-form" class="card"><div class="card-body py-2">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if form.id %}<input type="hidden" name="id" value="{{ form.id }}">{% endif %}
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <strong>{{ '文書の編集' if form.id else '文書の追加' }}</strong>
+    {% if form.id %}<span class="text-muted small">ID {{ form.id }}</span>{% endif %}
+  </div>
+  <div class="row g-2 mb-2">
+    <div class="col-md-3"><label class="form-label small mb-0">種類</label>
+      <select name="item_type" class="form-select form-select-sm">
+        {% for t in ['文書類', 'アプリ'] %}<option{{ ' selected' if form.item_type == t }}>{{ t }}</option>{% endfor %}
+      </select></div>
+    <div class="col-md-6"><label class="form-label small mb-0">分類</label>
+      <input name="category" class="form-control form-control-sm" value="{{ form.category or '' }}" list="finder-cats">
+      <datalist id="finder-cats">{% for x in all_cats %}<option value="{{ x }}">{% endfor %}</datalist></div>
+    <div class="col-md-3"><label class="form-label small mb-0">並び順</label>
+      <input name="sort_order" class="form-control form-control-sm" value="{{ form.sort_order if form.sort_order is not none else '' }}" placeholder="空なら末尾"></div>
+  </div>
+  <div class="mb-2"><label class="form-label small mb-0">親の ID（空なら分類の直下．フォルダの中に入れるときはそのフォルダの ID．分類は親に揃います）</label>
+    <input name="parent_id" class="form-control form-control-sm" style="max-width:10rem" value="{{ form.parent_id if form.parent_id is not none else '' }}"></div>
+  <div class="mb-2"><label class="form-label small mb-0">題名</label>
+    <input name="title" class="form-control form-control-sm" value="{{ form.title or '' }}" required></div>
+  <div class="mb-2"><label class="form-label small mb-0">URL（空でも可）</label>
+    <input name="url" class="form-control form-control-sm" value="{{ form.url or '' }}"></div>
+  <div class="mb-2"><label class="form-label small mb-0">備考</label>
+    <textarea name="note" class="form-control form-control-sm" rows="2">{{ form.note or '' }}</textarea></div>
+  <div class="mb-2"><label class="form-label small mb-0">本文（右のカラムに表示．URL と [文字](URL) はリンクになります）</label>
+    <textarea name="body" class="form-control form-control-sm" rows="18" style="font-size:.88rem">{{ form.body or '' }}</textarea></div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary btn-sm">保存</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finder.docs', i=form.id) if form.id else (url_for('finder.docs', i=form.parent_id) if form.parent_id else url_for('finder.docs', c=form.category)) }}">取消</a>
+  </div>
+</div></form>
+{% if form.id %}
+<form method="post" action="{{ url_for('finder.item_delete', item_id=form.id) }}" class="mt-2 text-end"
+      onsubmit="return confirm({{ ('「' ~ form.title ~ '」を消します' ~ (('．中身 ' ~ n_children ~ ' 件もいっしょに消えます') if n_children else '') ~ '．よろしいですか？')|tojson|forceescape }})">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button class="btn btn-outline-danger btn-sm py-0">この文書を消す</button>
+</form>
+{% endif %}

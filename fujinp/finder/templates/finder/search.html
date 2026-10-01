@@ -1,0 +1,43 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'finder/base.html' %}
+{% block title %}検索 - ふぁいんだ{% endblock %}
+{% block content %}
+<form method="get" action="{{ url_for('finder.search') }}" class="card card-body mb-3">
+  <div class="row g-2">
+    <div class="col-md-7">
+      <textarea name="q" rows="4" class="form-control" placeholder="1行が1つのまとまり．行の中は空白で区切る．例：&#10;西田 副学長&#10;中期計画">{{ q }}</textarea>
+    </div>
+    <div class="col-md-5 small">
+      <div class="form-check"><input class="form-check-input" type="radio" name="mode" value="and_or" id="m1" {{ 'checked' if mode == 'and_or' }}>
+        <label class="form-check-label" for="m1">AND-OR：行の中はどれか，行どうしは全部</label></div>
+      <div class="form-check mb-2"><input class="form-check-input" type="radio" name="mode" value="or_and" id="m2" {{ 'checked' if mode == 'or_and' }}>
+        <label class="form-check-label" for="m2">OR-AND：行の中は全部，行どうしはどれか</label></div>
+      <div class="d-flex gap-2">
+        <select name="year" class="form-select form-select-sm"><option value="">全年度</option>
+          {% for y in years %}<option value="{{ y }}" {{ 'selected' if year == (y|string) }}>{{ y }}年度</option>{% endfor %}</select>
+        <select name="committee" class="form-select form-select-sm"><option value="">全委員会</option>
+          {% for c in committees %}<option {{ 'selected' if committee == c }}>{{ c }}</option>{% endfor %}</select>
+      </div>
+      <button class="btn btn-primary btn-sm mt-2">探す</button>
+    </div>
+  </div>
+</form>
+{% if groups %}
+  <p class="small text-muted">
+    {% for g in groups %}（{{ g|join(' または ' if mode == 'and_or' else ' かつ ') }}）{% if not loop.last %}{{ ' かつ ' if mode == 'and_or' else ' または ' }}{% endif %}{% endfor %}
+    — {{ '{:,}'.format(total) }}件{% if total > limit %}（先頭{{ limit }}件を表示）{% endif %}</p>
+  {% for r in results %}
+    <div class="bg-white border rounded p-2 mb-2">
+      <a href="{{ url_for('finder.show', minute_id=r.id, q=q, mode=mode) }}"><strong>{{ r.committee }}</strong> {{ r.fiscal_year }}年度 {{ r.held_on or '（日付未定）' }}</a>
+      <div class="snip">{{ r.snippet|finder_mark(groups|sum(start=[])) }}</div>
+    </div>
+  {% else %}
+    <p class="text-muted">該当する議事録はありません．</p>
+  {% endfor %}
+{% endif %}
+{% endblock %}
