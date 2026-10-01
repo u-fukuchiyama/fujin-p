@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-01 10:09:57",
+  "generated_at": "2026-10-02 01:01:21",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -43,7 +43,7 @@
       "launchers": [
         {
           "icon": "👥",
-          "label": "ユーザ管理",
+          "label": "admin",
           "groups": [],
           "params": "",
           "section": "legacy",
@@ -95,8 +95,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260923.154116-f2c97d",
-      "version_confirmed_at": "2026-09-23 15:41:16"
+      "version_id": "v20261001.101157-2a552c",
+      "version_confirmed_at": "2026-10-01 10:11:57"
     },
     {
       "app_name": "user_groups",
@@ -118,7 +118,7 @@
       "launchers": [
         {
           "icon": "🗄",
-          "label": "まいぐる（旧）",
+          "label": "ユーザとグループ",
           "groups": [],
           "params": "",
           "section": "legacy",
@@ -148,7 +148,7 @@
         },
         {
           "icon": "🔗",
-          "label": "永続ID",
+          "label": "ユーザとグループ",
           "groups": [],
           "params": "",
           "section": "system",
@@ -158,7 +158,7 @@
           ],
           "sort_order": 6,
           "visibility": "private",
-          "description": "サイトをまたぐアカウント・グループの識別子．発番（源泉サイトのみ）とXLSXの書き出し・取り込み",
+          "description": "付録：永続ID．サイトをまたぐアカウント・グループの識別子．発番（源泉サイトのみ）とXLSXの書き出し・取り込み",
           "extra_class": ""
         }
       ],
@@ -185,7 +185,7 @@
       "launchers": [
         {
           "icon": "🔃",
-          "label": "テーブルサイクル",
+          "label": "テーブル サイクル",
           "groups": [],
           "params": "",
           "section": "system",
@@ -296,7 +296,7 @@
       "launchers": [
         {
           "icon": "📅",
-          "label": "時空資源管理（デモ用）",
+          "label": "時空資源管理",
           "groups": [],
           "params": "",
           "section": "system",
@@ -336,7 +336,7 @@
           "label": "すらくみ（Slack議事録）",
           "groups": [],
           "params": "",
-          "section": "internal",
+          "section": "sommelier",
           "endpoint": "slack_minutes.index",
           "dashboards": [
             "admin",
@@ -438,7 +438,7 @@
         },
         {
           "icon": "🚚",
-          "label": "別サイトへのインストール",
+          "label": "まいあし",
           "groups": [],
           "params": "",
           "section": "sommelier",
@@ -453,7 +453,7 @@
         },
         {
           "icon": "🚚",
-          "label": "別サイトへのインストール",
+          "label": "まいあし",
           "groups": [],
           "params": "",
           "section": "sommelier",
@@ -585,21 +585,6 @@
           "visibility": "group",
           "description": "サイオン丸ごとマイグレーション",
           "extra_class": ""
-        },
-        {
-          "icon": "🛳️",
-          "label": "さいまる",
-          "groups": [],
-          "params": "",
-          "section": "internal",
-          "endpoint": "migrate_fujinp_scions.index",
-          "dashboards": [
-            "guest"
-          ],
-          "sort_order": 140,
-          "visibility": "domestic",
-          "description": "サイオン丸ごとマイグレーション",
-          "extra_class": ""
         }
       ],
       "version_id": "v20260917.153329-8a9a0d",
@@ -636,7 +621,7 @@
             "admin",
             "guest"
           ],
-          "sort_order": 120,
+          "sort_order": 10,
           "visibility": "group",
           "description": "MDによる手軽なノート",
           "extra_class": ""
@@ -677,7 +662,7 @@
       "launchers": [
         {
           "icon": "🏀",
-          "label": "コレポ管理",
+          "label": "コレポ",
           "groups": [
             "コレポ管理者"
           ],
@@ -695,7 +680,7 @@
         },
         {
           "icon": "🏀",
-          "label": "コレポ執筆",
+          "label": "コレポ",
           "groups": [],
           "params": "",
           "section": "guest",
@@ -771,7 +756,7 @@
       "launchers": [
         {
           "icon": "📚",
-          "label": "公式データ集(DRAFT)",
+          "label": "公式データ集",
           "groups": [],
           "params": "",
           "section": "internal",
@@ -780,7 +765,7 @@
             "admin",
             "guest"
           ],
-          "sort_order": 170,
+          "sort_order": 10,
           "visibility": "domestic",
           "description": "公式データの閲覧とダウンロード",
           "extra_class": ""
@@ -812,7 +797,7 @@
           "label": "データセンター",
           "groups": [],
           "params": "",
-          "section": "internal",
+          "section": "sommelier",
           "endpoint": "data_center.index",
           "dashboards": [
             "admin",
@@ -850,7 +835,7 @@
           "label": "時系列指標ビジュアル",
           "groups": [],
           "params": "",
-          "section": "internal",
+          "section": "sommelier",
           "endpoint": "index_review.index",
           "dashboards": [
             "admin",
@@ -894,7 +879,7 @@
             "admin",
             "guest"
           ],
-          "sort_order": 200,
+          "sort_order": 100,
           "visibility": "domestic",
           "description": "利用状況の表示",
           "extra_class": ""
@@ -1037,7 +1022,7 @@
       "launchers": [
         {
           "icon": "😮‍💨",
-          "label": "巡回セールスマン問題ソルバー",
+          "label": "巡回セールスマンソルバー",
           "groups": [],
           "params": "",
           "section": "guest",
@@ -1151,7 +1136,7 @@
       "launchers": [
         {
           "icon": "🛍️",
-          "label": "ウィンドウショッピング3D",
+          "label": "ウィンドウショッピング",
           "groups": [],
           "params": "",
           "section": "guest",
@@ -1189,7 +1174,7 @@
       "launchers": [
         {
           "icon": "👹",
-          "label": "鬼ごっこ3D",
+          "label": "鬼ごっこ",
           "groups": [],
           "params": "",
           "section": "guest",
@@ -1382,7 +1367,7 @@
           "label": "こんか",
           "groups": [],
           "params": "",
-          "section": "internal",
+          "section": "sommelier",
           "endpoint": "cqm.index",
           "dashboards": [
             "admin"
@@ -1456,7 +1441,7 @@
           "label": "すらくみね（別WSのSlack議事録）",
           "groups": [],
           "params": "",
-          "section": "internal",
+          "section": "sommelier",
           "endpoint": "surakumine.index",
           "dashboards": [
             "admin",
@@ -1532,13 +1517,13 @@
           "label": "事業全貌",
           "groups": [],
           "params": "",
-          "section": "under_development",
+          "section": "internal",
           "endpoint": "mid_term_progress.index",
           "dashboards": [
             "admin",
             "guest"
           ],
-          "sort_order": 10,
+          "sort_order": 20,
           "visibility": "public",
           "description": "大学の中期計画・年度計画と，その進捗状況報告・業務実績報告・法人評価を，策定から閲覧まで通して見渡せます",
           "extra_class": ""
@@ -1570,19 +1555,57 @@
           "label": "ゆにこん",
           "groups": [],
           "params": "",
-          "section": "under_development",
+          "section": "sommelier",
           "endpoint": "unicon.index",
           "dashboards": [
             "admin",
             "guest"
           ],
-          "sort_order": 10,
+          "sort_order": 30,
           "visibility": "public",
           "description": "部品群から文書をつくり，書き手に依頼する",
           "extra_class": ""
         }
       ],
       "version_id": "v20260924.v0-4-1",
+      "version_confirmed_at": null
+    },
+    {
+      "app_name": "finder",
+      "display_name": "ふぁいんだ",
+      "icon": "🔎",
+      "description": "議事録を年度・委員会でたどり，固定文字列の AND-OR／OR-AND で探す．JSON 入出力とデータ構築で中身を作り直す．",
+      "sort_order": 510.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "finder_bp",
+          "name": "finder",
+          "module": "fujinp.finder",
+          "url_prefix": "/finder"
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "🔎",
+          "label": "ふぁいんだ",
+          "groups": [],
+          "params": "",
+          "section": "internal",
+          "endpoint": "finder.index",
+          "dashboards": [
+            "admin",
+            "guest"
+          ],
+          "sort_order": 90,
+          "visibility": "domestic",
+          "description": "議事録・文書類・アプリを委員会や分類でたどり，文字列で探す",
+          "extra_class": ""
+        }
+      ],
+      "version_id": null,
       "version_confirmed_at": null
     }
   ],

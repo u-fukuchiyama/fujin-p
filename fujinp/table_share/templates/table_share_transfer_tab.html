@@ -1,0 +1,313 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{# テーシャ：エクスポート／インポート タブ（table_share_dashboard.html から include） #}
+<div id="tab-transfer" class="tab-content">
+    <style>
+        .tr-box { border:1px solid #ddd; border-radius:8px; padding:14px 16px; margin-bottom:18px; background:#fff; }
+        .tr-bar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:10px; }
+        .tr-bar input[type=text] { padding:6px 10px; border:1px solid #ccc; border-radius:4px; min-width:220px; }
+        .tr-list { max-height:420px; overflow:auto; border:1px solid #eee; border-radius:6px; }
+        .tr-db { background:#ecf0f1; padding:6px 10px; font-weight:bold; position:sticky; top:0; display:flex; gap:8px; align-items:center; }
+        .tr-row { display:flex; align-items:center; gap:8px; padding:4px 10px 4px 26px; border-bottom:1px solid #f3f3f3; font-size:14px; }
+        .tr-row:hover { background:#f8fbff; }
+        .tr-row .cnt { margin-left:auto; color:#7f8c8d; font-size:12px; white-space:nowrap; }
+        .tr-status { font-size:13px; margin-top:8px; min-height:1.2em; }
+        .tr-status.err { color:#c0392b; }
+        .tr-status.ok { color:#27ae60; }
+        .tr-table { width:100%; border-collapse:collapse; font-size:13px; }
+        .tr-table th, .tr-table td { border-bottom:1px solid #eee; padding:6px 8px; text-align:left; vertical-align:top; }
+        .tr-table th { background:#f5f7fa; }
+        .tr-badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; font-weight:bold; white-space:nowrap; }
+        .tr-badge.new { background:#e8f6ee; color:#1e8449; }
+        .tr-badge.same { background:#eaf2fb; color:#2471a3; }
+        .tr-badge.differ { background:#fdf2e3; color:#b9770e; }
+        .tr-badge.error { background:#fdecea; color:#c0392b; }
+        .tr-notes { color:#555; font-size:12px; margin:2px 0 0 0; padding-left:16px; }
+        .tr-prog { font-size:12px; white-space:nowrap; }
+    </style>
+
+    <h2>📦 テーブルのエクスポート</h2>
+    <div class="tr-box">
+        <div class="tr-bar">
+            <input type="text" id="tr-search" placeholder="🔍 テーブル名で絞り込み">
+            <label><input type="checkbox" id="tr-hide-backup" checked> バックアップ表を隠す</label>
+            <button type="button" id="tr-check-visible">表示中をすべてチェック</button>
+            <button type="button" id="tr-clear">チェックを外す</button>
+            <span id="tr-selected-count" style="margin-left:auto;">0 表を選択</span>
+        </div>
+        <div class="tr-list" id="tr-local-list"><div style="padding:10px;">読み込み中...</div></div>
+        <div class="tr-bar" style="margin-top:10px;">
+            <button type="button" id="tr-export-btn" class="success" disabled>📦 チェックしたテーブルをスキーマごとエクスポート</button>
+        </div>
+        <div class="tr-status" id="tr-export-status"></div>
+    </div>
+
+    {% if ts_import_enabled %}
+    <h2>📥 テーブルのインポート</h2>
+    <div class="tr-box">
+        <div class="tr-bar">
+            <input type="file" id="tr-file" accept=".json,application/json">
+            <span id="tr-file-info" style="color:#555;"></span>
+        </div>
+        <div id="tr-import-area" style="display:none;">
+            <div class="tr-bar">
+                <label><input type="radio" name="tr-mode" value="replace" checked> 置換（既存の行を捨ててファイルの行にする）</label>
+                <label><input type="radio" name="tr-mode" value="merge"> 追記（既存の行を残し，同じキーの行はファイル側で上書き）</label>
+            </div>
+            <table class="tr-table">
+                <thead><tr>
+                    <th><input type="checkbox" id="tr-imp-all" checked></th>
+                    <th>テーブル</th><th>行数</th><th>取り込み先DB</th><th>照合結果</th><th>進行</th>
+                </tr></thead>
+                <tbody id="tr-imp-body"></tbody>
+            </table>
+            <div class="tr-bar" style="margin-top:10px;">
+                <button type="button" id="tr-recheck-btn">🔍 照合し直す</button>
+                <button type="button" id="tr-import-btn" class="success">📥 チェックしたテーブルを取り込む</button>
+            </div>
+            <p style="font-size:12px;color:#7f8c8d;margin:4px 0 0 0;">
+                取り込み先に無いテーブルはファイルのスキーマで作成します．スキーマが食い違うときはファイル側を優先して作り直します．
+                既存のテーブルは取り込み前に <code>テーブル名_bk_日時</code> へ控えます．
+            </p>
+        </div>
+        <div class="tr-status" id="tr-import-status"></div>
+    </div>
+    {% endif %}
+
+<script>
+(function () {
+    const URL_LIST   = '{{ url_for("table_share.transfer_list_local") }}';
+    const URL_EXPORT = '{{ url_for("table_share.transfer_export") }}';
+    {% if ts_import_enabled %}
+    const URL_CHECK   = '{{ url_for("table_share.transfer_check") }}';
+    const URL_PREPARE = '{{ url_for("table_share.transfer_prepare") }}';
+    const URL_ROWS    = '{{ url_for("table_share.transfer_rows") }}';
+    const URL_FINISH  = '{{ url_for("table_share.transfer_finish") }}';
+    {% endif %}
+
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const $id = id => document.getElementById(id);
+    const key = (db, t) => db + '\u0001' + t;
+    function status(id, msg, kind) {
+        const el = $id(id); el.textContent = msg; el.className = 'tr-status' + (kind ? ' ' + kind : '');
+    }
+    async function postJSON(url, body) {
+        const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        let j = null; try { j = await r.json(); } catch (e) {}
+        if (!r.ok || !j || !j.success) throw new Error((j && j.error) || ('HTTP ' + r.status));
+        return j;
+    }
+    const isBackup = t => /_backup_\d{8}_\d{6}$/.test(t) || /_bk_\d{8}_\d{6}$/.test(t);
+
+    // ================= エクスポート =================
+    let localTables = [];
+    const selected = new Set();
+    let loaded = false;
+
+    async function loadLocal() {
+        try {
+            const r = await fetch(URL_LIST); const j = await r.json();
+            if (!j.success) throw new Error(j.error || 'エラー');
+            localTables = j.tables; loaded = true; renderLocal();
+        } catch (e) {
+            $id('tr-local-list').innerHTML = '<div style="padding:10px;color:#c0392b;">読み込めませんでした: ' + esc(e.message) + '</div>';
+        }
+    }
+    function visibleTables() {
+        const q = $id('tr-search').value.trim().toLowerCase();
+        const hide = $id('tr-hide-backup').checked;
+        return localTables.filter(t => (!q || t.table_name.toLowerCase().includes(q)) && !(hide && isBackup(t.table_name)));
+    }
+    function renderLocal() {
+        const vis = visibleTables();
+        const groups = {};
+        vis.forEach(t => (groups[t.database] = groups[t.database] || []).push(t));
+        let html = '';
+        Object.keys(groups).sort().forEach(db => {
+            const ts = groups[db];
+            const allOn = ts.every(t => selected.has(key(db, t.table_name)));
+            html += `<div class="tr-db"><input type="checkbox" class="tr-dbchk" data-db="${esc(db)}" ${allOn ? 'checked' : ''}> 🗄 ${esc(db)}（${ts.length}）</div>`;
+            ts.forEach(t => {
+                const k = key(db, t.table_name);
+                html += `<label class="tr-row"><input type="checkbox" class="tr-chk" data-db="${esc(db)}" data-t="${esc(t.table_name)}" ${selected.has(k) ? 'checked' : ''}>
+                         ${esc(t.table_name)}<span class="cnt">${t.row_count.toLocaleString()} 行</span></label>`;
+            });
+        });
+        $id('tr-local-list').innerHTML = html || '<div style="padding:10px;">該当するテーブルはありません</div>';
+        updateCount();
+    }
+    function updateCount() {
+        $id('tr-selected-count').textContent = selected.size + ' 表を選択';
+        $id('tr-export-btn').disabled = selected.size === 0;
+    }
+    $id('tr-local-list').addEventListener('change', ev => {
+        const el = ev.target;
+        if (el.classList.contains('tr-chk')) {
+            const k = key(el.dataset.db, el.dataset.t);
+            el.checked ? selected.add(k) : selected.delete(k);
+            renderLocal();
+        } else if (el.classList.contains('tr-dbchk')) {
+            visibleTables().filter(t => t.database === el.dataset.db).forEach(t => {
+                const k = key(t.database, t.table_name);
+                el.checked ? selected.add(k) : selected.delete(k);
+            });
+            renderLocal();
+        }
+    });
+    $id('tr-search').addEventListener('input', renderLocal);
+    $id('tr-hide-backup').addEventListener('change', renderLocal);
+    $id('tr-check-visible').addEventListener('click', () => { visibleTables().forEach(t => selected.add(key(t.database, t.table_name))); renderLocal(); });
+    $id('tr-clear').addEventListener('click', () => { selected.clear(); renderLocal(); });
+
+    $id('tr-export-btn').addEventListener('click', async () => {
+        const tables = [...selected].map(k => { const [database, table_name] = k.split('\u0001'); return {database, table_name}; });
+        const btn = $id('tr-export-btn'); btn.disabled = true;
+        status('tr-export-status', '⏳ 書き出し中…（' + tables.length + ' 表）');
+        try {
+            const r = await fetch(URL_EXPORT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tables}) });
+            if (!r.ok) { let m = 'HTTP ' + r.status; try { m = (await r.json()).error || m; } catch (e) {} throw new Error(m); }
+            const fname = r.headers.get('X-Export-Filename') || 'tables_export.json';
+            const blob = await r.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob); a.download = fname;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+            const rows = tables.reduce((s, t) => s + ((localTables.find(x => x.database === t.database && x.table_name === t.table_name) || {}).row_count || 0), 0);
+            status('tr-export-status', `✅ 完了：${fname}（${tables.length} 表・${rows.toLocaleString()} 行・${(blob.size / 1048576).toFixed(2)} MB）`, 'ok');
+        } catch (e) {
+            status('tr-export-status', '❌ エクスポートできませんでした: ' + e.message, 'err');
+        } finally { btn.disabled = selected.size === 0; }
+    });
+
+    // タブを開いたときに読み込む
+    document.querySelectorAll('.tab-button[data-tab="transfer"]').forEach(b =>
+        b.addEventListener('click', () => { if (!loaded) loadLocal(); }));
+
+    {% if ts_import_enabled %}
+    // ================= インポート =================
+    let fileData = null;      // 読み込んだJSON
+    let targetDbs = [];       // 取り込み先DB候補
+    let defaultDb = '';       // このサイトの既定DB
+    let checkResults = {};    // index -> 照合結果
+
+    function defaultTarget(t) {
+        const hit = targetDbs.find(db => db.split('$').slice(1).join('$') === t.database_suffix);
+        return hit || defaultDb || targetDbs.find(db => db.endsWith('$default')) || targetDbs[0] || '';
+    }
+    function rowTarget(i) { const s = document.querySelector(`.tr-target[data-i="${i}"]`); return s ? s.value : ''; }
+    function selectedMode() { return document.querySelector('input[name="tr-mode"]:checked').value; }
+
+    function renderImport() {
+        const body = $id('tr-imp-body');
+        body.innerHTML = fileData.tables.map((t, i) => {
+            const tgt = rowTarget(i) || defaultTarget(t);
+            const opts = targetDbs.map(db => `<option ${db === tgt ? 'selected' : ''}>${esc(db)}</option>`).join('');
+            return `<tr>
+                <td><input type="checkbox" class="tr-imp-chk" data-i="${i}" checked></td>
+                <td><b>${esc(t.table_name)}</b><div style="color:#999;font-size:11px;">元：${esc(t.database)}</div></td>
+                <td>${(t.row_count ?? t.rows.length).toLocaleString()}</td>
+                <td><select class="tr-target" data-i="${i}">${opts}</select></td>
+                <td id="tr-res-${i}">…</td>
+                <td class="tr-prog" id="tr-prog-${i}"></td></tr>`;
+        }).join('');
+    }
+    function renderCheck(i, r) {
+        const label = {new:'新規作成', same:'スキーマ一致', differ:'相違→ファイル優先で作り直し', error:'取り込めません'}[r.status] || r.status;
+        const cur = (r.current_rows != null) ? `<div style="color:#777;font-size:11px;">現在 ${r.current_rows.toLocaleString()} 行</div>` : '';
+        $id('tr-res-' + i).innerHTML = `<span class="tr-badge ${esc(r.status)}">${esc(label)}</span>${cur}` +
+            ((r.notes && r.notes.length) ? '<ul class="tr-notes">' + r.notes.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul>' : '');
+    }
+    async function runCheck(indices) {
+        const idx = indices || fileData.tables.map((_, i) => i);
+        idx.forEach(i => $id('tr-res-' + i).textContent = '照合中…');
+        try {
+            const j = await postJSON(URL_CHECK, { tables: idx.map(i => ({
+                target_database: rowTarget(i), table_name: fileData.tables[i].table_name,
+                create_table: fileData.tables[i].create_table })) });
+            j.tables.forEach((r, n) => { checkResults[idx[n]] = r; renderCheck(idx[n], r); });
+        } catch (e) { status('tr-import-status', '❌ 照合できませんでした: ' + e.message, 'err'); }
+    }
+
+    $id('tr-file').addEventListener('change', ev => {
+        const f = ev.target.files[0]; if (!f) return;
+        status('tr-import-status', '⏳ ファイルを読んでいます…');
+        const rd = new FileReader();
+        rd.onload = async () => {
+            try {
+                const d = JSON.parse(rd.result);
+                if (d.export_type !== 'fujinp_table_export' || !Array.isArray(d.tables)) throw new Error('テーシャのテーブルエクスポートではありません');
+                fileData = d; checkResults = {};
+                $id('tr-file-info').textContent = `${d.source_site || d.source_account || ''}　${d.generated_at || ''}　${d.tables.length} 表・${(d.total_rows || 0).toLocaleString()} 行`;
+                // 取り込み先DB候補を取る（空の照合で得る）
+                const j = await postJSON(URL_CHECK, { tables: [] });
+                targetDbs = j.databases || [];
+                defaultDb = j.default_database || '';
+                renderImport();
+                $id('tr-import-area').style.display = '';
+                status('tr-import-status', '');
+                await runCheck();
+            } catch (e) { status('tr-import-status', '❌ ' + e.message, 'err'); }
+        };
+        rd.readAsText(f, 'utf-8');
+    });
+    $id('tr-imp-body').addEventListener('change', ev => {
+        if (ev.target.classList.contains('tr-target')) runCheck([Number(ev.target.dataset.i)]);
+    });
+    $id('tr-imp-all').addEventListener('change', ev => document.querySelectorAll('.tr-imp-chk').forEach(c => c.checked = ev.target.checked));
+    $id('tr-recheck-btn').addEventListener('click', () => runCheck());
+
+    function chunks(rows) {
+        // 行数と大きさの両方で区切る（1回およそ2MB・最大2000行）
+        const out = []; let cur = [], size = 0;
+        rows.forEach(r => {
+            const s = JSON.stringify(r).length;
+            if (cur.length && (cur.length >= 2000 || size + s > 2000000)) { out.push(cur); cur = []; size = 0; }
+            cur.push(r); size += s;
+        });
+        if (cur.length) out.push(cur);
+        return out;
+    }
+
+    $id('tr-import-btn').addEventListener('click', async () => {
+        const idx = [...document.querySelectorAll('.tr-imp-chk')].filter(c => c.checked).map(c => Number(c.dataset.i));
+        if (!idx.length) { status('tr-import-status', 'テーブルが選ばれていません', 'err'); return; }
+        const bad = idx.filter(i => !checkResults[i] || checkResults[i].status === 'error');
+        if (bad.length) { status('tr-import-status', '照合できていない／取り込めないテーブルがあります：' + bad.map(i => fileData.tables[i].table_name).join('，'), 'err'); return; }
+        const mode = selectedMode();
+        const n = s => idx.filter(i => checkResults[i].status === s).length;
+        if (!confirm(`${idx.length} 表を取り込みます（${mode === 'replace' ? '置換' : '追記'}）．\n` +
+                     `新規作成 ${n('new')}・スキーマ一致 ${n('same')}・作り直し ${n('differ')}\n既存のテーブルは取り込み前に控えを作ります．よろしいですか？`)) return;
+
+        const btn = $id('tr-import-btn'); btn.disabled = true;
+        let okCount = 0, errCount = 0;
+        for (const i of idx) {
+            const t = fileData.tables[i], db = rowTarget(i), prog = $id('tr-prog-' + i);
+            try {
+                prog.textContent = '準備中…';
+                const p = await postJSON(URL_PREPARE, { target_database: db, table_name: t.table_name, create_table: t.create_table, mode });
+                const parts = chunks(t.rows); let done = 0;
+                for (const part of parts) {
+                    await postJSON(URL_ROWS, { target_database: db, table_name: t.table_name, columns: t.columns, rows: part, mode });
+                    done += part.length;
+                    prog.textContent = `取り込み中 ${done.toLocaleString()} / ${t.rows.length.toLocaleString()}`;
+                }
+                const f = await postJSON(URL_FINISH, { target_database: db, table_name: t.table_name });
+                prog.innerHTML = `✅ ${f.row_count.toLocaleString()} 行` + (p.backup_table ? `<div style="color:#777;">控え：${esc(p.backup_table)}</div>` : '');
+                okCount++;
+            } catch (e) {
+                prog.innerHTML = `<span style="color:#c0392b;">❌ ${esc(e.message)}</span>`;
+                errCount++;
+            }
+        }
+        btn.disabled = false;
+        status('tr-import-status', `完了：成功 ${okCount} 表` + (errCount ? `・失敗 ${errCount} 表` : ''), errCount ? 'err' : 'ok');
+        runCheck(idx);
+    });
+    {% endif %}
+})();
+</script>
+</div>

@@ -25,6 +25,7 @@
 FUJIN-Pサイト間でMySQLテーブルのネットワーク状の緩やかな同期を実現します。
 - Publish: テーブルを公開（バージョン管理付き）
 - Subscribe: 他サイトからテーブルを取得（バックアップ付き）
+- Export/Import: チェックしたテーブルをスキーマごとJSONで書き出し・取り込み（transfer.py）
 """
 from flask import Blueprint
 
@@ -34,3 +35,4 @@ table_share_bp = Blueprint('table_share', __name__,
                            template_folder='templates')
 
 from . import routes
+from . import transfer   # エクスポート／インポート（2026-09-30）
