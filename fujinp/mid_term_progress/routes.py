@@ -6,6 +6,11 @@ T_ann_plan_details／T_ann_plan_evaluations．DDL は schema_core.sql）．事�
 
 閲覧は4表から組み立てる．ダウンロードは4表をそのまま xlsx に出す．
 アップロードは非常対応用で，ダウンロードと同じ形の xlsx を4表へ書き戻す．
+
+策定・報告・法人評価のワークフローは4表のほかに，T_ann_plan_requests（執筆依頼）・
+T_ann_eval_questions（法人評価の質問）・T_ann_eval_posts（連絡の窓）・
+mid_term_progress_settings（執筆者に開いている依頼など）を使う．
+サイト間の移行はこの8表をまとめて運ぶ「まるごと移行」（migrate.py）で行う．
 """
 import datetime
 import json
@@ -47,7 +52,7 @@ from . import mid_term_progress_bp
 JST = timezone('Asia/Tokyo')
 
 # -----------------------------------------------
-# 常設4表（nishida$fujinp）
+# 常設4表（このサイトの fujinp の DB）
 # -----------------------------------------------
 TABLE_DB = 'fujinp'          # db.get_db_cursor(database=...) に渡す名前
 TABLES = {
@@ -206,7 +211,7 @@ from contextlib import contextmanager
 
 @contextmanager
 def _fdb():
-    """nishida$fujinp への (cursor, conn)。カーソルは辞書型。"""
+    """このサイトの fujinp の DB への (cursor, conn)。カーソルは辞書型。"""
     obj = _db_module.get_db_cursor(database=TABLE_DB)
     ctx = None
     if hasattr(obj, '__enter__') and not hasattr(obj, 'cursor'):
@@ -871,14 +876,18 @@ def api_manage_open_year():
 
 
 # 交点方式の列（担当部門の並び）．サイトで1本持ち，年度をまたいで使う
-# （アプリのディレクトリ配下 data/ に置く．テーブルは使わない）
+# 置き場所は DB の設定表 mid_term_progress_settings（k='matrix_columns'）．
+# 旧版はアプリのディレクトリの data/matrix_columns.json に置いていた．設定表に行が無いときだけそれを読む
 _COLS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'matrix_columns.json')
 
 
 def _load_columns():
+    from .workflow import get_setting
     try:
-        with open(_COLS_FILE, encoding='utf-8') as f:
-            v = json.load(f)
+        v = get_setting('matrix_columns')
+        if v is None:
+            with open(_COLS_FILE, encoding='utf-8') as f:
+                v = json.load(f)
         return [str(x) for x in (v.get('columns') if isinstance(v, dict) else v) or [] if str(x).strip()]
     except Exception:
         return []
@@ -896,10 +905,6 @@ def api_manage_columns():
         x = str(x).strip()
         if x and x not in seen and len(x) <= 100:
             cols.append(x); seen.add(x)
-    os.makedirs(os.path.dirname(_COLS_FILE), exist_ok=True)
-    tmp = _COLS_FILE + '.tmp'
-    with open(tmp, 'w', encoding='utf-8') as f:
-        json.dump({'columns': cols, 'updated_at': _s(get_jst_now()), 'updated_by': session.get('user_id')},
-                  f, ensure_ascii=False, indent=1)
-    os.replace(tmp, _COLS_FILE)
+    from .workflow import put_setting
+    put_setting('matrix_columns', {'columns': cols})
     return jsonify({'success': True, 'columns': cols})

@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-02 01:01:21",
+  "generated_at": "2026-10-02 09:41:47",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -507,8 +507,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260917.153431-274a03",
-      "version_confirmed_at": "2026-09-17 15:34:32"
+      "version_id": "v20261002.010155-bcad6c",
+      "version_confirmed_at": "2026-10-02 01:01:56"
     },
     {
       "app_name": "user_migration",
@@ -1529,7 +1529,7 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260929.view-canonical-first",
+      "version_id": "v20261002.migrate-all",
       "version_confirmed_at": null
     },
     {
@@ -1605,8 +1605,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": null,
-      "version_confirmed_at": null
+      "version_id": "v20261002.010356-6c767a",
+      "version_confirmed_at": "2026-10-02 01:03:57"
     }
   ],
   "sections": [

@@ -3,7 +3,7 @@ mid_term_progress - 執筆依頼のワークフロー（依頼の記録・状態
 
 依頼の単位は「年度 × 中期計画番号 × 年度計画番号 × 細目 × 段階」．
 段階は plan（計画）／progress（進捗報告）／result（業務実績報告）の3つ．
-依頼の状態と評価室からのコメントは T_ann_plan_requests（nishida$fujinp）に置き，
+依頼の状態と評価室からのコメントは T_ann_plan_requests（fujinp の DB）に置き，
 本文は常設表 T_ann_plan_details を読む（ここでは書かない）．
 
 状態は2系統を並べて持つ．
@@ -73,16 +73,59 @@ def _extra_cols_ready(cur):
 REPORT_STAGES = ('progress', 'result')   # 執筆者の提出と編集者の承認版を分ける段階
 
 # 執筆者に開いている依頼（年度×段階の組）．編集者ダッシュボードで選ぶ．サイトで1本持つ
+# 置き場所は DB の設定表 mid_term_progress_settings（k='active_sets'．担当部門の並び k='matrix_columns' も同じ表）．
+# 旧版はアプリのディレクトリの data/active_sets.json に置いていた．設定表に行が無いときだけそれを読む
+# （次に保存した時点で設定表へ移る）．
 import os as _os, json as _json
 _ACTIVE_FILE = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'data', 'active_sets.json')
+SETTINGS_TABLE = 'mid_term_progress_settings'
+SETTINGS_DDL = """CREATE TABLE IF NOT EXISTS `mid_term_progress_settings` (
+  `k` varchar(64) NOT NULL COMMENT '設定名',
+  `v` mediumtext COMMENT '設定値（JSON）',
+  `updated_at` datetime DEFAULT NULL,
+  `updated_by` int DEFAULT NULL,
+  PRIMARY KEY (`k`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""
+
+
+def get_setting(key):
+    """設定表の値（JSON を戻したもの）．表が無い・行が無いときは None。"""
+    try:
+        with _fdb() as (cur, conn):
+            cur.execute('SELECT v FROM %s WHERE k = %%s' % SETTINGS_TABLE, (key,))
+            r = cur.fetchone()
+        return _json.loads(r['v']) if r and r.get('v') else None
+    except Exception:
+        return None
+
+
+def put_setting(key, value):
+    """設定表へ書く（表が無ければ作る）。"""
+    now, uid = get_jst_now(), session.get('user_id')
+    with _fdb() as (cur, conn):
+        cur.execute(SETTINGS_DDL)
+        cur.execute('INSERT INTO %s (k, v, updated_at, updated_by) VALUES (%%s, %%s, %%s, %%s) '
+                    'ON DUPLICATE KEY UPDATE v = VALUES(v), updated_at = VALUES(updated_at), '
+                    'updated_by = VALUES(updated_by)' % SETTINGS_TABLE,
+                    (key, _json.dumps(value, ensure_ascii=False), now, uid))
+        conn.commit()
+
+
+def _active_raw():
+    v = get_setting('active_sets')
+    if v is None:
+        try:
+            with open(_ACTIVE_FILE, encoding='utf-8') as f:
+                v = _json.load(f)
+        except Exception:
+            v = None
+    return (v or {}).get('sets', []) if isinstance(v, dict) else []
 
 
 def load_active_sets():
     try:
-        with open(_ACTIVE_FILE, encoding='utf-8') as f:
-            v = _json.load(f)
         out = []
-        for x in v.get('sets', []):
+        for x in _active_raw():
             y, st = safe_int(x.get('year')), x.get('stage')
             if y and st in STAGE_LABEL and (y, st) not in [(a['year'], a['stage']) for a in out]:
                 out.append({'year': y, 'stage': st})
@@ -92,9 +135,7 @@ def load_active_sets():
 
 
 def save_active_sets(sets):
-    _os.makedirs(_os.path.dirname(_ACTIVE_FILE), exist_ok=True)
-    with open(_ACTIVE_FILE, 'w', encoding='utf-8') as f:
-        _json.dump({'sets': sets}, f, ensure_ascii=False, indent=1)
+    put_setting('active_sets', {'sets': sets})
 
 
 def is_active(year, stage):

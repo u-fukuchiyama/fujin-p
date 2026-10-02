@@ -27,6 +27,7 @@
         .btn.fujin { background:#e74c3c; color:#fff; border:1px solid #e74c3c; }
         .btn.sub { background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; }
         .btn.danger { background:#b91c1c; }
+        .btn:disabled { opacity:.4; cursor:not-allowed; }
         .card { background:white; padding:22px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,.1); margin-bottom:16px; }
         .card h2 { font-size:0.98rem; color:#374151; margin-bottom:14px; padding-bottom:10px; border-bottom:2px solid #e5e7eb; }
         .note { font-size:0.8rem; color:#6b7280; line-height:1.7; margin-bottom:10px; }
@@ -52,9 +53,26 @@
     </div>
 
     <div class="card">
-        <h2>🗄️ 常設テーブルの格納状況（nishida$fujinp）</h2>
+        <h2>🗄️ 常設テーブルの格納状況（<span id="dbName">fujinp の DB</span>）</h2>
         <p class="note">データは T_mid_plan_details／T_mid_plan_evaluations／T_ann_plan_details／T_ann_plan_evaluations の4表にあります．ふだんの書き込みは事業全貌の各画面で行います．</p>
         <div id="status">読み込み中…</div>
+    </div>
+
+    <div class="card">
+        <h2>🚚 まるごと移行（サイト間でデータを運ぶ）</h2>
+        <p class="note">事業全貌が使う8表（常設4表と，執筆依頼・法人評価・設定の4表）を1つのファイルにまとめて運びます．
+            移し元で「書き出す」，移し先で同じファイルを選んで「取り込む」だけです．
+            移し先に表が無ければ作り，列が足りなければ足します．取り込むと移し先の8表の中身はファイルの中身に置き換わります．</p>
+        <div id="mgStatus" class="note">読み込み中…</div>
+        <div class="row">
+            <a class="btn" href="{{ url_for('mid_term_progress.migrate_export') }}">⬇ まるごと書き出す（JSON）</a>
+        </div>
+        <div class="row">
+            <input type="file" id="mgFile" accept=".json" onchange="mgCheck()">
+            <button class="btn danger" type="button" id="mgGo" onclick="mgImport()" disabled>📥 取り込む（置き換え）</button>
+        </div>
+        <div id="mgPlan"></div>
+        <div id="mgMsg" class="msg"></div>
     </div>
 
     <div class="card">
@@ -71,7 +89,7 @@
 
     <div class="card">
         <h2>🚨 非常用アップロード（xlsx → 常設テーブル）</h2>
-        <div class="warn">ふだんは使いません．サイト間でデータを移すときや，画面から直せないときの非常用です．<br>
+        <div class="warn">ふだんは使いません．画面から直せないときの非常用です（サイト間の移行は上の「まるごと移行」で行います）．<br>
             上のダウンロードと同じ形（シート名＝テーブル名，1行目＝列名）の xlsx を読み，キー（年度・期などの組）が同じ行は上書き，無い行は追加します．
             id・created_at・updated_at・updated_by の列は読みません．実行の前に SQL Saver などで控えを取ってください．</div>
         <div class="row">
@@ -128,7 +146,62 @@ async function upload(){
     if (r.success) loadStatus();
   } catch (e) { msg.className = 'msg ng'; msg.textContent = 'エラー: ' + e; }
 }
+async function mgStatus(){
+  const box = document.getElementById('mgStatus');
+  try {
+    const r = await (await fetch('{{ url_for("mid_term_progress.api_migrate_status") }}')).json();
+    if (!r.success) { box.textContent = 'エラー: ' + r.error; return; }
+    document.getElementById('dbName').textContent = r.database;
+    let h = '<table class="st"><tr><th>テーブル</th><th>中身</th><th>行数</th></tr>';
+    r.tables.forEach(t => { h += `<tr><td>${esc(t.table)}</td><td>${esc(t.label)}</td><td>${t.exists ? esc(t.rows) : '（表なし）'}</td></tr>`; });
+    h += '</table>';
+    const a = (r.active_sets || []).map(x => `${x.year}年度 ${({plan:'年度計画策定',progress:'年度計画進捗状況報告',result:'業務実績報告'})[x.stage] || x.stage}`);
+    h += '執筆者に開いている依頼：' + (a.length ? esc(a.join('，')) : '（なし）');
+    h += '<br>担当部門の並び：' + ((r.columns || []).length ? esc(r.columns.length + ' 部門（' + r.columns.join('，') + '）') : '（未設定）');
+    box.innerHTML = h;
+  } catch (e) { box.textContent = '読み込めませんでした: ' + e; }
+}
+let mgOk = false;
+async function mgCheck(){
+  const f = document.getElementById('mgFile').files[0], box = document.getElementById('mgPlan'), go = document.getElementById('mgGo');
+  go.disabled = true; mgOk = false; document.getElementById('mgMsg').textContent = '';
+  if (!f) { box.innerHTML = ''; return; }
+  box.innerHTML = '<p class="note">ファイルを点検しています…</p>';
+  const fd = new FormData(); fd.append('file', f);
+  try {
+    const r = await (await fetch('{{ url_for("mid_term_progress.api_migrate_check") }}', {method:'POST', body:fd})).json();
+    if (!r.success) { box.innerHTML = `<div class="msg ng">${esc(r.error)}</div>`; return; }
+    const s = r.source || {};
+    let h = `<p class="note">移し元：${esc(s.site)}（${esc(s.database)}）${esc(s.generated_at)} 書き出し　→　移し先：${esc(r.database)}</p>`;
+    h += '<table class="st"><tr><th>テーブル</th><th>いま</th><th>取り込み後</th><th>表・列の準備</th></tr>';
+    r.plan.forEach(p => {
+      const prep = p.error ? `<span style="color:#b91c1c">${esc(p.error)}</span>`
+        : [p.create ? '表を作る' : '', p.add_columns.length ? '列を足す：' + p.add_columns.join('・') : '',
+           p.skip_columns.length ? '読み飛ばす列：' + p.skip_columns.join('・') : ''].filter(Boolean).join('，');
+      h += `<tr><td>${esc(p.table)}</td><td>${p.exists ? esc(p.now_rows) : '（表なし）'}</td>` +
+           `<td>${p.in_file ? esc(p.file_rows) : '（ファイルに無いので触らない）'}</td><td>${esc(prep)}</td></tr>`;
+    });
+    h += '</table>';
+    box.innerHTML = h;
+    mgOk = r.ok; go.disabled = !r.ok;
+  } catch (e) { box.innerHTML = `<div class="msg ng">点検できませんでした: ${esc(e)}</div>`; }
+}
+async function mgImport(){
+  const f = document.getElementById('mgFile').files[0], msg = document.getElementById('mgMsg');
+  if (!f || !mgOk) return;
+  if (!confirm('このサイトの事業全貌の8表を，ファイルの中身で置き換えます．\n実行の前に SQL Saver などで控えを取ってください．\nよろしいですか？')) return;
+  const fd = new FormData(); fd.append('file', f);
+  msg.className = 'msg'; msg.textContent = '取り込み中…';
+  document.getElementById('mgGo').disabled = true;
+  try {
+    const r = await (await fetch('{{ url_for("mid_term_progress.migrate_import") }}', {method:'POST', body:fd})).json();
+    msg.className = 'msg ' + (r.success ? 'ok' : 'ng');
+    msg.textContent = r.success ? ['取り込みました．'].concat(r.notes || [], r.report || []).join('\n') : ('エラー: ' + r.error);
+    if (r.success) { loadStatus(); mgStatus(); document.getElementById('mgPlan').innerHTML = ''; }
+  } catch (e) { msg.className = 'msg ng'; msg.textContent = 'エラー: ' + e; }
+}
 loadStatus();
+mgStatus();
 </script>
 </body>
 </html>
