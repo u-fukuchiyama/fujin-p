@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-02 09:41:47",
+  "generated_at": "2026-10-03 22:18:21",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -923,8 +923,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260917.152521-851390",
-      "version_confirmed_at": "2026-09-17 15:25:21"
+      "version_id": "v20260731.140601-231f06",
+      "version_confirmed_at": "2026-07-31 14:06:01"
     },
     {
       "app_name": "document_archive",
