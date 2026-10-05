@@ -1,0 +1,7 @@
+{# えすてぃマネ 共通ナビ：各画面の右上に「トップ」と「FUJIN-P」を置く（FUJIN-P 統一デザイン） #}
+{% if session.get('user_id') %}
+<span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;">
+  {% if not hide_top %}<a href="{{ url_for('stl.index') }}" style="background:#fff;color:#1f2937;text-decoration:none;font-size:.78rem;font-weight:700;padding:4px 12px;border-radius:20px;border:1px solid #d1d5db;white-space:nowrap;">トップ</a>{% endif %}
+  <a href="{{ url_for('stl.return_to_fujin') }}" style="background:#ef4444;color:#fff;text-decoration:none;font-size:.78rem;font-weight:800;padding:4px 12px;border-radius:20px;white-space:nowrap;">FUJIN-P</a>
+</span>
+{% endif %}

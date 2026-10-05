@@ -1,0 +1,148 @@
+{#
+  まちなかキャンパス 点検者管理
+  context: inspectors (list of rows), candidates (list of users not yet registered),
+           approve_groups (list of approve group names), is_admin
+
+  バックエンドは単一エンドポイント /inspectors (POST) で
+  action=add|toggle|remove と user_id で操作を切り替える。
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>点検者管理 - まちなかキャンパス</title>
+<style>
+:root{
+  --c-primary:#059669; --c-primary-d:#047857; --c-surface:#ecfdf5;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-warn:#f59e0b; --c-ng:#ef4444; --c-info:#0ea5e9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px;line-height:1.6}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:720px;margin:0 auto;gap:6px;flex-wrap:wrap}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:720px;margin:0 auto;padding:14px}
+.flashes{max-width:720px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.card{background:#fff;border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+h1{font-size:1.15rem;font-weight:800;color:var(--c-primary-d);margin-bottom:10px}
+.sec-title{font-size:.95rem;font-weight:700;color:var(--c-primary-d);margin:14px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--c-surface)}
+
+.info-box{background:#eff6ff;border-left:4px solid var(--c-info);padding:10px 12px;border-radius:6px;font-size:.82rem;color:#1e3a8a;margin-bottom:14px;line-height:1.5}
+
+.ins-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px dashed var(--c-border);flex-wrap:wrap}
+.ins-row:last-child{border-bottom:none}
+.ins-name{font-weight:700;font-size:.92rem;flex:1;min-width:140px}
+.ins-name .sub{display:block;font-weight:400;color:var(--c-muted);font-size:.76rem}
+.active-badge{display:inline-block;padding:2px 9px;border-radius:11px;font-size:.72rem;font-weight:700}
+.active-badge.on{background:#d1fae5;color:#065f46;border:1px solid var(--c-ok)}
+.active-badge.off{background:#fef3c7;color:#92400e;border:1px solid var(--c-warn)}
+.ins-actions{display:flex;gap:6px;flex-wrap:wrap}
+.ins-note{font-size:.78rem;color:var(--c-muted);flex-basis:100%;padding-left:0}
+
+.btn{display:inline-block;padding:5px 12px;border-radius:7px;font-size:.78rem;font-weight:700;border:none;cursor:pointer;text-decoration:none}
+.btn-warn{background:var(--c-warn);color:#fff}
+.btn-danger{background:var(--c-ng);color:#fff}
+.btn-primary{background:var(--c-primary);color:#fff}
+
+.add-form{padding:12px;background:var(--c-surface);border-radius:8px;margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.add-form select{flex:1;min-width:180px;padding:7px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem;background:#fff}
+.add-form input[type=text]{flex:2;min-width:180px;padding:7px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem}
+
+.empty{color:var(--c-muted);font-size:.85rem;padding:20px 0;text-align:center}
+.groups-tag{display:inline-block;padding:1px 8px;border-radius:10px;background:var(--c-surface);color:var(--c-primary-d);font-size:.72rem;margin-right:4px}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🏘️ まちなかキャンパス</div>
+    <a href="{{ url_for('machinaka.index') }}" class="back">‹ 戻る</a>
+    {% include 'machinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <div class="card">
+    <h1>👥 点検者管理</h1>
+    <div class="info-box">
+      日報の点検（「確認しました」マーク）は、ここに登録された active な点検者のみが行えます。<br>
+      候補は
+      {% if approve_groups %}
+        承認グループ（{% for g in approve_groups %}<span class="groups-tag">{{ g }}</span>{% endfor %}）のメンバー
+      {% else %}
+        承認権限を持つグループのメンバー
+      {% endif %}
+      から選択します。
+    </div>
+
+    <div class="sec-title">登録済点検者</div>
+    {% if inspectors %}
+      {% for ins in inspectors %}
+      <div class="ins-row">
+        <div class="ins-name">
+          {{ ins.full_name or '(不明)' }}
+          <span class="sub">{{ ins.email or '' }}</span>
+        </div>
+        <span class="active-badge {% if ins.active %}on{% else %}off{% endif %}">
+          {% if ins.active %}● 有効{% else %}○ 停止中{% endif %}
+        </span>
+        <div class="ins-actions">
+          <form method="POST" action="{{ url_for('machinaka.inspectors') }}" style="display:inline">
+            <input type="hidden" name="action"  value="toggle">
+            <input type="hidden" name="user_id" value="{{ ins.user_id }}">
+            <button type="submit" class="btn {% if ins.active %}btn-warn{% else %}btn-primary{% endif %}">
+              {% if ins.active %}停止{% else %}有効化{% endif %}
+            </button>
+          </form>
+          <form method="POST" action="{{ url_for('machinaka.inspectors') }}"
+                onsubmit="return confirm('点検者登録を削除しますか？(過去の点検履歴は残ります)')"
+                style="display:inline">
+            <input type="hidden" name="action"  value="remove">
+            <input type="hidden" name="user_id" value="{{ ins.user_id }}">
+            <button type="submit" class="btn btn-danger">削除</button>
+          </form>
+        </div>
+        {% if ins.note %}<div class="ins-note">メモ: {{ ins.note }}</div>{% endif %}
+        {% if ins.registered_by_name %}
+        <div class="ins-note">登録: {{ ins.registered_at | fmtdatetime_m }} by {{ ins.registered_by_name }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">まだ点検者が登録されていません。下から追加してください。</div>
+    {% endif %}
+
+    <div class="sec-title">点検者を追加</div>
+    {% if candidates %}
+    <form method="POST" action="{{ url_for('machinaka.inspectors') }}" class="add-form">
+      <input type="hidden" name="action" value="add">
+      <select name="user_id" required>
+        <option value="">-- 追加するユーザを選択 --</option>
+        {% for c in candidates %}
+        <option value="{{ c.id }}">{{ c.full_name }} ({{ c.email or '-' }})</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="note" placeholder="メモ（任意）">
+      <button type="submit" class="btn btn-primary">追加</button>
+    </form>
+    {% else %}
+    <div class="empty">
+      追加可能な候補者がいません。<br>
+      <span style="font-size:.78rem">承認グループに新しいメンバーを追加すると、ここに表示されます。</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

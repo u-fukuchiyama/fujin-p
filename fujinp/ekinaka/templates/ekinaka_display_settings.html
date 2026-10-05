@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>メッセージディスプレイ設定 – えきなかキャンパス</title>
+<style>
+:root{--c-primary:#0ea5e9;--c-primary-d:#0284c7;--c-surface:#f0f9ff;--c-card:#fff;
+  --c-text:#1e293b;--c-muted:#64748b;--c-border:#e2e8f0;--c-ok:#10b981;--c-ng:#ef4444;--c-warn:#f59e0b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);padding-bottom:60px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;gap:10px;max-width:820px;margin:0 auto}
+.back{color:#fff;text-decoration:none;font-size:1.2rem;padding:2px 4px}
+.htitle{font-size:.95rem;font-weight:700}
+.content{max-width:820px;margin:0 auto;padding:14px}
+.flashes{max-width:820px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.intro{background:var(--c-card);border-radius:12px;padding:13px 15px;margin-bottom:14px;
+  box-shadow:0 1px 4px rgba(0,0,0,.07);font-size:.82rem;color:var(--c-muted);line-height:1.7}
+.intro strong{color:var(--c-text)}
+.intro code{background:var(--c-surface);padding:1px 5px;border-radius:4px;font-size:.92em}
+
+.slot{background:var(--c-card);border-radius:12px;padding:14px;margin-bottom:14px;
+  box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.slot-top{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.slot-no{font-size:1.05rem;font-weight:800;color:var(--c-primary)}
+.slot-title{font-size:.92rem;font-weight:700;flex:1}
+.now-badge{font-size:.7rem;padding:3px 10px;border-radius:12px;color:#fff;font-weight:700;background:var(--c-ok)}
+.now-badge.none{background:var(--c-warn)}
+
+.url-row{display:flex;align-items:center;gap:6px;margin-bottom:12px}
+.url-box{flex:1;font-size:.72rem;font-family:monospace;background:var(--c-surface);
+  border:1px solid var(--c-border);border-radius:6px;padding:6px 9px;color:var(--c-text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.copy-btn{font-size:.72rem;border:1px solid var(--c-primary);color:var(--c-primary);
+  background:#fff;border-radius:6px;padding:6px 11px;cursor:pointer;white-space:nowrap}
+.copy-btn:active{background:#e0f2fe}
+
+.faces{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:560px){.faces{grid-template-columns:1fr}}
+.face{border:1.5px solid var(--c-border);border-radius:10px;padding:11px;transition:border-color .15s,background .15s}
+.face.active{border-color:var(--c-ok);background:#ecfdf5}
+.face-head{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.face-label{font-size:.82rem;font-weight:700}
+.face-tag{font-size:.64rem;padding:2px 8px;border-radius:10px;color:#fff;font-weight:700}
+.face-tag.active{background:var(--c-ok)}
+.face-tag.idle{background:var(--c-muted)}
+.preview{width:100%;aspect-ratio:5/3;border:1px solid var(--c-border);border-radius:8px;
+  background:#f8fafc;display:flex;align-items:center;justify-content:center;
+  color:var(--c-muted);font-size:.78rem;overflow:hidden;margin-bottom:8px}
+.preview img{width:100%;height:100%;object-fit:contain;display:block}
+.mtime{font-size:.7rem;color:var(--c-muted);margin-bottom:7px}
+input[type=file]{font-size:.78rem;width:100%;padding:7px;border:1.5px dashed var(--c-border);
+  border-radius:8px;background:var(--c-surface);cursor:pointer;font-family:inherit}
+input[type=file]::file-selector-button{font-family:inherit;font-size:.76rem;margin-right:9px;
+  padding:5px 11px;border:none;border-radius:6px;background:var(--c-primary);color:#fff;cursor:pointer}
+
+.slot-actions{display:flex;align-items:center;gap:10px;margin-top:12px;
+  padding-top:11px;border-top:1px solid var(--c-border);flex-wrap:wrap}
+.next-btn{padding:9px 16px;background:var(--c-primary);color:#fff;border:none;border-radius:9px;
+  font-size:.83rem;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+.next-btn:active{opacity:.88}
+.next-hint{font-size:.74rem;color:var(--c-muted)}
+
+.save-bar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--c-surface) 28%);
+  padding:14px 0 4px;margin-top:4px}
+.save-btn{display:block;width:100%;padding:14px;background:var(--c-primary);color:#fff;
+  border:none;border-radius:12px;font-size:.95rem;font-weight:800;cursor:pointer;font-family:inherit}
+.save-btn:active{opacity:.88}
+.note{font-size:.76rem;color:var(--c-muted);margin-top:12px;line-height:1.7;
+  padding:10px 12px;background:var(--c-surface);border-radius:8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <a class="back" href="{{ url_for('ekinaka.index') }}">←</a>
+    <span class="htitle">🖼 メッセージディスプレイ設定</span>
+    {% include 'ekinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+
+  <div class="intro">
+    テーブル上の <strong>e ink ディスプレイ（{{ disp_w }}×{{ disp_h }} PNG）</strong>の表示を管理します。<br>
+    各機に <strong>A面・B面の2枚</strong>を登録し、「<strong>次画像</strong>」ボタンで現在出す面を切り替えます。<br>
+    各機は自機の固定URLを定期的に取りに来るだけで、切替はすべてこのサーバー側で行われます（機体側に知能は不要）。<br>
+    現在 active な面の画像が、その固定URLの中身として返されます。
+  </div>
+
+  <form method="post" enctype="multipart/form-data">
+    {% for s in slots %}
+    <div class="slot">
+      <div class="slot-top">
+        <span class="slot-no">#{{ s.slot }}</span>
+        <span class="slot-title">ディスプレイ {{ s.slot }}</span>
+        {% if s.active_exists %}
+          <span class="now-badge">配信中：{{ s.active.upper() }}面</span>
+        {% else %}
+          <span class="now-badge none">配信中：{{ s.active.upper() }}面（画像未登録）</span>
+        {% endif %}
+      </div>
+
+      <div class="url-row">
+        <span class="url-box" id="url{{ s.slot }}">{{ s.serve_url }}</span>
+        <button type="button" class="copy-btn" onclick="copyUrl('url{{ s.slot }}', this)">コピー</button>
+      </div>
+
+      <div class="faces">
+        {% for face in ['a','b'] %}
+        {% set f_exists = s.a_exists if face=='a' else s.b_exists %}
+        {% set f_mtime  = s.a_mtime if face=='a' else s.b_mtime %}
+        {% set is_active = (s.active == face) %}
+        <div class="face {{ 'active' if is_active else '' }}">
+          <div class="face-head">
+            <span class="face-label">{{ face.upper() }}面</span>
+            {% if is_active %}<span class="face-tag active">● 配信中</span>
+            {% else %}<span class="face-tag idle">待機</span>{% endif %}
+          </div>
+          <div class="preview">
+            {% if f_exists %}
+              <img src="{{ url_for('ekinaka.display_preview', slot=s.slot, face=face) }}?t={{ f_mtime.timestamp()|int if f_mtime else 0 }}"
+                   alt="display {{ s.slot }} {{ face }}">
+            {% else %}未登録{% endif %}
+          </div>
+          {% if f_mtime %}<div class="mtime">更新：{{ f_mtime.strftime('%Y/%m/%d %H:%M') }}</div>{% endif %}
+          <input type="file" name="display_{{ s.slot }}_{{ face }}" accept="image/png">
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="slot-actions">
+        <button type="submit" class="next-btn"
+                formmethod="post" formaction="{{ url_for('ekinaka.display_advance', slot=s.slot) }}">
+          ⟳ 次画像（{{ 'B' if s.active=='a' else 'A' }}面へ）
+        </button>
+        <span class="next-hint">現在 {{ s.active.upper() }}面 → 押すと反対の面に切り替わります</span>
+      </div>
+    </div>
+    {% endfor %}
+
+    <div class="save-bar">
+      <button class="save-btn" type="submit">画像をアップロードして反映する</button>
+    </div>
+  </form>
+
+  <div class="note">
+    ⚠️ アップロードは PNG のみ。{{ disp_w }}×{{ disp_h }} と異なる場合は自動リサイズされます（サーバに Pillow がある場合）。<br>
+    変更したい面だけファイルを選べば、選んでいない面は現状維持されます。<br>
+    「次画像」ボタンはアップロードとは独立して、その場で配信面を切り替えます。
+  </div>
+
+</div>
+
+<script>
+function copyUrl(id, btn){
+  const t = document.getElementById(id).textContent.trim();
+  navigator.clipboard.writeText(t).then(function(){
+    const o = btn.textContent;
+    btn.textContent = '✓ コピー済';
+    setTimeout(function(){ btn.textContent = o; }, 1400);
+  });
+}
+</script>
+</body>
+</html>

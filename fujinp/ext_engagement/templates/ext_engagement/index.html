@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>連携申請審査 - FUJIN-P</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%);
+            min-height: 100vh;
+            padding: 15px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        /* ─── ヘッダー ─── */
+        .header {
+            background: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .header h1 { color: #1e3a5f; font-size: 1.35rem; flex: 1; }
+        .header-subtitle { color: #666; font-size: 0.8rem; margin-top: 2px; }
+        .btn-return {
+            padding: 8px 14px;
+            background: #e74c3c;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            white-space: nowrap;
+            box-shadow: 0 1px 3px rgba(0,0,0,.2);
+            transition: 0.2s;
+        }
+        .btn-return:hover {
+            background: #c0392b;
+        }
+        .new-btn {
+            padding: 8px 16px;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .report-btn {
+            padding: 8px 14px;
+            background: #f59e0b;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .stats-btn {
+            padding: 8px 14px;
+            background: #0891b2;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+        .t0604-btn {
+            padding: 8px 14px;
+            background: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+        .committee-btn {
+            padding: 8px 14px;
+            background: #7c3aed;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+        /* ─── T_06_04モーダル専用スタイル ─── */
+        #modal-t0604 .modal { max-width: 860px; }
+        .t0604-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+            margin: 10px 0;
+        }
+        .t0604-table th {
+            background: #1e3a5f;
+            color: white;
+            padding: 7px 10px;
+            text-align: left;
+            font-weight: 600;
+        }
+        .t0604-table td {
+            padding: 7px 10px;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
+        }
+        .t0604-table tr:hover td { background: #f0f9ff; }
+        .t0604-table .chk-col { width: 36px; text-align: center; }
+        .t0604-table .fee-warn {
+            color: #b45309;
+            font-size: 0.78rem;
+        }
+        .t0604-summary {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+        }
+        .t0604-summary strong { color: #1e40af; }
+        .t0604-empty {
+            text-align: center;
+            padding: 30px;
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+        .t0604-loading {
+            text-align: center;
+            padding: 30px;
+            color: #6b7280;
+        }
+        #t0604-select-all-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        /* ─── フィルタパネル ─── */
+        .filter-panel {
+            background: white;
+            padding: 14px 20px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .filter-panel label { font-size: 0.82rem; color: #555; font-weight: 600; }
+        .filter-panel select, .filter-panel input {
+            padding: 6px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            color: #333;
+        }
+        .filter-group { display: flex; align-items: center; gap: 6px; }
+        .filter-apply {
+            padding: 7px 14px;
+            background: #1e3a5f;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        /* ─── タブ ─── */
+        .tab-bar {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+        .tab-btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-size: 0.88rem;
+            font-weight: 600;
+            background: rgba(255,255,255,0.3);
+            color: white;
+            transition: background 0.2s;
+        }
+        .tab-btn.active { background: white; color: #1e3a5f; }
+
+        /* ─── 案件カード ─── */
+        #cases-container { display: grid; gap: 10px; }
+        .case-card {
+            background: white;
+            border-radius: 10px;
+            padding: 16px 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: box-shadow 0.2s, transform 0.1s;
+            border-left: 5px solid #94a3b8;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        .case-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform: translateY(-1px); }
+        .case-card.status-reviewing { border-left-color: #f59e0b; }
+        .case-card.status-approved  { border-left-color: #10b981; }
+        .case-card.status-rejected  { border-left-color: #ef4444; }
+        .case-card.status-withdrawn { border-left-color: #9ca3af; }
+
+        .case-id-block { min-width: 150px; }
+        .case-id-str {
+            font-size: 0.78rem;
+            color: #6b7280;
+            font-family: monospace;
+            white-space: nowrap;
+        }
+        .case-app-no {
+            font-size: 0.78rem;
+            color: #1e3a5f;
+            font-weight: 700;
+            margin-top: 2px;
+            white-space: nowrap;
+        }
+        .case-type-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-top: 4px;
+            white-space: nowrap;
+        }
+        .type-contract_research      { background: #dbeafe; color: #1e40af; }
+        .type-contract_project       { background: #ede9fe; color: #5b21b6; }
+        .type-collaborative_research { background: #d1fae5; color: #065f46; }
+        .type-collaborative_project  { background: #fef3c7; color: #92400e; }
+
+        .case-main { flex: 1; }
+        .case-title {
+            font-size: 0.97rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+        .case-org { font-size: 0.83rem; color: #64748b; }
+        .case-meta { font-size: 0.78rem; color: #9ca3af; margin-top: 5px; }
+        .case-consultation {
+            font-size: 0.78rem;
+            color: #0369a1;
+            margin-top: 4px;
+            background: #e0f2fe;
+            border-radius: 4px;
+            padding: 3px 7px;
+            display: inline-block;
+        }
+
+        .case-status-block { min-width: 80px; text-align: right; }
+        .case-card.status-draft { border-left-color: #a78bfa; }
+
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+        .status-reviewing { background: #fef3c7; color: #92400e; }
+        .status-approved  { background: #d1fae5; color: #065f46; }
+        .status-rejected  { background: #fee2e2; color: #991b1b; }
+        .status-withdrawn { background: #f3f4f6; color: #6b7280; }
+        .review-deadline  { font-size: 0.75rem; color: #9ca3af; margin-top: 6px; }
+
+        /* ─── 空表示 ─── */
+        .empty-state {
+            background: white;
+            border-radius: 10px;
+            padding: 50px;
+            text-align: center;
+            color: #9ca3af;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
+
+        /* ─── ローディング ─── */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: rgba(255,255,255,0.8);
+        }
+
+        /* ─── モーダル共通 ─── */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-backdrop.show { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 12px;
+            padding: 28px;
+            width: 90%;
+            max-width: 720px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .modal h2 { color: #1e3a5f; font-size: 1.2rem; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
+        .modal-close {
+            float: right;
+            background: none;
+            border: none;
+            font-size: 1.3rem;
+            cursor: pointer;
+            color: #9ca3af;
+            line-height: 1;
+        }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; margin-bottom: 4px; font-size: 0.85rem; font-weight: 600; color: #374151; }
+        .form-group label .req { color: #ef4444; margin-left: 3px; }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.88rem;
+            color: #1f2937;
+        }
+        .form-group textarea { min-height: 90px; resize: vertical; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .form-hint { font-size: 0.75rem; color: #9ca3af; margin-top: 3px; }
+
+        /* セクション区切り */
+        .form-section {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #6b7280;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 14px;
+            margin-top: 6px;
+            margin-bottom: 10px;
+        }
+
+        /* 担当者ユーザ検索 */
+        .user-search-wrap { position: relative; }
+        .user-search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 0 0 6px 6px;
+            z-index: 100;
+            max-height: 180px;
+            overflow-y: auto;
+            display: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .user-search-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.86rem;
+        }
+        .user-search-item:hover { background: #f0f9ff; }
+        .user-selected-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #dbeafe;
+            color: #1e40af;
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 0.83rem;
+            font-weight: 600;
+            margin-top: 5px;
+        }
+        .user-selected-badge .clear-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #6b7280;
+            font-size: 0.9rem;
+            line-height: 1;
+            padding: 0;
+        }
+
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .btn-primary { padding: 10px 22px; background: #1e3a5f; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .btn-cancel  { padding: 10px 22px; background: #f3f4f6; color: #374151; border: none; border-radius: 6px; cursor: pointer; }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* ─── トースト ─── */
+        #toast {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            padding: 14px 22px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            z-index: 9999;
+            display: none;
+            max-width: 360px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        #toast.success { background: #d1fae5; color: #065f46; }
+        #toast.error   { background: #fee2e2; color: #991b1b; }
+
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- ヘッダー -->
+    <div class="header">
+        <div style="flex:1">
+            <h1>🤝 北近畿地域連携機構　連携申請審査</h1>
+            <div class="header-subtitle">受託研究・受託事業・共同研究・共同事業 審査ワークフロー</div>
+        </div>
+
+        {% if is_admin %}
+        <a href="{{ url_for('ext_engagement.report') }}" class="report-btn">📊 年度報告</a>
+        <button class="t0604-btn" id="btn-t0604-sync">📋 T_06_04更新</button>
+        {% endif %}
+        {% if is_admin or is_chair %}
+        <button class="committee-btn" id="btn-committee">👥 委員会構成</button>
+        {% endif %}
+        <button class="stats-btn" id="btn-stats">📈 Stats</button>
+        {% if is_admin %}
+        <button class="new-btn" id="btn-new-case">＋ 新規登録</button>
+        {% endif %}
+        {% if ext_migration_role == 'export' %}
+        <a href="{{ url_for('ext_engagement.migration_export') }}" class="report-btn" style="background:#6d5fb8;">📤 移行データ書き出し</a>
+        {% endif %}
+        {% if ext_migration_role == 'import' %}
+        <form method="post" action="{{ url_for('ext_engagement.migration_upload') }}" enctype="multipart/form-data" style="display:inline;margin:0;">
+            <input type="file" name="package" id="extMigrationFile" accept=".zip" style="display:none" onchange="if(this.files.length){this.form.submit();}">
+            <button type="button" class="report-btn" style="background:#6d5fb8;" onclick="document.getElementById('extMigrationFile').click();">📥 移行データ取り込み</button>
+        </form>
+        {% endif %}
+        <a href="{{ url_for('ext_engagement.return_to_fujin') }}" class="btn-return">🏠 FUJIN-Pダッシュボードに戻る</a>
+
+    </div>
+
+    <!-- フィルタ -->
+    <div class="filter-panel">
+        <div class="filter-group">
+            <label>年度</label>
+            <select id="filter-fy">
+                <option value="">すべて</option>
+                {% for y in range(current_fy, current_fy - 5, -1) %}
+                <option value="{{ y }}" {% if y == current_fy %}selected{% endif %}>{{ y }}年度</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>種別</label>
+            <select id="filter-type">
+                <option value="">すべて</option>
+                {% for key, label in type_labels.items() %}
+                <option value="{{ key }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>ステータス</label>
+            <select id="filter-status">
+                <option value="">すべて</option>
+                {% for key, label in status_labels.items() %}
+                <option value="{{ key }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button class="filter-apply" id="btn-filter">絞り込み</button>
+    </div>
+
+    <!-- タブ -->
+    <div class="tab-bar">
+        {% if is_admin or is_chair %}
+            <button class="tab-btn" data-status="draft">📝 下書き</button>
+        {% endif %}
+        <button class="tab-btn active" data-status="reviewing">🟡 審議中</button>
+        <button class="tab-btn" data-status="">📋 全件</button>
+        <button class="tab-btn" data-status="approved">✅ 承認済</button>
+    </div>
+
+    <!-- 案件一覧 -->
+    <div id="cases-container">
+        <div class="loading">読み込み中...</div>
+    </div>
+
+</div>
+
+{% if is_admin %}
+<!-- ─── 新規登録モーダル ─── -->
+<div class="modal-backdrop" id="modal-new">
+    <div class="modal">
+        <button class="modal-close" id="modal-new-close">✕</button>
+        <h2>📝 新規連携申請 登録</h2>
+
+        <!-- 基本情報 -->
+        <div class="form-section">基本情報</div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>年度<span class="req">*</span></label>
+                <select id="new-fiscal-year">
+                    {% for y in range(current_fy + 1, current_fy - 3, -1) %}
+                    <option value="{{ y }}" {% if y == current_fy %}selected{% endif %}>{{ y }}年度</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>種別<span class="req">*</span></label>
+                <select id="new-type-key">
+                    {% for key, label in type_labels.items() %}
+                    <option value="{{ key }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>申請No（大学付番）</label>
+                <input type="text" id="new-application-no" placeholder="例：2026-01">
+                <div class="form-hint">大学が管理する通し番号。空欄でも登録可。</div>
+            </div>
+            <div class="form-group">
+                <label>新規 / 継続<span class="req">*</span></label>
+                <select id="new-is-new">
+                    <option value="1">新規</option>
+                    <option value="0">継続</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>課題名 / 事業名<span class="req">*</span></label>
+            <input type="text" id="new-title" placeholder="申請の課題名または事業名">
+        </div>
+
+        <div class="form-group">
+            <label>申請組織 / 共同機関<span class="req">*</span></label>
+            <input type="text" id="new-org-name" placeholder="例：福知山市、近畿大学農学部">
+        </div>
+
+        <div class="form-group">
+            <label>内容概要</label>
+            <textarea id="new-content" placeholder="研究・事業の概要を入力"></textarea>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>期間（開始）</label>
+                <input type="date" id="new-period-start">
+            </div>
+            <div class="form-group">
+                <label>期間（終了）</label>
+                <input type="date" id="new-period-end">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>研究費 / 事業費（旧テキスト欄）</label>
+            <input type="text" id="new-research-fee" placeholder="例：0円、1,000,000円">
+            <div class="form-hint">※ 以下の直接経費・間接経費欄が優先されます。旧データ互換のため残しています。</div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>直接経費（円）</label>
+                <input type="number" id="new-direct-fee" placeholder="例：1000000" min="0">
+            </div>
+            <div class="form-group">
+                <label>間接経費（円）</label>
+                <input type="number" id="new-indirect-fee" placeholder="例：300000" min="0">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>合計経費（自動計算）</label>
+            <div id="new-total-fee-display" style="padding:6px 10px;background:#f3f4f6;border-radius:5px;font-size:0.9rem;color:#374151;">
+                ―
+            </div>
+        </div>
+
+        <!-- 本学担当者 -->
+        <div class="form-section">本学担当者（申請者が希望）</div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>担当者名</label>
+                <input type="text" id="new-rep-name" placeholder="例：○○○○教授">
+                <div class="form-hint">先方が希望する担当者名（文字列）。希望なしの場合は空欄。</div>
+            </div>
+            <div class="form-group">
+                <label>所属</label>
+                <input type="text" id="new-faculty-dept" placeholder="例：情報学部">
+            </div>
+        </div>
+
+        {% if is_admin %}
+        <div class="form-group">
+            <label>FUJINアカウント連携</label>
+            <div class="user-search-wrap">
+                <input type="text" id="new-rep-user-search" placeholder="氏名で検索（任意）" autocomplete="off">
+                <div class="user-search-results" id="rep-user-results"></div>
+            </div>
+            <div id="rep-user-selected" style="margin-top:5px;"></div>
+            <div class="form-hint">FUJINアカウントと紐付けることで、COI確認等に活用できます。紐付けは任意。</div>
+        </div>
+        {% endif %}
+
+        <!-- 審議設定（管理者のみ） -->
+        {% if is_admin %}
+        <div class="form-section">審議設定（管理者）</div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>審議期間（開始）</label>
+                <input type="date" id="new-review-start">
+            </div>
+            <div class="form-group">
+                <label>審議期限</label>
+                <input type="date" id="new-review-end">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>事前協議の有無</label>
+            <textarea id="new-pre-consultation"
+                placeholder="例：申請内容について本学担当者に確認し、実施内容・委託金額に齟齬はないことを確認した。"></textarea>
+            <div class="form-hint">管理者が送出前に記入。委員には参照情報として表示されます。空欄可。</div>
+        </div>
+
+        <div class="form-group">
+            <label>申請書PDF URL</label>
+            <input type="text" id="new-doc-url" placeholder="非開示書類の保管URL">
+            <div class="form-hint">※ 委員のみ閲覧可能な秘密書類として扱われます</div>
+        </div>
+        {% endif %}
+
+        <div class="modal-actions">
+            <button class="btn-cancel" id="btn-cancel-new">キャンセル</button>
+            <button class="btn-primary" id="btn-submit-new">登録する</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ─── Stats モーダル ─── -->
+<div class="modal-backdrop" id="modal-stats">
+    <div class="modal" style="max-width:900px;">
+        <button class="modal-close" id="modal-stats-close">✕</button>
+        <h2>📈 連携申請 統計ダッシュボード</h2>
+
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+            <label style="font-size:0.85rem;font-weight:600;color:#374151;">年度</label>
+            <select id="stats-fy" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:5px;font-size:0.85rem;">
+                {% for y in range(current_fy, current_fy - 6, -1) %}
+                <option value="{{ y }}" {% if y == current_fy %}selected{% endif %}>{{ y }}年度</option>
+                {% endfor %}
+            </select>
+            <button id="btn-stats-reload" style="padding:6px 14px;background:#1e3a5f;color:white;border:none;border-radius:5px;font-size:0.83rem;cursor:pointer;">更新</button>
+        </div>
+
+        <div id="stats-body"><div style="text-align:center;padding:40px;color:#9ca3af;">⏳ 読み込み中...</div></div>
+    </div>
+</div>
+
+<!-- ─── 委員会構成モーダル（事務局・委員長） ─── -->
+{% if is_admin or is_chair %}
+<div class="modal-backdrop" id="modal-committee">
+    <div class="modal" style="max-width:640px;">
+        <button class="modal-close" id="modal-committee-close">✕</button>
+        <h2>👥 連携審査委員会の構成</h2>
+        <p style="font-size:0.85rem;color:#6b7280;margin:6px 0 14px;">
+            現在の連携審査委員会の委員長・委員の一覧です。案件の審議委員は、
+            審議開始宣言の時点でこの構成をもとに確定されます。
+        </p>
+        <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:0.84rem;color:#5b21b6;">
+            委員会の構成（委員・委員長の追加・変更）は、このアプリでは行いません。
+            ユーザーグループ管理アプリ「まいぐる」で設定してください。
+            <div style="margin-top:8px;">
+                <a href="{{ url_for('user_groups.index') }}"
+                   style="display:inline-block;padding:7px 16px;background:#7c3aed;color:white;border-radius:6px;text-decoration:none;font-weight:600;">
+                   👥 まいぐるを開く
+                </a>
+            </div>
+        </div>
+        <div id="committee-body">
+            <div style="text-align:center;padding:30px;color:#9ca3af;">⏳ 読み込み中...</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ─── T_06_04更新モーダル（管理者専用） ─── -->
+{% if is_admin %}
+<div class="modal-backdrop" id="modal-t0604">
+    <div class="modal">
+        <button class="modal-close" id="modal-t0604-close">✕</button>
+        <h2>📋 T_06_04_受託共同研究事業費受入実績 更新</h2>
+        <p style="font-size:0.85rem;color:#6b7280;margin:6px 0 14px;">
+            承認済み案件のうち、T_06_04 に未反映のものを一覧表示します。<br>
+            追記したい案件にチェックを入れて「選択した案件を追記」を実行してください。<br>
+            <span style="color:#b45309;">⚠ 直接経費・間接経費は NULL で挿入されます（点検時に手動補完）。</span>
+        </p>
+
+        <div id="t0604-body">
+            <div class="t0604-loading">⏳ 確認中...</div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-cancel" id="btn-cancel-t0604">閉じる</button>
+            <button class="btn-primary" id="btn-exec-t0604" disabled>選択した案件を追記</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div id="toast"></div>
+
+<script>
+const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+const CURRENT_USER_ID = {{ current_user_id }};
+const TYPE_LABELS = {{ type_labels | tojson }};
+const STATUS_LABELS = {{ status_labels | tojson }};
+
+// ─── ユーティリティ ───
+function toast(msg, isError) {
+    const $t = $('#toast');
+    $t.text(msg).removeClass('success error').addClass(isError ? 'error' : 'success').fadeIn();
+    setTimeout(() => $t.fadeOut(), 4000);
+}
+
+function statusBadge(status) {
+    const label = STATUS_LABELS[status] || status;
+    return `<span class="status-badge status-${status}">${label}</span>`;
+}
+
+function typeBadge(type_key, type_label) {
+    return `<span class="case-type-badge type-${type_key}">${type_label}</span>`;
+}
+
+// ─── 案件一覧描画 ───
+let currentStatusFilter = 'reviewing';
+
+function loadCases() {
+    const fy     = $('#filter-fy').val();
+    const type   = $('#filter-type').val();
+    const status = currentStatusFilter || $('#filter-status').val();
+
+    const params = {};
+    if (fy)     params.fiscal_year = fy;
+    if (type)   params.type_key    = type;
+    if (status) params.status      = status;
+
+    $('#cases-container').html('<div class="loading">読み込み中...</div>');
+
+    $.get('{{ url_for("ext_engagement.api_cases") }}', params, function(resp) {
+        if (!resp.success) { toast('読み込みエラー: ' + resp.error, true); return; }
+        renderCases(resp.cases);
+    }).fail(() => toast('通信エラー', true));
+}
+
+function renderCases(cases) {
+    if (!cases.length) {
+        $('#cases-container').html(`
+            <div class="empty-state">
+                <div class="icon">📭</div>
+                <div>該当する案件がありません</div>
+            </div>`);
+        return;
+    }
+    let html = '';
+    cases.forEach(c => {
+        const deadline = c.review_end
+            ? `<div class="review-deadline">審議期限: ${c.review_end}</div>` : '';
+        const approvedInfo = c.approved_date
+            ? `<div class="review-deadline">承認日: ${c.approved_date}</div>` : '';
+        const appNoHtml = c.application_no
+            ? `<div class="case-app-no">申請No: ${escHtml(c.application_no)}</div>` : '';
+        const consultHtml = c.pre_consultation
+            ? `<div class="case-consultation">🤝 事前協議あり</div>` : '';
+
+        html += `
+        <div class="case-card status-${c.status}" data-id="${c.id}"
+             onclick="location.href='{{ url_for('ext_engagement.index') }}case/${c.id}'">
+            <div class="case-id-block">
+                <div class="case-id-str">${c.case_display_id}</div>
+                ${appNoHtml}
+                ${typeBadge(c.type_key, c.type_label)}
+                <div class="case-meta" style="margin-top:6px">${c.is_new_application ? '新規' : '継続'}</div>
+            </div>
+            <div class="case-main">
+                <div class="case-title">${escHtml(c.title)}</div>
+                <div class="case-org">${escHtml(c.org_label)}：${escHtml(c.org_name)}</div>
+                <div class="case-meta">
+                    ${c.period_start ? c.period_start : ''}${c.period_end ? ' ～ ' + c.period_end : ''}
+                    ${c.representative_name ? '　担当：' + escHtml((c.faculty_dept ? c.faculty_dept + ' ' : '') + c.representative_name) : ''}
+                </div>
+                ${consultHtml}
+            </div>
+            <div class="case-status-block">
+                ${statusBadge(c.status)}
+                ${c.open_motion ? `<div style="margin-top:4px;display:inline-block;background:#f3e8ff;color:#6b21a8;font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:10px;">📌 委員長提案 第${c.open_motion.motion_no}号 審議中（${c.open_motion.total_voted}／${c.open_motion.eligible}）</div>` : ''}
+                ${deadline}
+                ${approvedInfo}
+            </div>
+        </div>`;
+    });
+    $('#cases-container').html(html);
+}
+
+function escHtml(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── タブ切り替え ───
+$('.tab-btn').on('click', function() {
+    $('.tab-btn').removeClass('active');
+    $(this).addClass('active');
+    currentStatusFilter = $(this).data('status');
+    loadCases();
+});
+
+$('#btn-filter').on('click', function() {
+    currentStatusFilter = $('#filter-status').val();
+    loadCases();
+});
+
+// ─── モーダル制御 ───
+$('#btn-new-case').on('click', () => {
+    // デフォルト：本日から1週間後を審議期限に
+    const today = new Date();
+    const end   = new Date(today); end.setDate(end.getDate() + 7);
+    const fmt   = d => d.toISOString().split('T')[0];
+    if (IS_ADMIN) {
+        $('#new-review-start').val(fmt(today));
+        $('#new-review-end').val(fmt(end));
+    }
+    // preferred_rep リセット
+    selectedRepUserId = null;
+    $('#new-rep-user-search').val('');
+    $('#rep-user-selected').html('');
+    // 経費フィールドリセット
+    $('#new-direct-fee').val('');
+    $('#new-indirect-fee').val('');
+    $('#new-total-fee-display').text('―');
+    $('#modal-new').addClass('show');
+});
+$('#modal-new-close, #btn-cancel-new').on('click', () => $('#modal-new').removeClass('show'));
+
+// ─── 直接経費・間接経費 合計自動計算 ───
+function updateTotalFeeDisplay(directId, indirectId, displayId) {
+    const d = parseInt($('#' + directId).val()) || 0;
+    const i = parseInt($('#' + indirectId).val()) || 0;
+    const dEmpty = $('#' + directId).val().trim() === '';
+    const iEmpty = $('#' + indirectId).val().trim() === '';
+    if (dEmpty && iEmpty) {
+        $('#' + displayId).text('―');
+    } else {
+        const total = d + i;
+        $('#' + displayId).text(total.toLocaleString('ja-JP') + ' 円'
+            + (dEmpty || iEmpty ? '　※片方未入力' : ''));
+    }
+}
+$('#new-direct-fee, #new-indirect-fee').on('input', function() {
+    updateTotalFeeDisplay('new-direct-fee', 'new-indirect-fee', 'new-total-fee-display');
+});
+
+// ─── 担当者ユーザ検索（管理者のみ） ───
+let selectedRepUserId = null;
+let repSearchTimer = null;
+
+$('#new-rep-user-search').on('input', function() {
+    clearTimeout(repSearchTimer);
+    const q = $(this).val().trim();
+    if (!q) { $('#rep-user-results').hide().html(''); return; }
+    repSearchTimer = setTimeout(() => {
+        $.get('{{ url_for("ext_engagement.api_users_search") }}', { q }, function(resp) {
+            if (!resp.success || !resp.users.length) {
+                $('#rep-user-results').html('<div class="user-search-item" style="color:#9ca3af">該当なし</div>').show();
+                return;
+            }
+            let html = '';
+            resp.users.forEach(u => {
+                html += `<div class="user-search-item" data-id="${u.id}" data-name="${escHtml(u.display_name)}">${escHtml(u.display_name)}</div>`;
+            });
+            $('#rep-user-results').html(html).show();
+        });
+    }, 300);
+});
+
+$(document).on('click', '#rep-user-results .user-search-item', function() {
+    selectedRepUserId = $(this).data('id');
+    const name = $(this).data('name');
+    $('#rep-user-results').hide().html('');
+    $('#new-rep-user-search').val('');
+    $('#rep-user-selected').html(`
+        <span class="user-selected-badge">
+            👤 ${escHtml(name)}
+            <button class="clear-btn" id="btn-clear-rep" title="解除">✕</button>
+        </span>`);
+});
+
+$(document).on('click', '#btn-clear-rep', function() {
+    selectedRepUserId = null;
+    $('#rep-user-selected').html('');
+});
+
+// 外クリックで候補を閉じる
+$(document).on('click', function(e) {
+    if (!$(e.target).closest('.user-search-wrap').length) {
+        $('#rep-user-results').hide();
+    }
+});
+
+// ─── 新規登録送信 ───
+$('#btn-submit-new').on('click', function() {
+    const directFeeVal   = $('#new-direct-fee').val().trim();
+    const indirectFeeVal = $('#new-indirect-fee').val().trim();
+    const payload = {
+        fiscal_year:           parseInt($('#new-fiscal-year').val()),
+        type_key:              $('#new-type-key').val(),
+        application_no:        $('#new-application-no').val().trim(),
+        is_new_application:    $('#new-is-new').val() === '1',
+        title:                 $('#new-title').val().trim(),
+        org_name:              $('#new-org-name').val().trim(),
+        content:               $('#new-content').val().trim(),
+        research_fee:          $('#new-research-fee').val().trim(),
+        direct_fee:            directFeeVal !== '' ? parseInt(directFeeVal) : null,
+        indirect_fee:          indirectFeeVal !== '' ? parseInt(indirectFeeVal) : null,
+        period_start:          $('#new-period-start').val(),
+        period_end:            $('#new-period-end').val(),
+        representative_name:   $('#new-rep-name').val().trim(),
+        faculty_dept:          $('#new-faculty-dept').val().trim(),
+        preferred_rep_user_id: selectedRepUserId || null,
+        pre_consultation:      IS_ADMIN ? $('#new-pre-consultation').val().trim() : '',
+        review_start:          IS_ADMIN ? $('#new-review-start').val() : '',
+        review_end:            IS_ADMIN ? $('#new-review-end').val() : '',
+        doc_url:               IS_ADMIN ? $('#new-doc-url').val().trim() : '',
+    };
+
+    if (!payload.title || !payload.org_name) {
+        toast('課題名と申請組織は必須です', true);
+        return;
+    }
+
+    $(this).prop('disabled', true).text('登録中...');
+
+    $.ajax({
+        url: '{{ url_for("ext_engagement.api_case_new") }}',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        success: function(resp) {
+            if (resp.success) {
+                toast(`【${resp.case_display_id}】を登録しました`, false);
+                $('#modal-new').removeClass('show');
+                loadCases();
+            } else {
+                toast('エラー: ' + resp.error, true);
+            }
+        },
+        error: () => toast('通信エラー', true),
+        complete: () => $('#btn-submit-new').prop('disabled', false).text('登録する'),
+    });
+});
+
+// ─── Stats モーダル ───
+function openStatsModal() {
+    $('#modal-stats').addClass('show');
+    loadStats($('#stats-fy').val());
+}
+
+function loadStats(fy) {
+    $('#stats-body').html('<div style="text-align:center;padding:40px;color:#9ca3af;">⏳ 読み込み中...</div>');
+    $.get('{{ url_for("ext_engagement.api_stats") }}', { fiscal_year: fy }, function(resp) {
+        if (!resp.success) {
+            $('#stats-body').html(`<div style="color:#991b1b;padding:20px;">⚠ ${escHtml(resp.error)}</div>`);
+            return;
+        }
+        renderStats(resp);
+    }).fail(() => {
+        $('#stats-body').html('<div style="color:#991b1b;padding:20px;">⚠ 通信エラー</div>');
+    });
+}
+
+function fmtYen(v) {
+    if (!v) return '0 円';
+    return Number(v).toLocaleString('ja-JP') + ' 円';
+}
+
+function renderStats(d) {
+    const fy      = d.fiscal_year;
+    const sum     = d.summary;
+    const series  = d.monthly_series;
+    const hist    = d.historical;
+
+    // ── サマリカード ──
+    const summaryHtml = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;">
+        <div style="background:#eff6ff;border-radius:8px;padding:14px 18px;text-align:center;">
+            <div style="font-size:0.78rem;color:#6b7280;font-weight:600;margin-bottom:6px;">${fy}年度 承認件数</div>
+            <div style="font-size:2rem;font-weight:700;color:#1e40af;">${sum.total_approved}</div>
+            <div style="font-size:0.75rem;color:#9ca3af;">件</div>
+        </div>
+        <div style="background:#ecfdf5;border-radius:8px;padding:14px 18px;text-align:center;">
+            <div style="font-size:0.78rem;color:#6b7280;font-weight:600;margin-bottom:6px;">${fy}年度 承認金額合計</div>
+            <div style="font-size:1.4rem;font-weight:700;color:#065f46;">${fmtYen(sum.total_amount)}</div>
+            <div style="font-size:0.72rem;color:#9ca3af;">直接経費＋間接経費の合計</div>
+        </div>
+    </div>`;
+
+    // ── 月別テーブル ──
+    const hasData = series.some(r => r.count > 0);
+    let monthRows = '';
+    series.forEach(r => {
+        const barW = sum.total_approved > 0 ? Math.round(r.count / sum.total_approved * 100) : 0;
+        monthRows += `
+        <tr style="${r.count > 0 ? 'background:#f0fdf4;' : ''}">
+            <td style="padding:6px 10px;font-weight:600;color:#374151;">${r.month_label}</td>
+            <td style="padding:6px 10px;text-align:right;">${r.count}</td>
+            <td style="padding:6px 10px;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <div style="width:${barW * 1.2}px;height:10px;background:#10b981;border-radius:3px;min-width:${r.count>0?4:0}px;"></div>
+                    <span style="font-size:0.75rem;color:#9ca3af;">${r.cumulative_count}件</span>
+                </div>
+            </td>
+            <td style="padding:6px 10px;text-align:right;font-size:0.85rem;">${r.amount > 0 ? fmtYen(r.amount) : '―'}</td>
+            <td style="padding:6px 10px;text-align:right;font-size:0.85rem;color:#065f46;">${r.cumulative_amount > 0 ? fmtYen(r.cumulative_amount) : '―'}</td>
+        </tr>`;
+    });
+
+    const monthlyHtml = `
+    <div style="margin-bottom:24px;">
+        <div style="font-size:0.82rem;font-weight:700;color:#6b7280;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e5e7eb;">
+            📅 ${fy}年度 月別承認件数・金額
+        </div>
+        ${!hasData ? '<div style="color:#9ca3af;font-size:0.85rem;padding:12px;">承認済み案件がありません（直接経費・間接経費が入力されると金額も表示されます）</div>' : ''}
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+            <thead>
+                <tr style="background:#1e3a5f;color:white;">
+                    <th style="padding:7px 10px;text-align:left;">月</th>
+                    <th style="padding:7px 10px;text-align:right;">承認件数</th>
+                    <th style="padding:7px 10px;text-align:left;">累積件数</th>
+                    <th style="padding:7px 10px;text-align:right;">当月金額</th>
+                    <th style="padding:7px 10px;text-align:right;">累積金額</th>
+                </tr>
+            </thead>
+            <tbody>${monthRows}</tbody>
+        </table>
+        </div>
+    </div>`;
+
+    // ── 過去データ比較テーブル ──
+    // 今年度のデータを hist に追加（ext_engagementから）
+    const thisYearInHist = hist.find(h => h.year === fy);
+    const extRow = {
+        year: fy,
+        count: sum.total_approved,
+        total_fee: sum.total_amount,
+        total_direct: 0,
+        total_indirect: 0,
+        source: 'ext',
+    };
+
+    let histRows = '';
+    const allYears = [...hist.filter(h => h.year !== fy), extRow]
+        .sort((a, b) => a.year - b.year);
+
+    allYears.forEach(h => {
+        const isThis  = h.year === fy;
+        const rowFee  = isThis ? fmtYen(h.total_fee) : fmtYen(h.total_fee);
+        const feeNote = isThis ? '<span style="font-size:0.72rem;color:#6366f1;"> ※直接＋間接</span>' : '';
+        histRows += `
+        <tr style="${isThis ? 'background:#eff6ff;font-weight:700;' : ''}">
+            <td style="padding:6px 10px;">${h.year}年度 ${isThis ? '<span style="font-size:0.72rem;color:#6366f1;background:#e0e7ff;padding:1px 6px;border-radius:8px;">今年度(ext)</span>' : '<span style="font-size:0.72rem;color:#9ca3af;">T_06_04</span>'}</td>
+            <td style="padding:6px 10px;text-align:right;">${h.count}</td>
+            <td style="padding:6px 10px;text-align:right;">${rowFee}${feeNote}</td>
+        </tr>`;
+    });
+
+    const histHtml = hist.length === 0 ? '' : `
+    <div>
+        <div style="font-size:0.82rem;font-weight:700;color:#6b7280;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e5e7eb;">
+            📊 T_06_04 過去データとの比較
+        </div>
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+            <thead>
+                <tr style="background:#1e3a5f;color:white;">
+                    <th style="padding:7px 10px;text-align:left;">年度</th>
+                    <th style="padding:7px 10px;text-align:right;">件数</th>
+                    <th style="padding:7px 10px;text-align:right;">金額</th>
+                </tr>
+            </thead>
+            <tbody>${histRows}</tbody>
+        </table>
+        </div>
+        <div style="font-size:0.75rem;color:#9ca3af;margin-top:8px;">
+            ※ 過去年度は T_06_04 の「経費」カラム合計。今年度は ext_engagement の直接経費＋間接経費合計（NULL は 0 扱い）。
+        </div>
+    </div>`;
+
+    $('#stats-body').html(summaryHtml + monthlyHtml + histHtml);
+}
+
+$('#btn-stats').on('click', openStatsModal);
+$('#modal-stats-close').on('click', () => $('#modal-stats').removeClass('show'));
+$('#btn-stats-reload').on('click', () => loadStats($('#stats-fy').val()));
+
+// ─── 委員会構成モーダル（事務局・委員長） ───
+{% if is_admin or is_chair %}
+function openCommitteeModal() {
+    $('#modal-committee').addClass('show');
+    $('#committee-body').html(
+        '<div style="text-align:center;padding:30px;color:#9ca3af;">⏳ 読み込み中...</div>');
+    $.get('{{ url_for("ext_engagement.api_committee_members") }}', function(resp) {
+        if (!resp.success) {
+            $('#committee-body').html(
+                `<div style="color:#991b1b;padding:20px;">⚠ ${escHtml(resp.error)}</div>`);
+            return;
+        }
+        const members = resp.members || [];
+        const chairs    = members.filter(m => m.is_chair);
+        const committee = members.filter(m => m.is_committee && !m.is_chair);
+
+        function row(m, isChair) {
+            const badge = isChair
+                ? '<span style="background:#dbeafe;color:#1e40af;border-radius:10px;padding:2px 9px;font-size:0.74rem;font-weight:700;">委員長</span>'
+                : '<span style="background:#dcfce7;color:#065f46;border-radius:10px;padding:2px 9px;font-size:0.74rem;font-weight:700;">委員</span>';
+            const email = m.email
+                ? `<span style="color:#9ca3af;font-size:0.8rem;">${escHtml(m.email)}</span>` : '';
+            return `<div style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid #f3f4f6;">
+                ${badge}
+                <span style="font-weight:600;color:#1e3a5f;">${escHtml(m.full_name)}</span>
+                ${email}
+            </div>`;
+        }
+
+        let html = '';
+        if (!members.length) {
+            html = '<div style="color:#9ca3af;padding:20px;text-align:center;">委員会メンバーが登録されていません。まいぐるで設定してください。</div>';
+        } else {
+            html += '<div style="font-size:0.8rem;font-weight:700;color:#6b7280;margin:4px 0 2px;">委員長</div>';
+            html += chairs.length
+                ? chairs.map(m => row(m, true)).join('')
+                : '<div style="color:#9ca3af;font-size:0.84rem;padding:6px 4px;">未登録</div>';
+            html += '<div style="font-size:0.8rem;font-weight:700;color:#6b7280;margin:14px 0 2px;">委員</div>';
+            html += committee.length
+                ? committee.map(m => row(m, false)).join('')
+                : '<div style="color:#9ca3af;font-size:0.84rem;padding:6px 4px;">未登録</div>';
+        }
+        $('#committee-body').html(html);
+    }).fail(() => {
+        $('#committee-body').html(
+            '<div style="color:#991b1b;padding:20px;">⚠ 通信エラー</div>');
+    });
+}
+$('#btn-committee').on('click', openCommitteeModal);
+$('#modal-committee-close').on('click', () => $('#modal-committee').removeClass('show'));
+{% endif %}
+
+// ─── T_06_04 更新モーダル（管理者専用） ───
+{% if is_admin %}
+let t0604UnsyncedData = [];
+
+function openT0604Modal() {
+    t0604UnsyncedData = [];
+    $('#t0604-body').html('<div class="t0604-loading">⏳ 突合確認中...</div>');
+    $('#btn-exec-t0604').prop('disabled', true);
+    $('#modal-t0604').addClass('show');
+
+    $.get('{{ url_for("ext_engagement.api_t0604_check") }}', function(resp) {
+        if (!resp.success) {
+            $('#t0604-body').html(`<div class="t0604-empty">⚠ エラー: ${escHtml(resp.error)}</div>`);
+            return;
+        }
+        t0604UnsyncedData = resp.unsynced;
+        renderT0604Body(resp.unsynced);
+    }).fail(() => {
+        $('#t0604-body').html('<div class="t0604-empty">⚠ 通信エラー</div>');
+    });
+}
+
+function renderT0604Body(list) {
+    if (!list.length) {
+        $('#t0604-body').html(`
+            <div class="t0604-empty">
+                ✅ 承認済み案件はすべて T_06_04 に反映済みです。
+            </div>`);
+        $('#btn-exec-t0604').prop('disabled', true);
+        return;
+    }
+
+    let rows = '';
+    list.forEach((c, i) => {
+        const feeDisp = c.research_fee
+            ? escHtml(c.research_fee) + (c.research_fee_int === null
+                ? '<br><span class="fee-warn">※数値変換不可→NULLで挿入</span>' : '')
+            : '<span style="color:#9ca3af">未入力→NULL</span>';
+        const appNoDisp = c.application_no
+            ? escHtml(c.application_no)
+            : '<span style="color:#9ca3af">なし→NULL</span>';
+        rows += `
+        <tr>
+            <td class="chk-col">
+                <input type="checkbox" class="t0604-chk" data-idx="${i}" checked>
+            </td>
+            <td>${escHtml(c.case_display_id)}<br>
+                <span style="color:#6366f1;font-size:0.78rem">${escHtml(c.type_label)}</span>
+            </td>
+            <td>${c.fiscal_year}</td>
+            <td>${appNoDisp}</td>
+            <td><strong>${escHtml(c.title)}</strong><br>
+                <span style="color:#6b7280;font-size:0.78rem">${escHtml(c.org_name)}</span>
+            </td>
+            <td>${escHtml(c.faculty_dept ? c.faculty_dept + ' ' : '') + escHtml(c.representative_name)}</td>
+            <td>${feeDisp}</td>
+        </tr>`;
+    });
+
+    const html = `
+        <div class="t0604-summary">
+            未反映の承認済み案件：<strong>${list.length} 件</strong>
+        </div>
+        <div id="t0604-select-all-wrap">
+            <input type="checkbox" id="t0604-chk-all" checked>
+            <label for="t0604-chk-all">すべて選択 / 解除</label>
+        </div>
+        <div style="overflow-x:auto">
+        <table class="t0604-table">
+            <thead>
+                <tr>
+                    <th class="chk-col"></th>
+                    <th>案件ID</th>
+                    <th>年度</th>
+                    <th>整理番号</th>
+                    <th>課題名 / 委託者</th>
+                    <th>担当者</th>
+                    <th>経費</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+        </div>`;
+    $('#t0604-body').html(html);
+    updateExecBtn();
+
+    // 全選択チェックボックス
+    $('#t0604-chk-all').on('change', function() {
+        $('.t0604-chk').prop('checked', this.checked);
+        updateExecBtn();
+    });
+    $(document).on('change', '.t0604-chk', function() {
+        const allChecked = $('.t0604-chk').length === $('.t0604-chk:checked').length;
+        $('#t0604-chk-all').prop('checked', allChecked);
+        updateExecBtn();
+    });
+}
+
+function updateExecBtn() {
+    const count = $('.t0604-chk:checked').length;
+    $('#btn-exec-t0604')
+        .prop('disabled', count === 0)
+        .text(count > 0 ? `選択した ${count} 件を追記` : '選択した案件を追記');
+}
+
+$('#btn-t0604-sync').on('click', openT0604Modal);
+$('#modal-t0604-close, #btn-cancel-t0604').on('click', () => $('#modal-t0604').removeClass('show'));
+
+$('#btn-exec-t0604').on('click', function() {
+    const selectedIds = [];
+    $('.t0604-chk:checked').each(function() {
+        const idx = parseInt($(this).data('idx'));
+        if (t0604UnsyncedData[idx]) {
+            selectedIds.push(t0604UnsyncedData[idx].id);
+        }
+    });
+    if (!selectedIds.length) { toast('案件が選択されていません', true); return; }
+
+    if (!confirm(`選択した ${selectedIds.length} 件を T_06_04 に追記します。よろしいですか？`)) return;
+
+    $(this).prop('disabled', true).text('追記中...');
+
+    $.ajax({
+        url: '{{ url_for("ext_engagement.api_t0604_sync") }}',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ case_ids: selectedIds }),
+        success: function(resp) {
+            if (resp.success) {
+                toast(`✅ ${resp.inserted} 件を T_06_04 に追記しました`, false);
+                $('#modal-t0604').removeClass('show');
+            } else {
+                toast('エラー: ' + resp.error, true);
+                $('#btn-exec-t0604').prop('disabled', false).text(`選択した ${selectedIds.length} 件を追記`);
+            }
+        },
+        error: () => {
+            toast('通信エラー', true);
+            $('#btn-exec-t0604').prop('disabled', false);
+        },
+    });
+});
+{% endif %}
+
+// ─── 初期ロード ───
+$(document).ready(loadCases);
+</script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+{#
+  開示記事 公開一覧（閲覧者向け。scope/許可グループで絞り込み済み）
+  context: disclosures (enrich済), staff_ok
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STL 活動報告 — 公開記事</title>
+<style>
+:root{
+  --c-primary:#4338ca; --c-primary-d:#3730a3; --c-surface:#eef2ff;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-warn:#f59e0b; --c-info:#0ea5e9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px}
+header{background:var(--c-primary);color:#fff;padding:12px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:760px;margin:0 auto;gap:6px;flex-wrap:wrap}
+.site-name{font-size:1.1rem;font-weight:800}
+.hnav a{color:#fff;text-decoration:none;font-size:.78rem;background:rgba(255,255,255,.2);padding:4px 10px;border-radius:20px}
+.content{max-width:760px;margin:0 auto;padding:16px 14px}
+.intro{font-size:.85rem;color:var(--c-muted);margin-bottom:14px}
+
+.disc-card{background:#fff;border-radius:12px;padding:16px 18px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-decoration:none;color:inherit;display:block;border-left:4px solid var(--c-primary)}
+.disc-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.dc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.scope-badge{font-size:.68rem;padding:2px 9px;border-radius:10px;color:#fff;font-weight:700}
+.dc-date{font-size:.76rem;color:var(--c-muted)}
+.dc-title{font-size:1.05rem;font-weight:800;color:var(--c-text)}
+.empty{text-align:center;color:var(--c-muted);padding:40px 20px;font-size:.9rem}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🚀 STL 活動報告</div>
+    <nav class="hnav">
+      {% if staff_ok %}<a href="{{ url_for('stl.index') }}">事務局</a>{% endif %}
+    </nav>
+    {% include 'stl_manager/_std_nav.html' %}
+  </div>
+</header>
+
+<div class="content">
+  <div class="intro">Student Launch 学生団体の活動報告記事です。</div>
+
+  {% if disclosures %}
+    {% for d in disclosures %}
+    <a href="{{ url_for('stl.disclosure_detail', did=d.id) }}" class="disc-card">
+      <div class="dc-head">
+        <span class="scope-badge" style="background:{{ d.scope_color }}">{{ d.scope_label }}</span>
+        <span class="dc-date">{{ d.published_at | fmtdatetime_s('%Y/%m/%d') }}</span>
+      </div>
+      <div class="dc-title">{{ d.title }}</div>
+    </a>
+    {% endfor %}
+  {% else %}
+    <div class="empty">公開されている記事はまだありません。</div>
+  {% endif %}
+</div>
+</body>
+</html>

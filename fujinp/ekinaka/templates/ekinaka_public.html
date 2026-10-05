@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>えきなかキャンパス</title>
+<style>
+:root {
+  --c-primary:#0ea5e9; --c-primary-d:#0284c7; --c-surface:#f0f9ff;
+  --c-card:#fff; --c-text:#1e293b; --c-muted:#64748b; --c-border:#e2e8f0;
+  --c-ok:#10b981; --c-ng:#ef4444; --c-warn:#f59e0b;
+  --c-cancel:#dc2626; --c-postpone:#7c3aed; --c-grey:#6b7280;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:80px}
+
+/* ─ ヘッダー ─ */
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:640px;margin:0 auto}
+.site-name{font-size:1.05rem;font-weight:800;letter-spacing:.03em}
+.hnav{display:flex;gap:8px}
+.hnav a{color:#fff;text-decoration:none;font-size:.78rem;background:rgba(255,255,255,.2);padding:4px 10px;border-radius:20px;white-space:nowrap}
+
+/* ─ モード / 期間バー ─ */
+.modebar{background:#fff;border-bottom:1px solid var(--c-border);position:sticky;top:44px;z-index:100}
+.minner{max-width:640px;margin:0 auto;padding:6px 14px 4px;display:flex;flex-direction:column;gap:4px}
+.period-row{display:flex;align-items:center;justify-content:space-between}
+.period-row a.nav{display:flex;align-items:center;justify-content:center;flex:none;width:23px;height:23px;border-radius:50%;font-size:.72rem;line-height:1;color:#fff;text-decoration:none;font-weight:700;transition:background .15s,transform .1s}
+.period-row a.nav-prev{background:#8b5cf6;box-shadow:0 2px 5px rgba(139,92,246,.45)}
+.period-row a.nav-prev:hover{background:#7c3aed}
+.period-row a.nav-next{background:#f97316;box-shadow:0 2px 5px rgba(249,115,22,.45)}
+.period-row a.nav-next:hover{background:#ea580c}
+.period-row a.nav:active{transform:scale(.9)}
+.period-label{font-size:.92rem;font-weight:700;text-align:center;flex:1}
+.tabs-row{display:flex;align-items:center;gap:6px}
+.tabs{display:flex;flex:1;gap:3px}
+.tab{flex:1;text-align:center;padding:5px;border-radius:8px;text-decoration:none;font-size:.82rem;color:var(--c-muted);background:var(--c-surface)}
+.tab.on{background:var(--c-primary);color:#fff;font-weight:700}
+.today-btn{font-size:.72rem;color:var(--c-primary);text-decoration:none;border:1px solid var(--c-primary);padding:3px 8px;border-radius:12px;white-space:nowrap}
+
+.perf-date{display:inline-block;min-width:70px;color:var(--c-muted);font-weight:600;margin-right:4px}
+
+/* ─ コンテンツ ─ */
+.content{max-width:640px;margin:0 auto;padding:10px 14px}
+.sec-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--c-muted);margin:14px 0 6px;display:flex;align-items:center;gap:8px}
+.sec-label::after{content:'';flex:1;height:1px;background:var(--c-border)}
+
+/* ─ フラッシュ ─ */
+.flashes{max-width:640px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+/* ─ カード ─ */
+.card{background:var(--c-card);border-radius:12px;margin-bottom:9px;border-left:4px solid var(--c-ok);box-shadow:0 1px 4px rgba(0,0,0,.07);overflow:hidden;text-decoration:none;display:block;color:inherit}
+.card.cancelled{border-left-color:var(--c-cancel)}
+.card.postponed{border-left-color:var(--c-postpone)}
+.card.pending{border-left-color:var(--c-warn);opacity:.88}
+.card.rejected,.card.withdrawn{display:none} /* 管理者ログインなしでは表示しない */
+.card-head{padding:9px 13px 4px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.card-date{font-size:.8rem;color:var(--c-muted);white-space:nowrap;flex-shrink:0}
+.card-title{font-size:.93rem;font-weight:700;flex:1;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-summary{font-size:.82rem;color:var(--c-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.badge{font-size:.68rem;padding:2px 7px;border-radius:10px;color:#fff;font-weight:700;white-space:nowrap;flex-shrink:0}
+.cancel-msg{margin:0 13px 9px;font-size:.78rem;background:#fef2f2;border-radius:6px;padding:5px 9px;color:var(--c-cancel)}
+.postpone-msg{margin:0 13px 9px;font-size:.78rem;background:#f5f3ff;border-radius:6px;padding:5px 9px;color:var(--c-postpone)}
+
+/* ─ 空・過去 ─ */
+.empty{text-align:center;color:var(--c-muted);padding:28px 0;font-size:.88rem}
+details summary{cursor:pointer;list-style:none;padding:10px 0;color:var(--c-muted);font-size:.83rem;display:flex;align-items:center;gap:6px;user-select:none}
+details summary::marker{display:none}
+details summary::before{content:'▶';font-size:.65rem;transition:transform .2s}
+details[open] summary::before{transform:rotate(90deg)}
+.past-card{opacity:.75}
+
+/* 公演タイムライン */
+
+.card-perfs{padding:2px 13px 8px;display:flex;flex-direction:column;gap:2px}
+.perf-row{display:flex;align-items:baseline;gap:8px;font-size:.8rem}
+.perf-time{color:var(--c-primary);font-weight:700;white-space:nowrap;min-width:95px}
+.perf-name{color:var(--c-text);opacity:.85}
+
+.md-content{line-height:1.6;font-size:.83rem}
+.md-content p{margin:0}
+.md-content h1,.md-content h2,.md-content h3{font-size:.88rem;font-weight:700;display:inline}
+
+/* ─ 月カレンダー ─ */
+.cal-table{width:100%;border-collapse:collapse;table-layout:fixed}
+.cal-table th{text-align:center;font-size:.72rem;color:var(--c-muted);padding:4px 0;font-weight:600}
+.cal-table th:first-child{color:#ef4444}
+.cal-table th:last-child{color:#3b82f6}
+.cal-cell{border:1px solid var(--c-border);vertical-align:top;padding:4px 5px;height:52px;cursor:pointer;background:var(--c-card);transition:background .12s}
+.cal-cell:hover{background:#e0f2fe}
+.cal-cell.empty{background:var(--c-surface);cursor:default}
+.cal-cell.today-cell { background: #d1fae5; }
+.cal-cell.has-event { background: #fef9c3; }
+.cal-cell.has-event:hover { background: #fef08a; }
+.cal-day{font-size:.78rem;font-weight:700;color:var(--c-text)}
+.cal-cell:first-child .cal-day{color:#ef4444}
+.cal-cell:last-child .cal-day{color:#3b82f6}
+.cal-stars{font-size:.7rem;color:#f59e0b;margin-top:2px;line-height:1.3}
+
+/* ─ 日付セパレーター帯 ─ */
+.day-band{background:var(--c-surface);border:1px solid var(--c-border);border-radius:8px;padding:5px 12px;margin:8px 0 5px;font-size:.8rem;font-weight:700;color:var(--c-muted);display:flex;align-items:center;gap:6px}
+.day-band.sunday{color:#ef4444;border-color:#fecaca;background:#fff5f5}
+.day-band.saturday{color:#3b82f6;border-color:#bfdbfe;background:#eff6ff}
+.day-band.today{border-color:#f59e0b;background:#fef3c7;color:#92400e}
+.badge-ended{font-size:.68rem;padding:2px 7px;border-radius:10px;color:#fff;font-weight:700;white-space:nowrap;flex-shrink:0;background:var(--c-grey)}
+
+/* ─ FAB ─ */
+.fab{position:fixed;bottom:22px;right:18px;background:var(--c-primary);color:#fff;border:none;border-radius:50px;padding:13px 18px;font-size:.95rem;cursor:pointer;box-shadow:0 4px 14px rgba(14,165,233,.42);text-decoration:none;display:flex;align-items:center;gap:5px;font-weight:800;z-index:300}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🚉 えきなかキャンパス</div>
+    {% include 'ekinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="modebar">
+  <div class="minner">
+    <div class="tabs-row">
+      <div class="tabs">
+        <a href="?mode=week&anchor={{ anchor.isoformat() }}" class="tab {% if mode=='week' %}on{% endif %}">週</a>
+        <a href="?mode=month&anchor={{ anchor.isoformat() }}" class="tab {% if mode=='month' %}on{% endif %}">月</a>
+      </div>
+    </div>
+    <div class="period-row">
+      <a class="nav nav-prev" href="?mode={{ mode }}&anchor={{ prev_anchor.isoformat() }}" title="前へ" aria-label="前へ">◀︎</a>
+      <span class="period-label">{{ period_label }}</span>
+      <a class="nav nav-next" href="?mode={{ mode }}&anchor={{ next_anchor.isoformat() }}" title="次へ" aria-label="次へ">▶︎</a>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+  {% if mode == 'month' and cal_weeks %}
+    <div class="sec-label">{{ period_label }}</div>
+    <table class="cal-table">
+      <thead><tr>
+        <th>日</th><th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th>土</th>
+      </tr></thead>
+      <tbody>
+      {% for week in cal_weeks %}
+      <tr>
+        {% for cell in week %}
+        {% if cell.day %}
+          {% set cell_date = anchor.replace(day=cell.day) %}
+              <td class="cal-cell{% if cell_date == today %} today-cell{% elif cell.count %} has-event{% endif %}"
+                onclick="location.href='?mode=day&anchor={{ cell_date.isoformat() }}'">
+              <div class="cal-day">{{ cell.day }}</div>
+              {% if cell.count %}
+              <div class="cal-stars">{% for i in range(cell.count) %}★{% endfor %}</div>
+              {% endif %}
+            </td>
+        {% else %}
+          <td class="cal-cell empty"></td>
+        {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% elif mode in ('week', 'day') %}
+    <div class="sec-label">この期間のイベント</div>
+    <div style="font-size:.76rem;color:var(--c-muted);margin-bottom:8px;text-align:center">
+      📋 各イベントをタップすると詳細をご覧いただけます
+    </div>
+    {% set wday_names = ['月','火','水','木','金','土','日'] %}
+    {% set ns = namespace(last_date=None) %}
+    {% for ev in events %}
+      {% set ev_date = ev.event_start_date %}
+      {% if mode == 'week' and ev_date != ns.last_date %}
+        {% set wday_idx = ev_date.weekday() %}
+        {% set band_class = 'sunday' if wday_idx == 6 else ('saturday' if wday_idx == 5 else '') %}
+        {% set band_class = band_class + (' today' if ev_date == today else '') %}
+        <div class="day-band {{ band_class }}">
+          {{ ev_date | fmtdate('%m月%d日') }}（{{ wday_names[wday_idx] }}）
+        </div>
+        {% set ns.last_date = ev_date %}
+      {% endif %}
+
+    <a class="card {{ ev.status }}" href="{{ url_for('ekinaka.public_event_detail', eid=ev.id) }}">
+      <div class="card-head">
+        {% if ev.status in ['cancelled','postponed'] %}
+          <span class="badge" style="background:{{ ev.status_color }}">{{ ev.status_label }}</span>
+          {% elif ev.event_end_date < today %}
+          <span class="badge-ended">終了</span>
+        {% endif %}
+        {% if ev.event_start_date != ev.event_end_date %}
+          <span class="card-date">{{ ev.event_start_date | fmtdate('%m/%d') }}〜{{ ev.event_end_date | fmtdate('%m/%d') }}</span>
+        {% endif %}
+        <span class="card-title">{{ ev.title }}</span>
+        {% if ev.summary %}<span class="card-summary">{{ ev.summary[:40] }}{% if ev.summary|length > 40 %}…{% endif %}</span>{% endif %}
+
+      </div>
+      {% if ev.performances %}
+        <div class="card-perfs">
+          {% set wday_names = ['月','火','水','木','金','土','日'] %}
+          {% set perf_ns = namespace(last_date=None) %}
+          {% for p in ev.performances %}
+            {% set p_date = p.start_datetime.date() %}
+            <div class="perf-row">
+              <span class="perf-time">
+                {% if p_date != perf_ns.last_date %}
+                  <span class="perf-date">{{ p.start_datetime.strftime('%m/%d') }}（{{ wday_names[p.start_datetime.weekday()] }}）</span>
+                {% else %}
+                  <span class="perf-date" style="visibility:hidden">{{ p.start_datetime.strftime('%m/%d') }}（{{ wday_names[p.start_datetime.weekday()] }}）</span>
+                {% endif %}
+                {{ p.start_datetime | fmtdatetime('%H:%M') }}〜{{ p.end_datetime | fmtdatetime('%H:%M') }}
+              </span>
+              {% if p.note_html %}<span class="perf-name md-content">{{ p.note_html | safe }}</span>{% endif %}
+            </div>
+            {% set perf_ns.last_date = p_date %}
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% if ev.status == 'cancelled' %}<div class="cancel-msg">🚫 中止{% if ev.cancel_note %}：{{ ev.cancel_note }}{% endif %}</div>{% endif %}
+      {% if ev.status == 'postponed' %}<div class="postpone-msg">⏸ 延期{% if ev.cancel_note %}：{{ ev.cancel_note }}{% endif %}</div>{% endif %}
+    </a>
+
+    {% endfor %}
+
+  {% else %}
+    <div class="empty">この期間にイベントはありません</div>
+  {% endif %}
+
+  {% if month_hint %}
+  <div style="margin-bottom:10px;display:flex;flex-direction:column;gap:6px">
+    {% if month_hint.same %}
+    <a href="?mode=month&anchor={{ month_hint.same.isoformat() }}"
+       style="display:block;background:#dcfce7;border-radius:10px;padding:10px 14px;
+              text-decoration:none;color:#166534;font-size:.88rem;font-weight:700;
+              text-align:center">
+      📅 今月中にもイベントがあります →
+    </a>
+    {% endif %}
+    {% if month_hint.this %}
+    <a href="?mode=month&anchor={{ month_hint.this.isoformat() }}"
+       style="display:block;background:#e0f2fe;border-radius:10px;padding:10px 14px;
+              text-decoration:none;color:#0369a1;font-size:.88rem;font-weight:700;
+              text-align:center">
+      📅 {{ month_hint.this.strftime('%Y年%m月') }}にイベントがあります →
+    </a>
+    {% endif %}
+    {% if month_hint.next %}
+    <a href="?mode=month&anchor={{ month_hint.next.isoformat() }}"
+       style="display:block;background:#ede9fe;border-radius:10px;padding:10px 14px;
+              text-decoration:none;color:#5b21b6;font-size:.88rem;font-weight:700;
+              text-align:center">
+      📅 {{ month_hint.next.strftime('%Y年%m月') }}にイベントがあります →
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+
+  {% if past %}
+  <details>
+    <summary>過去のイベント記録（{{ past|length }}件）</summary>
+    {% for ev in past %}
+    <a class="card past-card {{ ev.status }}" href="{{ url_for('ekinaka.public_event_detail', eid=ev.id) }}">
+      <div class="card-head">
+        <div class="card-title">{{ ev.title }}</div>
+        <span class="badge" style="background:{{ ev.status_color }}">{{ ev.status_label }}</span>
+      </div>
+      <div class="card-meta">
+        <span>📅 {{ ev.event_start_date | fmtdate('%Y/%m/%d') }}{% if ev.event_start_date != ev.event_end_date %}〜{{ ev.event_end_date | fmtdate('%m/%d') }}{% endif %}</span>
+      </div>
+    </a>
+    {% endfor %}
+  </details>
+  {% endif %}
+</div>
+
+{% if apply_ok %}
+{# 閲覧専用：申請ボタンなし #}
+{% endif %}
+</body>
+</html>

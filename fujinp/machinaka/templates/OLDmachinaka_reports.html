@@ -1,0 +1,169 @@
+{#
+  日報一覧ページ
+  * 期間フィルタ・点検状態フィルタ
+  * 集計サマリ（総訪問者数・開館日数・点検済日数など）
+  * 1行1レポートのリスト
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日報一覧 - まちなかキャンパス</title>
+<style>
+:root {
+  --c-primary:#059669; --c-primary-d:#047857; --c-surface:#ecfdf5;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-ng:#ef4444; --c-warn:#f59e0b; --c-info:#0ea5e9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:100px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:720px;margin:0 auto}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:720px;margin:0 auto;padding:14px}
+.flashes{max-width:720px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.filter-box{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:14px}
+.filter-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.filter-row .fld{flex:1;min-width:130px}
+.filter-row .fld label{display:block;font-size:.72rem;color:var(--c-muted);margin-bottom:3px;font-weight:600}
+.filter-row .fld input,.filter-row .fld select{width:100%;padding:7px 9px;border:1px solid var(--c-border);border-radius:6px;font-size:.88rem;font-family:inherit}
+.filter-row button{padding:8px 18px;background:var(--c-primary);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:.86rem}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:14px}
+.stat-card{background:#fff;border-radius:10px;padding:10px 12px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-info)}
+.stat-card .sv{font-size:1.35rem;font-weight:800;color:var(--c-primary-d);line-height:1}
+.stat-card .sl{font-size:.72rem;color:var(--c-muted);margin-top:3px}
+.stat-card.warn{border-left-color:var(--c-warn)}
+.stat-card.ok{border-left-color:var(--c-ok)}
+
+.report-row{background:#fff;border-radius:10px;padding:10px 14px;margin-bottom:7px;box-shadow:0 1px 3px rgba(0,0,0,.06);display:block;text-decoration:none;color:inherit;border-left:4px solid var(--c-border)}
+.report-row.open{border-left-color:var(--c-ok)}
+.report-row.closed{border-left-color:var(--c-muted)}
+.report-row.partial{border-left-color:var(--c-warn)}
+.rr-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rr-date{font-size:.93rem;font-weight:800;min-width:130px}
+.rr-date small{display:inline-block;margin-left:4px;font-size:.72rem;color:var(--c-muted);font-weight:400}
+.rr-status{font-size:.7rem;padding:2px 8px;border-radius:10px;color:#fff;font-weight:700}
+.rr-visitors{font-size:.82rem;color:var(--c-text)}
+.rr-visitors b{color:var(--c-primary-d);font-size:1rem}
+.rr-insp{font-size:.72rem;padding:2px 8px;border-radius:10px;font-weight:700}
+.rr-insp.ok{background:#d1fae5;color:#065f46}
+.rr-insp.pending{background:#fef3c7;color:#92400e}
+.rr-meta{font-size:.74rem;color:var(--c-muted);margin-top:3px}
+
+.empty{text-align:center;color:var(--c-muted);padding:30px 0;font-size:.88rem;background:#fff;border-radius:10px}
+
+.fab{position:fixed;bottom:22px;right:18px;background:var(--c-primary);color:#fff;border:none;border-radius:50px;padding:13px 18px;font-size:.95rem;cursor:pointer;box-shadow:0 4px 14px rgba(5,150,105,.42);text-decoration:none;display:flex;align-items:center;gap:5px;font-weight:800;z-index:300}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">📋 日報一覧</div>
+    <a href="{{ url_for('machinaka.dashboard') }}" class="back">← ダッシュボード</a>
+
+    <a href="{{ url_for('machinaka.reports_stats') }}"
+       style="display:inline-flex;align-items:center;gap:5px;
+              padding:7px 14px;border-radius:8px;font-size:.82rem;
+              font-weight:700;background:#fff;color:var(--c-primary-d);
+              border:1.5px solid var(--c-primary);text-decoration:none;">
+      📊 統計
+    </a>
+
+    <a href="{{ url_for('machinaka.reports_export_md',
+               **{'from': d_from.isoformat(), 'to': d_to.isoformat(), 'insp': insp_filter}) }}"
+       style="display:inline-flex;align-items:center;gap:5px;
+              padding:7px 14px;border-radius:8px;font-size:.82rem;font-weight:700;
+              background:#fff;color:var(--c-primary-d);
+              border:1.5px solid var(--c-primary);text-decoration:none;">
+      📄 MDテキスト
+    </a>
+
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+
+  {# フィルタ #}
+  <div class="filter-box">
+    <form method="GET" action="{{ url_for('machinaka.reports_list') }}">
+      <div class="filter-row">
+        <div class="fld">
+          <label>From</label>
+          <input type="date" name="from" value="{{ d_from.isoformat() }}">
+        </div>
+        <div class="fld">
+          <label>To</label>
+          <input type="date" name="to" value="{{ d_to.isoformat() }}">
+        </div>
+        <div class="fld">
+          <label>点検状態</label>
+          <select name="insp">
+            <option value="all"       {% if insp_filter=='all' %}selected{% endif %}>すべて</option>
+            <option value="inspected" {% if insp_filter=='inspected' %}selected{% endif %}>点検済</option>
+            <option value="pending"   {% if insp_filter=='pending' %}selected{% endif %}>未点検</option>
+          </select>
+        </div>
+        <div><button type="submit">適用</button></div>
+      </div>
+    </form>
+  </div>
+
+  {# サマリ #}
+  {% if stats and stats.days_total %}
+  <div class="stats">
+    <div class="stat-card"><div class="sv">{{ stats.days_total }}</div><div class="sl">記録日数</div></div>
+    <div class="stat-card ok"><div class="sv">{{ stats.total_visitors or 0 }}</div><div class="sl">延べ訪問者</div></div>
+    <div class="stat-card"><div class="sv">{{ stats.days_open or 0 }}</div><div class="sl">開館日</div></div>
+    <div class="stat-card warn"><div class="sv">{{ (stats.days_closed or 0) + (stats.days_partial or 0) }}</div><div class="sl">休館・部分休館</div></div>
+    <div class="stat-card ok"><div class="sv">{{ stats.days_inspected or 0 }}</div><div class="sl">点検済</div></div>
+  </div>
+  {% endif %}
+
+  {# リスト #}
+  {% if reports %}
+    {% for r in reports %}
+    <a class="report-row {{ r.open_status }}" href="{{ url_for('machinaka.report_detail', rid=r.id) }}">
+      <div class="rr-head">
+        <span class="rr-date">
+          {{ r.report_date | fmtdate_m('%m/%d') }}
+          <small>{{ r.report_date | fmtdate_m('(%a)') }}</small>
+        </span>
+        <span class="rr-status" style="background:{{ r.open_status_color }}">{{ r.open_status_label }}</span>
+        <span class="rr-visitors">訪問 <b>{{ r.visitor_count }}</b>名</span>
+        <span style="flex:1"></span>
+        {% if r.is_inspected %}
+          <span class="rr-insp ok">✓ 点検済</span>
+        {% else %}
+          <span class="rr-insp pending">未点検</span>
+        {% endif %}
+      </div>
+      <div class="rr-meta">
+        記入: {{ r.staff_name or '—' }}
+        {% if r.open_status != 'closed' and r.open_time %}
+          / {{ r.open_time | fmttime_m }}〜{{ r.close_time | fmttime_m }}
+        {% endif %}
+        {% if r.is_inspected %} / 点検: {{ r.inspector_name }}{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  {% else %}
+    <div class="empty">該当する日報はありません</div>
+  {% endif %}
+</div>
+
+{% if approve_ok %}
+<a class="fab" href="{{ url_for('machinaka.report_new') }}?date={{ today.isoformat() }}">＋ 日報作成</a>
+{% endif %}
+</body>
+</html>

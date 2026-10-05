@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>キターレオンライン審議</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh; padding: 15px;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .header {
+            background: white; padding: 16px 24px; border-radius: 10px;
+            margin-bottom: 14px; display: flex; align-items: center;
+            gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { flex: 1; font-size: 1.3rem; color: #4a3a7a; min-width: 200px; }
+        .nav-btn {
+            padding: 9px 16px; border: none; border-radius: 6px; cursor: pointer;
+            text-decoration: none; font-size: 0.88rem; font-weight: 600; white-space: nowrap;
+        }
+        .nav-btn.primary { background: #10b981; color: white; }
+        .nav-btn.secondary { background: #94a3b8; color: white; }
+        .nav-btn.danger { background: #ef4444; color: white; }
+        .nav-btn:hover { opacity: 0.9; }
+
+        /* タブ */
+        .tabs {
+            display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: -1px;
+        }
+        .tab {
+            padding: 11px 22px; background: rgba(255,255,255,0.55);
+            color: #4a3a7a; border: none; border-radius: 10px 10px 0 0;
+            cursor: pointer; font-size: 0.9rem; font-weight: 700;
+        }
+        .tab.active { background: white; }
+        .tab:hover:not(.active) { background: rgba(255,255,255,0.78); }
+
+        .card {
+            background: white; border-radius: 0 10px 10px 10px;
+            padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            font-size: 1rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 14px;
+        }
+        .tab-desc {
+            font-size: 0.83rem; color: #6b7280; background: #f8fafc;
+            border-radius: 6px; padding: 9px 13px; margin-bottom: 12px; line-height: 1.6;
+        }
+        /* 業務会議パネルのツールバー（カテゴリー管理など。今後ボタンが増える） */
+        .panel-toolbar {
+            display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+        }
+        .tool-btn {
+            padding: 8px 15px; background: #6d5fb8; color: white; border: none;
+            border-radius: 6px; cursor: pointer; text-decoration: none;
+            font-size: 0.85rem; font-weight: 600; white-space: nowrap;
+        }
+        .tool-btn:hover { opacity: 0.9; }
+        .ctrl-bar {
+            margin-bottom: 12px; font-size: 0.86rem;
+            display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+        }
+        .ctrl-bar select {
+            padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.86rem;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+        th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+        th { background: #f8fafc; color: #6b7280; font-weight: 600; font-size: 0.78rem; white-space: nowrap; }
+        .case-id { font-family: monospace; font-weight: 600; color: #6d5fb8; }
+        .status-badge {
+            display: inline-block; padding: 2px 9px; border-radius: 10px;
+            font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+        }
+        .status-channel_open, .status-documents_uploading { background: #e0e7ff; color: #3730a3; }
+        .status-submitted { background: #ddd6fe; color: #5b21b6; }
+        .status-accepted_review { background: #fef3c7; color: #92400e; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+        .status-rejected, .status-not_accepted { background: #fee2e2; color: #991b1b; }
+        .status-withdrawn, .status-terminated { background: #f3f4f6; color: #6b7280; }
+        .personnel-tag {
+            display: inline-block; padding: 1px 6px; border-radius: 7px;
+            font-size: 0.68rem; font-weight: 700; background: #fde68a; color: #92400e;
+            margin-left: 4px;
+        }
+        .category-tag {
+            display: inline-block; padding: 1px 8px; border-radius: 8px;
+            font-size: 0.7rem; font-weight: 700; background: #ede9fe; color: #5b21b6;
+            white-space: nowrap;
+        }
+        .open-btn {
+            padding: 5px 14px; background: #6d5fb8; color: white; border: none;
+            border-radius: 5px; cursor: pointer; text-decoration: none; font-size: 0.8rem;
+        }
+        .open-btn:hover { opacity: 0.9; }
+        .open-btn.gray { background: #94a3b8; }
+        .empty-msg { text-align: center; color: #9ca3af; padding: 28px; font-size: 0.9rem; }
+        .needs-action { background: #fffbeb; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🌾 キターレオンライン審議</h1>
+        <a href="{{ url_for('kitare_deliberation.public_view') }}" class="nav-btn secondary">公開状況</a>
+        <a href="{{ url_for('kitare_deliberation.new_case') }}" class="nav-btn primary">＋ 新規申請</a>
+        {% if is_admin and kitare_migration_role == 'export' %}
+        <a href="{{ url_for('kitare_deliberation.migration_export') }}" class="nav-btn" style="background:#6d5fb8;color:white;">📤 移行データ書き出し</a>
+        {% endif %}
+        {% if is_admin and kitare_migration_role == 'import' %}
+        <form method="post" action="{{ url_for('kitare_deliberation.migration_upload') }}" enctype="multipart/form-data" style="display:inline;margin:0;">
+            <input type="file" name="package" id="kitareMigrationFile" accept=".zip" style="display:none" onchange="if(this.files.length){this.form.submit();}">
+            <button type="button" class="nav-btn" style="background:#6d5fb8;color:white;" onclick="document.getElementById('kitareMigrationFile').click();">📥 移行データ取り込み</button>
+        </form>
+        {% endif %}
+        <a href="{{ url_for('kitare_deliberation.return_to_fujin') }}" class="nav-btn danger">🏠 ダッシュボードに戻る</a>
+    </div>
+
+    <div class="tabs" id="tabs">
+        <button class="tab active" data-tab="applicant">申請者</button>
+        {% if is_business %}
+        <button class="tab" data-tab="business">業務会議</button>
+        {% endif %}
+        {% if is_committee %}
+        <button class="tab" data-tab="committee">運営委員会</button>
+        {% endif %}
+    </div>
+
+    <!-- 申請者タブ -->
+    <div class="card tab-panel" id="panel-applicant">
+        <h2>マイ申請</h2>
+        <div class="tab-desc">
+            あなたが申請した案件の一覧です。「＋ 新規申請」から新しい案件を申請できます。
+        </div>
+        <div style="overflow-x:auto">
+            <table>
+                <thead><tr>
+                    <th>案件番号</th><th>案件名</th><th>受付日</th>
+                    <th>ステータス</th><th>更新</th><th>操作</th>
+                </tr></thead>
+                <tbody id="tbody-applicant">
+                    <tr><td colspan="6" class="empty-msg">読み込み中…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if is_business %}
+    <!-- 業務会議タブ -->
+    <div class="card tab-panel" id="panel-business" style="display:none">
+        <h2>業務会議</h2>
+        {% if can_manage_categories %}
+        <div class="panel-toolbar">
+            <a href="{{ url_for('kitare_deliberation.categories_admin') }}" class="tool-btn">🏷 カテゴリー管理</a>
+            {# 今後、業務会議向けのボタンをここに追加する #}
+        </div>
+        {% endif %}
+        <div class="tab-desc">
+            委員長・事務局による協議の場です。申請を受け取り、附議するか（受理判断）を
+            決め、書類を整え、審議を開始します。「申請受付」の案件は受理判断が必要です。
+        </div>
+        <div class="ctrl-bar">
+            <span>年度：
+                <select id="biz-fy">
+                    <option value="">すべて</option>
+                    {% for y in range(current_fy, current_fy - 6, -1) %}
+                    <option value="{{ y }}" {% if y == current_fy %}selected{% endif %}>{{ y }}年度</option>
+                    {% endfor %}
+                </select>
+            </span>
+            <span>状態：
+                <select id="biz-status">
+                    <option value="">すべて</option>
+                    <option value="submitted">申請受付（要受理判断）</option>
+                    <option value="accepted_review">審議中</option>
+                    <option value="approved">可決</option>
+                    <option value="rejected">否決</option>
+                    <option value="not_accepted">不受理</option>
+                    <option value="withdrawn">取り下げ</option>
+                    <option value="terminated">打ち切り</option>
+                </select>
+            </span>
+        </div>
+        <div style="overflow-x:auto">
+            <table>
+                <thead><tr>
+                    <th>案件番号</th><th>案件名</th><th>カテゴリー</th><th>申請者</th>
+                    <th>審議期日</th><th>ステータス</th><th>操作</th>
+                </tr></thead>
+                <tbody id="tbody-business">
+                    <tr><td colspan="7" class="empty-msg">読み込み中…</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div style="margin-top:12px">
+            <a href="{{ url_for('kitare_deliberation.report') }}" class="nav-btn secondary">年度報告を見る</a>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if is_committee %}
+    <!-- 運営委員会タブ -->
+    <div class="card tab-panel" id="panel-committee" style="display:none">
+        <h2>運営委員会</h2>
+        <div class="tab-desc">
+            附議された案件を審議する場です。委員は審議に参加し、委員長が議決します。
+            公平性のため、取り下げ・打ち切りを含む案件を表示します（不受理は除きます）。
+            COI（利益相反）の案件はあなたの一覧から除かれます。
+        </div>
+        <div class="ctrl-bar">
+            <span>年度：
+                <select id="com-fy">
+                    <option value="">すべて</option>
+                    {% for y in range(current_fy, current_fy - 6, -1) %}
+                    <option value="{{ y }}" {% if y == current_fy %}selected{% endif %}>{{ y }}年度</option>
+                    {% endfor %}
+                </select>
+            </span>
+            <span>状態：
+                <select id="com-status">
+                    <option value="">すべて</option>
+                    <option value="submitted">申請受付（受理判断待ち）</option>
+                    <option value="accepted_review">審議中</option>
+                    <option value="approved">可決</option>
+                    <option value="rejected">否決</option>
+                    <option value="withdrawn">取り下げ</option>
+                    <option value="terminated">打ち切り</option>
+                </select>
+            </span>
+        </div>
+        <div style="overflow-x:auto">
+            <table>
+                <thead><tr>
+                    <th>案件番号</th><th>案件名</th><th>カテゴリー</th><th>申請者</th>
+                    <th>審議期日</th><th>ステータス</th><th>操作</th>
+                </tr></thead>
+                <tbody id="tbody-committee">
+                    <tr><td colspan="7" class="empty-msg">読み込み中…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+const STATUS_LABELS = {{ status_labels | tojson }};
+const URL_BASE = '{{ url_for("kitare_deliberation.index") }}';
+
+function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function statusBadge(status, label) {
+    return `<span class="status-badge status-${status}">${esc(label || STATUS_LABELS[status] || status)}</span>`;
+}
+function personnelTag(c) {
+    return c.is_personnel ? '<span class="personnel-tag">特定</span>' : '';
+}
+function catTag(c) {
+    return c.category_name
+        ? `<span class="category-tag">${esc(c.category_name)}</span>`
+        : '<span style="color:#cbd5e1">—</span>';
+}
+
+// ── タブ切り替え ──
+$('#tabs').on('click', '.tab', function() {
+    const tab = $(this).data('tab');
+    $('.tab').removeClass('active');
+    $(this).addClass('active');
+    $('.tab-panel').hide();
+    $('#panel-' + tab).show();
+});
+
+// ── 申請者タブ ──
+function loadApplicant() {
+    $.get(URL_BASE + 'api/my_cases', function(resp) {
+        if (!resp.success) {
+            $('#tbody-applicant').html('<tr><td colspan="6" class="empty-msg" style="color:#ef4444">' + esc(resp.error) + '</td></tr>');
+            return;
+        }
+        if (!resp.cases.length) {
+            $('#tbody-applicant').html('<tr><td colspan="6" class="empty-msg">申請はまだありません。「＋ 新規申請」から始めてください。</td></tr>');
+            return;
+        }
+        let rows = '';
+        resp.cases.forEach(c => {
+            rows += `<tr>
+                <td><span class="case-id">${esc(c.case_display_id)}</span></td>
+                <td>${esc(c.title)}${personnelTag(c)}</td>
+                <td>${c.received_date || '—'}</td>
+                <td>${statusBadge(c.status, c.status_label)}</td>
+                <td>${c.updated_at || '—'}</td>
+                <td><a class="open-btn" href="${URL_BASE}case/${c.id}/applicant">開く</a></td>
+            </tr>`;
+        });
+        $('#tbody-applicant').html(rows);
+    }).fail(() => $('#tbody-applicant').html('<tr><td colspan="6" class="empty-msg" style="color:#ef4444">通信エラー</td></tr>'));
+}
+
+// ── 業務会議タブ ──
+function loadBusiness() {
+    if (!$('#panel-business').length) return;
+    const params = {};
+    const fy = $('#biz-fy').val(); const st = $('#biz-status').val();
+    if (fy) params.fiscal_year = fy;
+    if (st) params.status = st;
+    $.get(URL_BASE + 'api/business_cases', params, function(resp) {
+        if (!resp.success) {
+            $('#tbody-business').html('<tr><td colspan="7" class="empty-msg" style="color:#ef4444">' + esc(resp.error) + '</td></tr>');
+            return;
+        }
+        if (!resp.cases.length) {
+            $('#tbody-business').html('<tr><td colspan="7" class="empty-msg">該当する案件はありません</td></tr>');
+            return;
+        }
+        let rows = '';
+        resp.cases.forEach(c => {
+            const needs = (c.status === 'submitted') ? ' class="needs-action"' : '';
+            rows += `<tr${needs}>
+                <td><span class="case-id">${esc(c.case_display_id)}</span></td>
+                <td>${esc(c.title)}${personnelTag(c)}</td>
+                <td>${catTag(c)}</td>
+                <td>${esc(c.applicant_name) || '—'}</td>
+                <td>${c.deadline || '—'}</td>
+                <td>${statusBadge(c.status, c.status_label)}</td>
+                <td><a class="open-btn" href="${URL_BASE}case/${c.id}">開く</a></td>
+            </tr>`;
+        });
+        $('#tbody-business').html(rows);
+    }).fail(() => $('#tbody-business').html('<tr><td colspan="7" class="empty-msg" style="color:#ef4444">通信エラー</td></tr>'));
+}
+
+// ── 運営委員会タブ ──
+function loadCommittee() {
+    if (!$('#panel-committee').length) return;
+    const params = {};
+    const fy = $('#com-fy').val(); const st = $('#com-status').val();
+    if (fy) params.fiscal_year = fy;
+    if (st) params.status = st;
+    $.get(URL_BASE + 'api/committee_cases', params, function(resp) {
+        if (!resp.success) {
+            $('#tbody-committee').html('<tr><td colspan="7" class="empty-msg" style="color:#ef4444">' + esc(resp.error) + '</td></tr>');
+            return;
+        }
+        if (!resp.cases.length) {
+            $('#tbody-committee').html('<tr><td colspan="7" class="empty-msg">該当する案件はありません</td></tr>');
+            return;
+        }
+        let rows = '';
+        resp.cases.forEach(c => {
+            rows += `<tr>
+                <td><span class="case-id">${esc(c.case_display_id)}</span></td>
+                <td>${esc(c.title)}${personnelTag(c)}</td>
+                <td>${catTag(c)}</td>
+                <td>${esc(c.applicant_name) || '—'}</td>
+                <td>${c.deadline || '—'}</td>
+                <td>${statusBadge(c.status, c.status_label)}</td>
+                <td><a class="open-btn" href="${URL_BASE}case/${c.id}">開く</a></td>
+            </tr>`;
+        });
+        $('#tbody-committee').html(rows);
+    }).fail(() => $('#tbody-committee').html('<tr><td colspan="7" class="empty-msg" style="color:#ef4444">通信エラー</td></tr>'));
+}
+
+$('#biz-fy, #biz-status').on('change', loadBusiness);
+$('#com-fy, #com-status').on('change', loadCommittee);
+
+$(document).ready(function() {
+    loadApplicant();
+    loadBusiness();
+    loadCommittee();
+});
+</script>
+</body>
+</html>

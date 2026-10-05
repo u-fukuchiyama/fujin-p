@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>年度報告 - 連携申請審査 - FUJIN-P</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%);
+            min-height: 100vh;
+            padding: 15px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            background: white;
+            padding: 14px 22px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header h1 { flex: 1; font-size: 1.2rem; color: #1e3a5f; }
+        .back-btn {
+            padding: 7px 14px; background: #6366f1; color: white;
+            border: none; border-radius: 6px; cursor: pointer;
+            text-decoration: none; font-size: 0.85rem;
+        }
+        .ctrl-bar {
+            background: white;
+            padding: 12px 18px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        .ctrl-bar label { font-size: 0.85rem; font-weight: 600; color: #555; }
+        .ctrl-bar select { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.85rem; }
+        .btn-load { padding: 7px 16px; background: #1e3a5f; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 0.85rem; }
+        .btn-csv  { padding: 7px 16px; background: #10b981; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 0.85rem; }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .summary-card {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        .summary-card .num { font-size: 2rem; font-weight: 800; color: #1e3a5f; }
+        .summary-card .lbl { font-size: 0.78rem; color: #9ca3af; margin-top: 4px; }
+        .summary-card.approved  .num { color: #10b981; }
+        .summary-card.reviewing .num { color: #f59e0b; }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            margin-bottom: 12px;
+        }
+        .card h2 {
+            font-size: 0.95rem; color: #1e3a5f; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 14px;
+        }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+        th { background: #f8fafc; color: #6b7280; font-weight: 600; font-size: 0.78rem; white-space: nowrap; }
+        tr:hover td { background: #f9fafb; }
+
+        .case-id-link {
+            color: #6366f1; text-decoration: none;
+            font-family: monospace; font-size: 0.8rem;
+        }
+        .case-id-link:hover { text-decoration: underline; }
+
+        .app-no { font-size: 0.78rem; color: #1e3a5f; font-weight: 700; }
+
+        .status-badge {
+            display: inline-block; padding: 2px 8px;
+            border-radius: 10px; font-size: 0.73rem; font-weight: 700;
+        }
+        .status-reviewing { background: #fef3c7; color: #92400e; }
+        .status-approved  { background: #d1fae5; color: #065f46; }
+        .status-rejected  { background: #fee2e2; color: #991b1b; }
+        .status-withdrawn { background: #f3f4f6; color: #6b7280; }
+
+        .type-badge {
+            display: inline-block; padding: 2px 8px;
+            border-radius: 10px; font-size: 0.73rem; font-weight: 700;
+        }
+        .type-contract_research      { background: #dbeafe; color: #1e40af; }
+        .type-contract_project       { background: #ede9fe; color: #5b21b6; }
+        .type-collaborative_research { background: #d1fae5; color: #065f46; }
+        .type-collaborative_project  { background: #fef3c7; color: #92400e; }
+
+        td.content-cell {
+            max-width: 220px; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap;
+        }
+        .consult-icon {
+            display: inline-block;
+            font-size: 0.72rem;
+            background: #e0f2fe;
+            color: #0369a1;
+            border-radius: 4px;
+            padding: 1px 5px;
+            font-weight: 600;
+        }
+
+        #toast {
+            position: fixed; bottom: 22px; right: 22px;
+            padding: 13px 20px; border-radius: 8px;
+            font-size: 0.88rem; font-weight: 600; z-index: 9999;
+            display: none; max-width: 340px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        #toast.success { background: #d1fae5; color: #065f46; }
+        #toast.error   { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <a href="{{ url_for('ext_engagement.index') }}" class="back-btn">← 一覧</a>
+        <h1>📊 連携申請 年度報告</h1>
+    </div>
+
+    <div class="ctrl-bar">
+        <label>年度：</label>
+        <select id="sel-fy">
+            {% for y in range(current_fy, current_fy - 6, -1) %}
+            <option value="{{ y }}" {% if y == current_fy %}selected{% endif %}>{{ y }}年度</option>
+            {% endfor %}
+        </select>
+        <button class="btn-load" id="btn-load">表示</button>
+        <button class="btn-csv"  id="btn-csv">📥 CSV出力</button>
+    </div>
+
+    <!-- 集計サマリー -->
+    <div class="summary-grid" id="summary-grid">
+        <div class="summary-card"><div class="num">—</div><div class="lbl">申請件数（合計）</div></div>
+    </div>
+
+    <!-- 案件一覧テーブル -->
+    <div class="card">
+        <h2 id="report-title">年度別案件一覧</h2>
+        <div style="overflow-x:auto">
+            <table id="report-table">
+                <thead>
+                    <tr>
+                        <th>案件ID</th>
+                        <th>申請No</th>
+                        <th>種別</th>
+                        <th>新規/継続</th>
+                        <th>課題名 / 事業名</th>
+                        <th>申請組織</th>
+                        <th>本学担当者（申請者希望）</th>
+                        <th>事前協議</th>
+                        <th>期間</th>
+                        <th>承認日</th>
+                        <th>ステータス</th>
+                    </tr>
+                </thead>
+                <tbody id="report-tbody">
+                    <tr>
+                        <td colspan="11" style="text-align:center;color:#9ca3af;padding:30px">
+                            表示ボタンを押してください
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const STATUS_LABELS = {{ status_labels | tojson }};
+const TYPE_LABELS   = {{ type_labels | tojson }};
+
+function toast(msg, isError) {
+    const $t = $('#toast');
+    $t.text(msg).removeClass('success error').addClass(isError ? 'error' : 'success').fadeIn();
+    setTimeout(() => $t.fadeOut(), 4000);
+}
+function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function loadReport() {
+    const fy = $('#sel-fy').val();
+    $.get('{{ url_for("ext_engagement.api_report") }}', { fiscal_year: fy }, function(resp) {
+        if (!resp.success) { toast('エラー: ' + resp.error, true); return; }
+
+        $('#report-title').text(`${fy}年度 案件一覧`);
+
+        // ── サマリー ──
+        const s = resp.summary;
+        let shtml = `
+            <div class="summary-card">
+                <div class="num">${s.total}</div>
+                <div class="lbl">申請件数（合計）</div>
+            </div>
+            <div class="summary-card approved">
+                <div class="num">${s.approved}</div>
+                <div class="lbl">うち承認</div>
+            </div>
+            <div class="summary-card">
+                <div class="num">${s.rejected}</div>
+                <div class="lbl">不承認</div>
+            </div>
+            <div class="summary-card reviewing">
+                <div class="num">${s.reviewing}</div>
+                <div class="lbl">審議中</div>
+            </div>`;
+        Object.values(s.by_type).forEach(t => {
+            shtml += `
+            <div class="summary-card">
+                <div class="num" style="font-size:1.5rem">${t.approved}/${t.total}</div>
+                <div class="lbl">${esc(t.label)}<br>承認/件数</div>
+            </div>`;
+        });
+        $('#summary-grid').html(shtml);
+
+        // ── テーブル ──
+        if (!resp.cases.length) {
+            $('#report-tbody').html(
+                '<tr><td colspan="11" style="text-align:center;color:#9ca3af;padding:30px">案件なし</td></tr>');
+            return;
+        }
+        let rows = '';
+        resp.cases.forEach(c => {
+            const period = (c.period_start || c.period_end)
+                ? `${c.period_start || ''}${c.period_end ? '<br>～ ' + c.period_end : ''}`
+                : '—';
+            const rep = [c.faculty_dept, c.representative_name].filter(Boolean).join(' ');
+            const appNo = c.application_no
+                ? `<span class="app-no">${esc(c.application_no)}</span>` : '—';
+            const consultCell = c.pre_consultation
+                ? `<span class="consult-icon">あり</span>` : '—';
+
+            rows += `
+            <tr>
+                <td>
+                    <a class="case-id-link"
+                       href="{{ url_for('ext_engagement.index') }}case/${c.id}">
+                        ${esc(c.case_display_id)}
+                    </a>
+                </td>
+                <td>${appNo}</td>
+                <td><span class="type-badge type-${c.type_key}">${esc(c.type_label)}</span></td>
+                <td>${c.is_new_application ? '新規' : '継続'}</td>
+                <td class="content-cell" title="${esc(c.title)}">${esc(c.title)}</td>
+                <td>${esc(c.org_name)}</td>
+                <td>${esc(rep) || '—'}</td>
+                <td>${consultCell}</td>
+                <td style="font-size:0.78rem">${period}</td>
+                <td>${c.approved_date || '—'}</td>
+                <td><span class="status-badge status-${c.status}">${STATUS_LABELS[c.status] || c.status}</span></td>
+            </tr>`;
+        });
+        $('#report-tbody').html(rows);
+
+    }).fail(() => toast('通信エラー', true));
+}
+
+$('#btn-load').on('click', loadReport);
+
+$('#btn-csv').on('click', function() {
+    const fy = $('#sel-fy').val();
+    window.location.href =
+        `{{ url_for('ext_engagement.api_report_csv') }}?fiscal_year=${fy}`;
+});
+
+$(document).ready(loadReport);
+</script>
+</body>
+</html>

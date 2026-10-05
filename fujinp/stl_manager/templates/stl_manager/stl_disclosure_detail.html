@@ -1,0 +1,69 @@
+{#
+  開示記事 詳細
+  context: d (enrich済), body_html, staff_ok
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ d.title }} — STL 活動報告</title>
+<style>
+:root{
+  --c-primary:#4338ca; --c-primary-d:#3730a3; --c-surface:#eef2ff;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px;line-height:1.6}
+header{background:var(--c-primary);color:#fff;padding:12px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;gap:10px;max-width:760px;margin:0 auto}
+.back{color:#fff;text-decoration:none;font-size:1.2rem;padding:2px 4px}
+.htitle{font-size:.95rem;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.content{max-width:760px;margin:0 auto;padding:16px 14px}
+
+.card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.scope-badge{display:inline-block;font-size:.7rem;padding:2px 10px;border-radius:11px;color:#fff;font-weight:700;margin-bottom:10px}
+h1{font-size:1.2rem;font-weight:800;margin-bottom:6px}
+.meta{font-size:.8rem;color:var(--c-muted);margin-bottom:16px}
+.body-html{font-size:.94rem;line-height:1.85}
+.body-html h1,.body-html h2,.body-html h3{margin:16px 0 8px;font-weight:700;color:var(--c-primary-d)}
+.body-html p{margin-bottom:10px}
+.body-html ul,.body-html ol{padding-left:1.4em;margin-bottom:10px}
+.body-html img{max-width:100%;height:auto;border-radius:6px;margin:6px 0}
+.body-html table{border-collapse:collapse;width:100%;margin-bottom:10px;font-size:.85rem}
+.body-html th,.body-html td{border:1px solid var(--c-border);padding:5px 8px}
+.body-html blockquote{border-left:3px solid var(--c-primary);padding-left:10px;color:var(--c-muted);margin:0 0 10px}
+.body-html code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:.85em}
+.staff-edit{margin-top:14px;text-align:right}
+.staff-edit a{font-size:.8rem;color:var(--c-primary);text-decoration:none;border:1px solid var(--c-primary);padding:5px 12px;border-radius:7px}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <a class="back" href="{{ url_for('stl.disclosures') }}">←</a>
+    <span class="htitle">{{ d.title }}</span>
+    {% include 'stl_manager/_std_nav.html' %}
+  </div>
+</header>
+
+<div class="content">
+  <div class="card">
+    <span class="scope-badge" style="background:{{ d.scope_color }}">{{ d.scope_label }}</span>
+    <h1>{{ d.title }}</h1>
+    <div class="meta">公開日: {{ d.published_at | fmtdatetime_s }}</div>
+    {% if body_html %}
+    <div class="body-html">{{ body_html | safe }}</div>
+    {% else %}
+    <p style="color:var(--c-muted);font-size:.85rem">本文はありません</p>
+    {% endif %}
+
+    {% if staff_ok %}
+    <div class="staff-edit">
+      <a href="{{ url_for('stl.disclosure_edit', did=d.id) }}">編集</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

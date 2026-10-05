@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>案件の審議 - キターレオンライン審議</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh; padding: 15px;
+        }
+        .container { max-width: 940px; margin: 0 auto; }
+        .header {
+            background: white; padding: 14px 22px; border-radius: 10px;
+            margin-bottom: 12px; display: flex; align-items: center;
+            gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { flex: 1; font-size: 1.15rem; color: #4a3a7a; min-width: 200px; }
+        .nav-btn {
+            padding: 7px 13px; background: #94a3b8; color: white; border: none;
+            border-radius: 6px; cursor: pointer; text-decoration: none;
+            font-size: 0.82rem; font-weight: 600; white-space: nowrap;
+        }
+        .nav-btn:hover { opacity: 0.9; }
+        .card {
+            background: white; border-radius: 10px; padding: 16px 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 12px;
+        }
+        .card h2 {
+            font-size: 0.95rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px;
+        }
+        .case-meta { font-size: 0.86rem; line-height: 1.9; }
+        .meta-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .meta-label { color: #6b7280; min-width: 90px; font-weight: 600; }
+        .status-badge {
+            display: inline-block; padding: 2px 9px; border-radius: 10px;
+            font-size: 0.72rem; font-weight: 700;
+        }
+        .status-channel_open, .status-documents_uploading { background: #e0e7ff; color: #3730a3; }
+        .status-submitted { background: #ddd6fe; color: #5b21b6; }
+        .status-accepted_review { background: #fef3c7; color: #92400e; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+        .status-rejected, .status-not_accepted { background: #fee2e2; color: #991b1b; }
+        .status-withdrawn, .status-terminated { background: #f3f4f6; color: #6b7280; }
+        .personnel-tag {
+            display: inline-block; padding: 1px 7px; border-radius: 7px;
+            font-size: 0.7rem; font-weight: 700; background: #fde68a; color: #92400e;
+        }
+        .category-tag {
+            display: inline-block; padding: 2px 10px; border-radius: 10px;
+            font-size: 0.74rem; font-weight: 700; background: #ede9fe; color: #5b21b6;
+        }
+        .cat-edit-btn {
+            padding: 2px 9px; margin-left: 6px; border: none; border-radius: 5px;
+            background: #94a3b8; color: white; cursor: pointer; font-size: 0.72rem;
+            font-weight: 600;
+        }
+        .cat-edit-btn:hover { opacity: 0.9; }
+        .cat-edit-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .cat-edit-row select {
+            padding: 5px 9px; border: 1px solid #d1d5db; border-radius: 5px;
+            font-size: 0.82rem;
+        }
+        .cat-edit-row .btn-mini {
+            padding: 5px 12px; border: none; border-radius: 5px; cursor: pointer;
+            font-size: 0.78rem; font-weight: 600; color: white;
+        }
+        .cat-edit-row .btn-mini.save   { background: #6d5fb8; }
+        .cat-edit-row .btn-mini.cancel { background: #e5e7eb; color: #374151; }
+        .cat-edit-row .btn-mini:hover { opacity: 0.9; }
+        .doc-item {
+            display: flex; gap: 10px; align-items: center; padding: 8px 10px;
+            background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px;
+            margin-bottom: 6px; font-size: 0.85rem;
+        }
+        .doc-item .doc-title { font-weight: 600; color: #4a3a7a; flex: 1; }
+        .doc-item a { color: #6d5fb8; text-decoration: none; }
+        .doc-item a:hover { text-decoration: underline; }
+
+        /* 委員一覧 */
+        .reviewer-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 5px 10px; border-radius: 16px; margin: 3px;
+            font-size: 0.8rem; background: #ede9fe; color: #5b21b6;
+        }
+        .reviewer-chip.coi { background: #f3f4f6; color: #9ca3af; text-decoration: line-through; }
+        .reviewer-chip .chair-mark { font-size: 0.68rem; background: #6d5fb8; color: white; border-radius: 6px; padding: 0 5px; }
+        .coi-btn {
+            border: none; border-radius: 6px; padding: 1px 7px; cursor: pointer;
+            font-size: 0.68rem; font-weight: 700;
+        }
+        .coi-btn.set { background: #fca5a5; color: #7f1d1d; }
+        .coi-btn.unset { background: #6ee7b7; color: #065f46; }
+
+        /* 審議トラック */
+        .msg-track {
+            padding: 4px;
+            background: #f8fafc; border-radius: 8px;
+        }
+        .msg {
+            background: white; border-radius: 8px; padding: 9px 12px;
+            margin-bottom: 8px; border-left: 3px solid #94a3b8;
+        }
+        .msg.chair { border-left-color: #10b981; }
+        .msg.committee { border-left-color: #6d5fb8; }
+        .msg.secretariat, .msg.admin { border-left-color: #f59e0b; }
+        .msg.kind-alert { background: #fffbeb; border-left-color: #ef4444; }
+        /* 申請者へ通知した分：審議トラックに参照表示する。委員会発言と
+           はっきり区別がつくよう、橙系の点線帯と専用タグを付ける。 */
+        .msg.to-applicant {
+            border-left-style: dashed; border-left-color: #ea580c;
+            background: #fff7ed;
+        }
+        .applicant-tag {
+            font-size: 0.68rem; padding: 1px 6px; border-radius: 8px;
+            background: #ffedd5; color: #9a3412; margin-left: 4px; font-weight: 700;
+        }
+        .msg-head {
+            display: flex; justify-content: space-between; gap: 8px;
+            font-size: 0.75rem; color: #6b7280; margin-bottom: 3px;
+        }
+        .msg-author { font-weight: 700; color: #4a3a7a; }
+        .role-tag {
+            font-size: 0.68rem; padding: 1px 6px; border-radius: 8px;
+            background: #e5e7eb; color: #6b7280; margin-left: 4px;
+        }
+        .role-tag.chair { background: #d1fae5; color: #065f46; }
+        .role-tag.committee { background: #ddd6fe; color: #5b21b6; }
+        .role-tag.secretariat, .role-tag.admin { background: #fef3c7; color: #92400e; }
+        .alert-tag {
+            font-size: 0.68rem; padding: 1px 6px; border-radius: 8px;
+            background: #fee2e2; color: #991b1b; margin-left: 4px; font-weight: 700;
+        }
+        .msg-body { font-size: 0.88rem; color: #374151; white-space: pre-wrap; word-break: break-word; }
+
+        .compose { margin-top: 10px; }
+        .compose textarea {
+            width: 100%; padding: 8px 10px; border: 1px solid #d1d5db;
+            border-radius: 6px; font-size: 0.88rem; font-family: inherit;
+            resize: vertical; min-height: 60px;
+        }
+        .compose-row { display: flex; gap: 8px; margin-top: 6px; align-items: center; flex-wrap: wrap; }
+        .alert-check { font-size: 0.82rem; color: #991b1b; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+        .btn {
+            padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;
+            font-size: 0.85rem; font-weight: 600;
+        }
+        .btn.primary { background: #6d5fb8; color: white; }
+        .btn.green { background: #10b981; color: white; }
+        .btn.danger { background: #ef4444; color: white; }
+        .btn.warn { background: #f59e0b; color: white; }
+        .btn.small { padding: 5px 11px; font-size: 0.8rem; }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .field { margin-bottom: 10px; }
+        .field label { display: block; font-size: 0.83rem; font-weight: 600; color: #4a3a7a; margin-bottom: 4px; }
+        .field select, .field textarea, .field input[type=date] {
+            width: 100%; padding: 8px 10px; border: 1px solid #d1d5db;
+            border-radius: 6px; font-size: 0.88rem; font-family: inherit;
+        }
+        .field textarea { resize: vertical; min-height: 60px; }
+        .panel-block { border-top: 1px solid #e5e7eb; padding-top: 12px; margin-top: 12px; }
+        .panel-title { font-weight: 700; color: #4a3a7a; margin-bottom: 8px; font-size: 0.9rem; }
+        .action-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .decision-box {
+            margin-top: 10px; border-radius: 8px; padding: 12px 14px;
+            font-size: 0.88rem; line-height: 1.7;
+        }
+        .decision-box.approved { background: #d1fae5; color: #065f46; }
+        .decision-box.rejected, .decision-box.not_accepted { background: #fee2e2; color: #991b1b; }
+        .readonly-note {
+            font-size: 0.83rem; color: #92400e; background: #fef3c7;
+            border-radius: 6px; padding: 8px 12px; margin-top: 8px;
+        }
+        .empty-msg { text-align: center; color: #9ca3af; padding: 18px; font-size: 0.88rem; }
+        #toast {
+            position: fixed; bottom: 22px; right: 22px; padding: 13px 20px;
+            border-radius: 8px; font-size: 0.88rem; font-weight: 600;
+            z-index: 9999; display: none; max-width: 340px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        #toast.success { background: #d1fae5; color: #065f46; }
+        #toast.error { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🌾 案件の審議</h1>
+        <a href="{{ url_for('kitare_deliberation.index') }}" class="nav-btn">← 一覧へ戻る</a>
+        <a id="link-applicant" href="#" class="nav-btn" style="display:none">申請者チャンネル</a>
+    </div>
+
+    <!-- 案件情報 -->
+    <div class="card">
+        <h2>案件情報</h2>
+        <div id="case-meta" class="case-meta"><div class="empty-msg">読み込み中…</div></div>
+    </div>
+
+    <!-- 添書（申請者の送付メッセージ。あるときだけ表示） -->
+    <div class="card" id="cover-letter-card" style="display:none">
+        <h2>添書</h2>
+        <div id="cover-letter-body" style="font-size:0.88rem;line-height:1.8;color:#374151;white-space:pre-wrap;word-break:break-word"></div>
+    </div>
+
+    <!-- 申請書類 -->
+    <div class="card">
+        <h2>申請書類</h2>
+        <div id="docs-area"><div class="empty-msg">読み込み中…</div></div>
+    </div>
+
+    <!-- 操作パネル（状態に応じて出し分け） -->
+    <div class="card" id="op-card" style="display:none">
+        <h2>操作</h2>
+        <div id="op-area"></div>
+    </div>
+
+    <!-- 担当委員 -->
+    <div class="card" id="reviewers-card" style="display:none">
+        <h2>担当委員（運営委員会）</h2>
+        <div style="font-size:0.8rem;color:#9ca3af;margin-bottom:8px">
+            運営委員会の全員が担当です。COI（利益相反）の委員は担当から外せます。
+        </div>
+        <div id="reviewers-area"></div>
+    </div>
+
+    <!-- 審議トラック -->
+    <div class="card">
+        <h2>審議</h2>
+        <div class="msg-track" id="msg-track"><div class="empty-msg">読み込み中…</div></div>
+        <div id="compose-area"></div>
+    </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const CASE_ID         = {{ case_id }};
+const STATUS_LABELS   = {{ status_labels   | tojson }};
+const DECISION_LABELS = {{ decision_labels | tojson }};
+const URL_BASE   = '{{ url_for("kitare_deliberation.index") }}';
+const IS_BUSINESS   = {{ 'true' if is_business   else 'false' }};
+const IS_CHAIR      = {{ 'true' if is_chair      else 'false' }};
+const IS_SECRETARIAT= {{ 'true' if is_secretariat else 'false' }};
+const CAN_ACCEPT    = {{ 'true' if can_accept    else 'false' }};
+const CAN_DECIDE    = {{ 'true' if can_decide    else 'false' }};
+
+const ROLE_LABELS = { chair:'委員長', committee:'委員', secretariat:'事務局', admin:'admin' };
+
+let caseData = null;
+let activeCategories = null;   // [{id,name,...}] 業務会議の付与用候補（有効なもの）
+
+function toast(msg, isErr) {
+    const $t = $('#toast');
+    $t.text(msg).removeClass('success error')
+      .addClass(isErr ? 'error' : 'success').fadeIn();
+    setTimeout(() => $t.fadeOut(), 4000);
+}
+function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function ajaxErr(xhr, fallback) {
+    let msg = fallback || '通信エラー';
+    try { const r = JSON.parse(xhr.responseText); if (r && r.error) msg = r.error; } catch(e) {}
+    return msg;
+}
+
+// ── 案件情報 ──
+function loadCase() {
+    $.get(URL_BASE + 'api/case/' + CASE_ID, function(resp) {
+        if (!resp.success) {
+            $('#case-meta').html('<div class="empty-msg" style="color:#ef4444">' + esc(resp.error) + '</div>');
+            return;
+        }
+        caseData = resp;
+        renderMeta();
+        renderDocs(resp.documents || []);
+        renderReviewers(resp.reviewers || []);
+        renderOps();
+        renderCompose();
+        $('#link-applicant').attr('href', URL_BASE + 'case/' + CASE_ID + '/applicant').show();
+        // caseData が揃ったので審議トラックを描き直し、末尾の議決ボックスを反映
+        loadMessages();
+    }).fail(function(xhr) {
+        $('#case-meta').html('<div class="empty-msg" style="color:#ef4444">' + esc(ajaxErr(xhr)) + '</div>');
+    });
+}
+
+function renderMeta() {
+    const c = caseData.case;
+    let html = '';
+    html += `<div class="meta-row"><span class="meta-label">案件番号</span>`
+          + `<span><b>${esc(c.case_display_id)}</b> `
+          + `<span class="status-badge status-${c.status}">${esc(c.status_label)}</span>`
+          + `${c.is_personnel ? ' <span class="personnel-tag">特定案件</span>' : ''}</span></div>`;
+    html += `<div class="meta-row"><span class="meta-label">案件名</span><span>${esc(c.title) || '—'}</span></div>`;
+    // カテゴリー（運営委員会・業務会議のみに表示。申請者には出ない）
+    {
+        const catName = c.category_name || '';
+        let catVal = catName
+            ? `<span class="category-tag">${esc(catName)}</span>`
+            : '<span style="color:#9ca3af">未分類</span>';
+        if (IS_BUSINESS) {
+            catVal += ` <button class="cat-edit-btn" id="btn-edit-category">変更</button>`;
+        }
+        html += `<div class="meta-row"><span class="meta-label">カテゴリー</span><span>${catVal}</span></div>`;
+    }
+    html += `<div class="meta-row"><span class="meta-label">申請者</span><span>${esc(c.applicant_name)}`
+          + `${c.applicant_affiliation ? '（' + esc(c.applicant_affiliation) + '）' : ''}</span></div>`;
+    html += `<div class="meta-row"><span class="meta-label">受付日</span><span>${c.received_date || '—'}</span></div>`;
+    let dl = c.deadline || '未設定';
+    if (c.extension_count > 0) dl += ` <span style="color:#9a3412;font-size:0.78rem">（継続審議${c.extension_count}回）</span>`;
+    html += `<div class="meta-row"><span class="meta-label">審議期日</span><span>${dl}</span></div>`;
+    if (c.accept_note) {
+        html += `<div class="meta-row"><span class="meta-label">受理判断所見</span><span style="white-space:pre-wrap">${esc(c.accept_note)}</span></div>`;
+    }
+    if (c.final_date) {
+        html += `<div class="meta-row"><span class="meta-label">終局日</span><span>${c.final_date}</span></div>`;
+    }
+    $('#case-meta').html(html);
+
+    // 添書（case_view.html / applicant_channel.html と同じ扱い）
+    if (c.cover_letter) {
+        $('#cover-letter-body').text(c.cover_letter);
+        $('#cover-letter-card').show();
+    } else {
+        $('#cover-letter-card').hide();
+    }
+}
+
+function renderDocs(docs) {
+    if (!docs.length) {
+        $('#docs-area').html('<div class="empty-msg">申請書類はありません</div>');
+        return;
+    }
+    let html = '';
+    docs.forEach(d => {
+        const fn = d.download_url
+            ? `<a href="${esc(d.download_url)}" target="_blank" rel="noopener">📎 ${esc(d.original_filename || 'ダウンロード')}</a>`
+            : '';
+        html += `<div class="doc-item">
+            <span class="doc-title">${esc(d.title)}</span>
+            ${d.note ? `<span style="color:#9ca3af;font-size:0.78rem">${esc(d.note)}</span>` : ''}
+            <span>${fn}</span>
+        </div>`;
+    });
+    $('#docs-area').html(html);
+}
+
+// ── 担当委員 ──
+function renderReviewers(reviewers) {
+    const c = caseData.case;
+    // 審議に関係するステータスのときだけ表示
+    if (['submitted','accepted_review','approved','rejected'].indexOf(c.status) === -1) {
+        $('#reviewers-card').hide();
+        return;
+    }
+    $('#reviewers-card').show();
+    if (!reviewers.length) {
+        $('#reviewers-area').html('<div class="empty-msg">運営委員会メンバーが取得できません</div>');
+        return;
+    }
+    let html = '';
+    reviewers.forEach(r => {
+        const coiCls = r.is_coi ? ' coi' : '';
+        const chairMark = r.is_chair ? '<span class="chair-mark">委員長</span>' : '';
+        let coiBtn = '';
+        // COI操作は業務会議のみ、かつ審議中まで
+        if (IS_BUSINESS && (c.status === 'submitted' || c.status === 'accepted_review')) {
+            if (r.is_coi) {
+                coiBtn = `<button class="coi-btn unset" data-uid="${r.user_id}" data-act="unset">COI解除</button>`;
+            } else {
+                coiBtn = `<button class="coi-btn set" data-uid="${r.user_id}" data-act="set">COIで外す</button>`;
+            }
+        }
+        html += `<span class="reviewer-chip${coiCls}">${chairMark}${esc(r.user_name)}${coiBtn}</span>`;
+    });
+    $('#reviewers-area').html(html);
+}
+
+$('#reviewers-area').on('click', '.coi-btn', function() {
+    const uid = $(this).data('uid');
+    const act = $(this).data('act');
+    let reason = '';
+    if (act === 'set') {
+        reason = prompt('COI（利益相反）の理由：') || '';
+    } else {
+        if (!confirm('この委員のCOIを解除し、担当に戻しますか？')) return;
+    }
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/coi',
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({ user_id: uid, action: act, reason: reason })
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || 'COI操作失敗', true); return; }
+        toast(act === 'set' ? 'COIで担当から外しました' : 'COIを解除しました');
+        loadCase();
+    }).fail(function(xhr) { toast(ajaxErr(xhr), true); });
+});
+
+// ── 操作パネル ──
+function renderOps() {
+    const c = caseData.case;
+    let html = '';
+    let show = false;
+
+    // 受理判断（submitted・業務会議）
+    if (c.status === 'submitted' && CAN_ACCEPT) {
+        show = true;
+        html += `<div class="panel-block" style="border-top:none;padding-top:0;margin-top:0">`
+              + `<div class="panel-title">受理判断（業務会議）</div>`
+              + `<div class="field"><label>所見・理由（任意）</label>`
+              + `<textarea id="acc-note" placeholder="不受理の場合は理由を記載してください"></textarea></div>`
+              + `<div class="field"><label>審議期日（附議する場合・任意）</label>`
+              + `<input type="date" id="acc-deadline"></div>`
+              + `<div class="action-row">`
+              + `<button class="btn green"  id="btn-accept">附議する（審議へ）</button>`
+              + `<button class="btn danger" id="btn-reject-accept">不受理にする</button>`
+              + `</div></div>`;
+    }
+
+    // 審議中の操作（accepted_review）
+    if (c.status === 'accepted_review') {
+        // 業務会議：期日設定
+        if (CAN_ACCEPT) {
+            show = true;
+            html += `<div class="panel-block"><div class="panel-title">審議期日の設定（業務会議）</div>`
+                  + `<div class="action-row">`
+                  + `<input type="date" id="dl-input" style="padding:7px 10px;border:1px solid #d1d5db;border-radius:6px">`
+                  + `<button class="btn warn small" id="btn-set-deadline">期日を設定／変更</button>`
+                  + `<span style="font-size:0.85rem;color:#4a3a7a">現在：`
+                  + `<b>${c.deadline ? esc(c.deadline) : '未設定'}</b></span>`
+                  + `</div>`
+                  + `<div style="font-size:0.78rem;color:#9ca3af;margin-top:4px">設定した期日の当日、Slackへリマインダが流れます。</div>`
+                  + `</div>`;
+        }
+        // 委員長：議決
+        if (CAN_DECIDE) {
+            show = true;
+            html += `<div class="panel-block"><div class="panel-title">議決（委員長）</div>`
+                  + `<div class="field"><label>委員会宛てコメント（任意）</label>`
+                  + `<textarea id="dec-note" placeholder="議決の理由など。審議記録に残ります（申請者には表示されません）"></textarea>`
+                  + `<div style="font-size:0.76rem;color:#9ca3af;margin-top:3px">🔒 委員会・業務会議の記録に残ります。申請者には表示されません。</div></div>`
+                  + `<div class="field"><label>申請者宛てメッセージ（任意）</label>`
+                  + `<textarea id="dec-applicant-msg" placeholder="申請者に通知する文面。例：審議の結果、可決されました。"></textarea>`
+                  + `<div style="font-size:0.76rem;color:#9a3412;margin-top:3px">📣 申請者チャンネルに通知されます（審議記録にも「申請者へ通知」として表示されます）。</div></div>`
+                  + `<div class="field"><label>継続審議の場合の新しい審議期日</label>`
+                  + `<input type="date" id="dec-deadline"></div>`
+                  + `<div class="action-row">`
+                  + `<button class="btn green"  id="btn-approve">可決</button>`
+                  + `<button class="btn danger" id="btn-reject">否決</button>`
+                  + `<button class="btn warn"   id="btn-continue">継続審議</button>`
+                  + `</div>`
+                  + `<div style="font-size:0.78rem;color:#9ca3af;margin-top:4px">継続審議は終局しません。新しい審議期日が必要です。</div>`
+                  + `</div>`;
+        }
+    }
+
+    // 打ち切り（終局前・業務会議）
+    if (['submitted','accepted_review'].indexOf(c.status) !== -1 && IS_BUSINESS) {
+        show = true;
+        html += `<div class="panel-block"><div class="panel-title">その他</div>`
+              + `<button class="btn danger small" id="btn-terminate">この案件を打ち切る</button>`
+              + `<span style="font-size:0.78rem;color:#9ca3af;margin-left:8px">長期放置案件向け</span>`
+              + `</div>`;
+    }
+
+    if (!show) { $('#op-card').hide(); return; }
+    $('#op-card').show();
+    $('#op-area').html(html);
+    bindOps();
+}
+
+function bindOps() {
+    // 受理判断
+    $('#btn-accept').off('click').on('click', function() {
+        if (!confirm('この案件を附議し、運営委員会の審議を開始します。\n委員会チャンネルへ審議開始通知が送られます。よろしいですか？')) return;
+        postAccept('accept');
+    });
+    $('#btn-reject-accept').off('click').on('click', function() {
+        if (!confirm('この案件を不受理とします。\nこの操作で案件は終了します。よろしいですか？')) return;
+        postAccept('reject');
+    });
+    function postAccept(action) {
+        $('#btn-accept,#btn-reject-accept').prop('disabled', true);
+        $.ajax({
+            url: URL_BASE + 'api/case/' + CASE_ID + '/accept',
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({
+                action: action,
+                note: $('#acc-note').val().trim(),
+                deadline: $('#acc-deadline').val() || null
+            })
+        }).done(function(r) {
+            if (!r.success) { toast(r.error || '失敗', true); $('#btn-accept,#btn-reject-accept').prop('disabled', false); return; }
+            toast(action === 'accept' ? '附議しました（審議開始）' : '不受理にしました');
+            loadCase(); loadMessages();
+        }).fail(function(xhr) {
+            toast(ajaxErr(xhr), true); $('#btn-accept,#btn-reject-accept').prop('disabled', false);
+        });
+    }
+
+    // 期日設定
+    $('#btn-set-deadline').off('click').on('click', function() {
+        const dl = $('#dl-input').val();
+        if (!dl) { toast('日付を選択してください', true); return; }
+        $.ajax({
+            url: URL_BASE + 'api/case/' + CASE_ID + '/set_deadline',
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ deadline: dl })
+        }).done(function(r) {
+            if (!r.success) { toast(r.error || '設定失敗', true); return; }
+            toast('審議期日を設定しました');
+            loadCase();
+        }).fail(function(xhr) { toast(ajaxErr(xhr), true); });
+    });
+
+    // 議決
+    function postDecide(action, confirmMsg) {
+        const applicantMsg = $('#dec-applicant-msg').val().trim();
+        // 申請者宛てに何が届くかを確認ダイアログで明示する
+        let msg = confirmMsg;
+        if (applicantMsg) {
+            msg += '\n\n申請者には次の文面が通知されます：\n「' + applicantMsg + '」';
+        } else if (action !== 'continue') {
+            msg += '\n\n申請者には「【委員会通知】' + DECISION_LABELS[action]
+                 + '」のみが通知されます。';
+        }
+        if (!confirm(msg)) return;
+        const payload = {
+            action: action,
+            note: $('#dec-note').val().trim(),
+            applicant_message: applicantMsg
+        };
+        if (action === 'continue') {
+            const dl = $('#dec-deadline').val();
+            if (!dl) { toast('継続審議には新しい審議期日が必要です', true); return; }
+            payload.deadline = dl;
+        }
+        $('#btn-approve,#btn-reject,#btn-continue').prop('disabled', true);
+        $.ajax({
+            url: URL_BASE + 'api/case/' + CASE_ID + '/decide',
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify(payload)
+        }).done(function(r) {
+            if (!r.success) { toast(r.error || '議決失敗', true); $('#btn-approve,#btn-reject,#btn-continue').prop('disabled', false); return; }
+            toast('議決しました');
+            loadCase(); loadMessages();
+        }).fail(function(xhr) {
+            toast(ajaxErr(xhr), true); $('#btn-approve,#btn-reject,#btn-continue').prop('disabled', false);
+        });
+    }
+    $('#btn-approve').off('click').on('click', () =>
+        postDecide('approve', '結論「可決」で議決します。委員会チャンネルへ通知が送られます。'));
+    $('#btn-reject').off('click').on('click', () =>
+        postDecide('reject', '結論「否決」で議決します。委員会チャンネルへ通知が送られます。'));
+    $('#btn-continue').off('click').on('click', () =>
+        postDecide('continue', '「継続審議」とします。新しい審議期日で審議が続きます。よろしいですか？'));
+
+    // 打ち切り
+    $('#btn-terminate').off('click').on('click', function() {
+        if (!confirm('この案件を打ち切ります。\nこの操作で案件は終了します。よろしいですか？')) return;
+        const reason = prompt('打ち切り理由（任意）：') || '';
+        $.ajax({
+            url: URL_BASE + 'api/case/' + CASE_ID + '/terminate',
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ reason: reason })
+        }).done(function(r) {
+            if (!r.success) { toast(r.error || '打ち切り失敗', true); return; }
+            toast('打ち切りました');
+            loadCase(); loadMessages();
+        }).fail(function(xhr) { toast(ajaxErr(xhr), true); });
+    });
+}
+
+// ── 審議トラック ──
+function loadMessages() {
+    $.get(URL_BASE + 'api/case/' + CASE_ID + '/review_messages', function(resp) {
+        if (!resp.success) {
+            $('#msg-track').html('<div class="empty-msg" style="color:#ef4444">' + esc(resp.error) + '</div>');
+            return;
+        }
+        const msgs = resp.messages || [];
+        if (!msgs.length) {
+            const box = decisionBoxHtml();
+            $('#msg-track').html(box
+                ? '<div class="empty-msg">まだ発言はありません</div>' + box
+                : '<div class="empty-msg">まだ発言はありません</div>');
+            return;
+        }
+        let html = '';
+        msgs.forEach(m => {
+            const role = m.role || '';
+            const isApplicantNotice = m.source === 'applicant';
+            const kindCls = m.message_kind === 'alert' ? 'kind-alert' : '';
+            const applicantCls = isApplicantNotice ? 'to-applicant' : '';
+            const roleLabel = ROLE_LABELS[role] || '';
+            const alertTag = m.message_kind === 'alert' ? '<span class="alert-tag">重要</span>' : '';
+            const applicantTag = isApplicantNotice
+                ? '<span class="applicant-tag">📣 申請者へ通知</span>' : '';
+            html += `<div class="msg ${role} ${kindCls} ${applicantCls}">
+                <div class="msg-head">
+                    <span><span class="msg-author">${esc(m.user_name)}</span>`
+                  + `${roleLabel ? '<span class="role-tag ' + role + '">' + esc(roleLabel) + '</span>' : ''}${alertTag}${applicantTag}</span>
+                    <span>${m.created_at}</span>
+                </div>
+                <div class="msg-body">${esc(m.body)}</div>
+            </div>`;
+        });
+        // 議決結果（委員会宛て）を審議の末尾に置く。案件情報には可決バッジが
+        // 出るのでそちらでは省略し、ここに委員会向けの結論コメントを表示する。
+        html += decisionBoxHtml();
+        $('#msg-track').html(html);
+        const t = document.getElementById('msg-track');
+        t.scrollTop = t.scrollHeight;
+    }).fail(function(xhr) {
+        $('#msg-track').html('<div class="empty-msg" style="color:#ef4444">' + esc(ajaxErr(xhr)) + '</div>');
+    });
+}
+
+// 議決結果ボックス（審議トラック末尾用）。caseData がまだ無ければ空を返す。
+function decisionBoxHtml() {
+    if (!caseData || !caseData.case) return '';
+    const c = caseData.case;
+    if ((c.status === 'approved' || c.status === 'rejected')
+        && c.decision_note !== undefined) {
+        return `<div class="decision-box ${c.status}" style="margin-top:4px">`
+             + `<b>議決結果：${esc(c.status_label)}</b>`
+             + (c.decision_at ? `<div style="font-size:0.8rem">議決日時：${esc(c.decision_at)}</div>` : '')
+             + (c.decision_note ? `<div style="white-space:pre-wrap;margin-top:4px">${esc(c.decision_note)}</div>` : '')
+             + `</div>`;
+    }
+    if (c.status === 'not_accepted') {
+        return `<div class="decision-box not_accepted" style="margin-top:4px"><b>不受理</b></div>`;
+    }
+    return '';
+}
+
+// ── 発言フォーム ──
+function renderCompose() {
+    const c = caseData.case;
+    if (c.status === 'accepted_review') {
+        $('#compose-area').html(
+            `<div class="compose">
+                <textarea id="msg-input" placeholder="審議の発言を入力…"></textarea>
+                <div class="compose-row">
+                    <label class="alert-check">
+                        <input type="checkbox" id="msg-alert">
+                        重要発言として投稿（Slackで「確認を」通知）
+                    </label>
+                    <button class="btn primary" id="btn-post" style="margin-left:auto">発言する</button>
+                </div>
+            </div>`);
+        $('#btn-post').on('click', postMessage);
+    } else if (['approved','rejected','withdrawn','terminated','not_accepted'].indexOf(c.status) !== -1) {
+        $('#compose-area').html('<div class="readonly-note">この案件の審議は終了しています（'
+            + esc(c.status_label) + '）。発言はできません。</div>');
+    } else {
+        $('#compose-area').html('<div class="readonly-note">この案件はまだ審議前です（'
+            + esc(c.status_label) + '）。附議されると審議が始まります。</div>');
+    }
+}
+
+function postMessage() {
+    const body = $('#msg-input').val().trim();
+    const alert = $('#msg-alert').is(':checked');
+    if (!body) { toast('本文を入力してください', true); return; }
+    if (alert && !confirm('重要発言として投稿します。\n委員会チャンネルへ「確認してください」の通知が送られます。よろしいですか？')) return;
+    $('#btn-post').prop('disabled', true);
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/review_messages',
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({ body: body, message_kind: alert ? 'alert' : 'normal' })
+    }).done(function(r) {
+        $('#btn-post').prop('disabled', false);
+        if (!r.success) { toast(r.error || '送信失敗', true); return; }
+        $('#msg-input').val(''); $('#msg-alert').prop('checked', false);
+        loadMessages();
+    }).fail(function(xhr) {
+        $('#btn-post').prop('disabled', false);
+        toast(ajaxErr(xhr), true);
+    });
+}
+
+// ── カテゴリー付与（業務会議のみ）──
+function loadActiveCategories(cb) {
+    if (activeCategories !== null) { if (cb) cb(); return; }
+    $.get(URL_BASE + 'api/categories', { active_only: 1 }, function(resp) {
+        activeCategories = (resp && resp.success) ? (resp.categories || []) : [];
+        if (cb) cb();
+    }).fail(function() {
+        activeCategories = [];
+        if (cb) cb();
+    });
+}
+
+// 「変更」ボタン：案件情報内のカテゴリー欄をインライン編集に切り替える
+$('#case-meta').on('click', '#btn-edit-category', function() {
+    if (!IS_BUSINESS) return;
+    loadActiveCategories(function() {
+        const cur = (caseData && caseData.case)
+            ? (caseData.case.category_id || '') : '';
+        let opts = '<option value="">（カテゴリーなし）</option>';
+        let curExists = false;
+        activeCategories.forEach(function(cat) {
+            const sel = (String(cat.id) === String(cur)) ? ' selected' : '';
+            if (sel) curExists = true;
+            opts += `<option value="${cat.id}"${sel}>${esc(cat.name)}</option>`;
+        });
+        // 現在付与中のカテゴリーが無効化済みでも、選択肢として残す
+        if (cur && !curExists && caseData.case.category_name) {
+            opts += `<option value="${cur}" selected>`
+                  + `${esc(caseData.case.category_name)}（無効）</option>`;
+        }
+        let row = '';
+        if (!activeCategories.length && !cur) {
+            row = '<div class="cat-edit-row"><span style="color:#9ca3af;'
+                + 'font-size:0.82rem">定義済みのカテゴリーがありません。</span>'
+                + `<a href="${URL_BASE}categories" class="btn-mini save" `
+                + 'style="text-decoration:none">カテゴリーを定義</a>'
+                + '<button class="btn-mini cancel" id="cat-cancel">閉じる</button></div>';
+        } else {
+            row = `<div class="cat-edit-row">
+                <select id="cat-select">${opts}</select>
+                <button class="btn-mini save"   id="cat-save">保存</button>
+                <button class="btn-mini cancel" id="cat-cancel">取消</button>
+            </div>`;
+        }
+        $(this).closest('.meta-row').find('span').last().html(row);
+    }.bind(this));
+});
+
+$('#case-meta').on('click', '#cat-cancel', function() { renderMeta(); });
+
+$('#case-meta').on('click', '#cat-save', function() {
+    const val = $('#cat-select').val();
+    $('#cat-save').prop('disabled', true);
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/category',
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({ category_id: val || null })
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '付与に失敗しました', true);
+                          $('#cat-save').prop('disabled', false); return; }
+        toast('カテゴリーを更新しました');
+        if (caseData && caseData.case) {
+            caseData.case.category_id   = val ? parseInt(val, 10) : null;
+            caseData.case.category_name = r.category_name || '';
+        }
+        renderMeta();
+    }).fail(function(xhr) {
+        toast(ajaxErr(xhr), true); $('#cat-save').prop('disabled', false);
+    });
+});
+
+$(document).ready(function() {
+    loadCase();   // 完了時に loadMessages() を呼ぶ
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,2273 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>案件詳細 - FUJIN-P</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%);
+            min-height: 100vh;
+            padding: 15px;
+        }
+        .container { max-width: 960px; margin: 0 auto; display: grid; gap: 12px; }
+
+        .header {
+            background: white; padding: 15px 22px; border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            display: flex; align-items: center; gap: 12px;
+        }
+        .back-btn {
+            padding: 7px 14px; background: #6366f1; color: white;
+            border: none; border-radius: 6px; cursor: pointer;
+            text-decoration: none; font-size: 0.85rem; white-space: nowrap;
+        }
+        .notify-log-btn {
+            padding: 7px 14px; background: #0891b2; color: white;
+            border: none; border-radius: 6px; cursor: pointer;
+            font-size: 0.85rem; white-space: nowrap;
+        }
+        .header-title { flex: 1; }
+        .header-title h1 { color: #1e3a5f; font-size: 1.15rem; }
+        .header-title .sub { color: #9ca3af; font-size: 0.78rem; margin-top: 2px; }
+
+        .card {
+            background: white; border-radius: 10px;
+            padding: 22px 26px; box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        .card-title {
+            font-size: 0.82rem; font-weight: 700; color: #6b7280;
+            letter-spacing: 0.05em; text-transform: uppercase;
+            margin-bottom: 14px; padding-bottom: 8px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .card-title .action-btn {
+            margin-left: auto; padding: 4px 12px;
+            font-size: 0.78rem; border: none; border-radius: 5px;
+            cursor: pointer; font-weight: 600;
+        }
+        .btn-edit    { background: #e0f2fe; color: #0369a1; }
+        .btn-warn    { background: #fef3c7; color: #92400e; }
+        .btn-danger  { background: #fee2e2; color: #991b1b; }
+
+        .case-header-card {
+            background: white; border-radius: 10px;
+            padding: 20px 26px; box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            border-left: 6px solid #94a3b8;
+        }
+        .case-header-card.status-draft     { border-left-color: #a78bfa; }
+        .case-header-card.status-reviewing { border-left-color: #f59e0b; }
+        .case-header-card.status-approved  { border-left-color: #10b981; }
+        .case-header-card.status-rejected  { border-left-color: #ef4444; }
+        .case-header-card.status-withdrawn { border-left-color: #9ca3af; }
+
+        .case-id-row {
+            display: flex; align-items: center; gap: 10px;
+            flex-wrap: wrap; margin-bottom: 8px;
+        }
+        .case-id-str   { font-family: monospace; font-size: 0.85rem; color: #6b7280; }
+        .case-app-no   { font-size: 0.85rem; font-weight: 700; color: #1e3a5f; }
+        .type-badge    { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; }
+        .type-contract_research      { background: #dbeafe; color: #1e40af; }
+        .type-contract_project       { background: #ede9fe; color: #5b21b6; }
+        .type-collaborative_research { background: #d1fae5; color: #065f46; }
+        .type-collaborative_project  { background: #fef3c7; color: #92400e; }
+
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 0.82rem; font-weight: 700; }
+        .status-draft     { background: #ede9fe; color: #5b21b6; }
+        .status-reviewing { background: #fef3c7; color: #92400e; }
+        .status-approved  { background: #d1fae5; color: #065f46; }
+        .status-rejected  { background: #fee2e2; color: #991b1b; }
+        .status-withdrawn { background: #f3f4f6; color: #6b7280; }
+
+        .case-title-main { font-size: 1.18rem; font-weight: 700; color: #1e293b; margin-bottom: 6px; line-height: 1.4; }
+        .case-meta-row { display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.82rem; color: #64748b; margin-top: 6px; }
+        .case-meta-row span { display: flex; align-items: center; gap: 4px; }
+
+        .detail-grid { display: grid; grid-template-columns: 160px 1fr; gap: 8px 16px; font-size: 0.88rem; }
+        .detail-label { color: #6b7280; font-weight: 600; padding-top: 2px; }
+        .detail-value { color: #1e293b; }
+        .detail-value.pre-wrap { white-space: pre-wrap; word-break: break-word; }
+        .consultation-block {
+            background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;
+            padding: 12px 16px; font-size: 0.87rem; color: #0c4a6e;
+            white-space: pre-wrap; word-break: break-word;
+        }
+        .no-consultation { color: #9ca3af; font-size: 0.85rem; font-style: italic; }
+        .rep-user-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: #dbeafe; color: #1e40af; border-radius: 6px;
+            padding: 4px 10px; font-size: 0.83rem; font-weight: 600;
+        }
+
+        .comment-list { display: grid; gap: 10px; margin-bottom: 16px; }
+        .comment-item { border-radius: 8px; padding: 12px 16px; font-size: 0.88rem; }
+        .comment-item.opinion    { background: #f8fafc; border-left: 3px solid #94a3b8; }
+        .comment-item.question   { background: #fefce8; border-left: 3px solid #eab308; }
+        .comment-item.answer     { background: #f0fdf4; border-left: 3px solid #22c55e; }
+        .comment-item.conclusion { background: #eff6ff; border-left: 3px solid #3b82f6; }
+        .comment-header { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; font-size: 0.78rem; color: #6b7280; }
+        .comment-type-label { font-weight: 700; font-size: 0.75rem; padding: 2px 7px; border-radius: 8px; }
+        .lbl-opinion    { background: #e2e8f0; color: #475569; }
+        .lbl-question   { background: #fef9c3; color: #713f12; }
+        .lbl-answer     { background: #dcfce7; color: #14532d; }
+        .lbl-conclusion { background: #dbeafe; color: #1e3a8a; }
+        .comment-item.motion            { background: #fdf4ff; border-left: 3px solid #a855f7; }
+        .comment-item.motion_adopted    { background: #f5f3ff; border-left: 3px solid #7c3aed; }
+        .comment-item.motion_withdrawn  { background: #f9fafb; border-left: 3px solid #9ca3af; }
+        .comment-item.motion_superseded { background: #f9fafb; border-left: 3px solid #c4b5fd; }
+        .lbl-motion, .lbl-motion_adopted { background: #ede9fe; color: #5b21b6; }
+        .lbl-motion_withdrawn, .lbl-motion_superseded { background: #e5e7eb; color: #4b5563; }
+
+        /* ── 委員長提案（motion）カード ── */
+        .motion-card { border-left: 4px solid #a855f7; }
+        .motion-band {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: #f3e8ff; color: #6b21a8; font-size: 0.78rem; font-weight: 700;
+            padding: 3px 10px; border-radius: 12px;
+        }
+        .motion-box { background: #fdf4ff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
+        .motion-box.closed { background: #fafafa; border-color: #e5e7eb; }
+        .motion-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 8px; font-size: 0.82rem; color: #6b7280; }
+        .motion-no { font-weight: 800; color: #6b21a8; font-size: 0.95rem; }
+        .motion-status { font-size: 0.74rem; font-weight: 700; padding: 2px 8px; border-radius: 8px; }
+        .motion-status.open       { background: #fef3c7; color: #92400e; }
+        .motion-status.adopted    { background: #d1fae5; color: #065f46; }
+        .motion-status.withdrawn, .motion-status.superseded { background: #e5e7eb; color: #4b5563; }
+        .motion-decision { font-weight: 700; color: #1e293b; }
+        .motion-field { margin: 8px 0; font-size: 0.88rem; }
+        .motion-field .mf-label { font-size: 0.74rem; font-weight: 700; color: #6b7280; margin-bottom: 2px; }
+        .motion-field .mf-body  { white-space: pre-wrap; line-height: 1.6; color: #1e293b; }
+        .motion-tally { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0 6px; }
+        .mt-stat { padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; }
+        .mt-stat.agree    { background: #d1fae5; color: #065f46; }
+        .mt-stat.amend    { background: #fef3c7; color: #92400e; }
+        .mt-stat.disagree { background: #fee2e2; color: #991b1b; }
+        .mt-progress { font-size: 0.78rem; color: #6b7280; }
+        .mt-progress.complete { color: #166534; font-weight: 700; }
+        .mv-row { display: flex; gap: 10px; align-items: flex-start; padding: 6px 10px; background: #fff; border-radius: 6px; border-left: 3px solid #e5e7eb; font-size: 0.85rem; margin-bottom: 6px; }
+        .mv-row.agree    { border-left-color: #10b981; }
+        .mv-row.amend    { border-left-color: #f59e0b; }
+        .mv-row.disagree { border-left-color: #ef4444; }
+        .mv-row .vr-name { font-weight: 700; min-width: 84px; }
+        .mv-badge { font-size: 0.74rem; font-weight: 700; padding: 2px 8px; border-radius: 8px; }
+        .mv-badge.agree    { background: #d1fae5; color: #065f46; }
+        .mv-badge.amend    { background: #fef3c7; color: #92400e; }
+        .mv-badge.disagree { background: #fee2e2; color: #991b1b; }
+        .mv-row.remark     { border-left-color: #a855f7; }
+        .mv-badge.remark   { background: #ede9fe; color: #5b21b6; }
+        .lbl-agree    { background: #ecfdf5; color: #047857; }
+        .lbl-amend    { background: #fffbeb; color: #b45309; }
+        .lbl-disagree { background: #fef2f2; color: #b91c1c; }
+        .vote-radio:checked + .lbl-agree    { border-color: #10b981; background: #d1fae5; }
+        .vote-radio:checked + .lbl-amend    { border-color: #f59e0b; background: #fef3c7; }
+        .vote-radio:checked + .lbl-disagree { border-color: #ef4444; background: #fee2e2; }
+        .motion-form { border-top: 1px dashed #d8b4fe; padding-top: 12px; margin-top: 12px; }
+        .motion-form label.mf-lbl { display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin: 8px 0 4px; }
+        .motion-form select, .motion-form input[type=datetime-local] { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem; }
+        .motion-form textarea { width: 100%; min-height: 64px; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.86rem; font-family: inherit; }
+        .btn-motion { padding: 8px 16px; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 0.85rem; }
+        .btn-motion.primary { background: #7c3aed; color: #fff; }
+        .btn-motion.adopt   { background: #059669; color: #fff; }
+        .btn-motion.warn    { background: #f59e0b; color: #fff; }
+        .btn-motion.ghost   { background: #f3f4f6; color: #374151; }
+        .btn-motion:disabled { opacity: .6; cursor: not-allowed; }
+        details.motion-history summary { cursor: pointer; font-size: 0.82rem; font-weight: 700; color: #6b7280; margin: 8px 0; }
+        .comment-author { font-weight: 600; color: #374151; }
+        .comment-body   { color: #1e293b; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+        .empty-comment  { text-align: center; color: #9ca3af; padding: 20px; font-size: 0.88rem; }
+
+        .comment-form { border-top: 1px solid #e5e7eb; padding-top: 14px; }
+        .comment-type-select { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+        .type-radio { display: none; }
+        .type-radio-label {
+            padding: 5px 12px; border-radius: 16px; font-size: 0.8rem; font-weight: 600;
+            cursor: pointer; border: 2px solid transparent;
+            background: #f1f5f9; color: #64748b; user-select: none;
+        }
+        .type-radio:checked + .type-radio-label { border-color: #6366f1; background: #eef2ff; color: #4338ca; }
+        .comment-textarea {
+            width: 100%; padding: 10px 12px; border: 1px solid #d1d5db;
+            border-radius: 6px; font-size: 0.88rem; resize: vertical;
+            min-height: 80px; margin-bottom: 8px;
+        }
+        .comment-submit {
+            padding: 8px 20px; background: #1e3a5f; color: white;
+            border: none; border-radius: 6px; cursor: pointer;
+            font-weight: 600; font-size: 0.88rem;
+        }
+        .comment-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .conclude-panel {
+            background: #fefce8; border: 1px solid #fde68a;
+            border-radius: 8px; padding: 16px; margin-top: 12px;
+        }
+        .conclude-panel h3 { font-size: 0.9rem; color: #92400e; margin-bottom: 12px; }
+        .conclude-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+        .conclude-row select, .conclude-row input {
+            padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.86rem;
+        }
+        .conclude-textarea {
+            width: 100%; padding: 9px 12px; border: 1px solid #d1d5db;
+            border-radius: 6px; font-size: 0.86rem; resize: vertical;
+            min-height: 70px; margin-top: 8px; margin-bottom: 8px;
+        }
+        .btn-conclude {
+            padding: 9px 20px; background: #1e3a5f; color: white;
+            border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.88rem;
+        }
+
+        .admin-section { margin-bottom: 16px; }
+        .admin-section h3 { font-size: 0.82rem; font-weight: 700; color: #374151; margin-bottom: 8px; }
+        .member-list { display: grid; gap: 6px; }
+        .member-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 12px; background: #f8fafc; border-radius: 6px; font-size: 0.85rem;
+        }
+        .member-name { flex: 1; font-weight: 600; }
+        .member-role { font-size: 0.75rem; color: #6b7280; }
+        .coi-badge { font-size: 0.73rem; padding: 2px 7px; border-radius: 8px; font-weight: 700; }
+        .coi-committee { background: #fee2e2; color: #991b1b; }
+        .coi-chair     { background: #fef3c7; color: #92400e; }
+        .coi-none      { background: #d1fae5; color: #065f46; }
+        .coi-controls  { display: flex; gap: 6px; flex-wrap: wrap; }
+        .coi-btn { padding: 3px 8px; font-size: 0.75rem; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
+        .coi-btn-set    { background: #fee2e2; color: #991b1b; }
+        .coi-btn-chair  { background: #fef3c7; color: #92400e; }
+        .coi-btn-acting { background: #dbeafe; color: #1e40af; }
+        .coi-btn-clear  { background: #f3f4f6; color: #6b7280; }
+
+        .snapshot-card {
+            background: #f8fafc; border: 1px solid #e2e8f0;
+            border-radius: 8px; padding: 14px 16px; margin-bottom: 10px;
+        }
+        .snapshot-round-header {
+            font-size: 0.8rem; font-weight: 700; color: #6b7280;
+            margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
+        }
+        .snapshot-round-header .round-badge {
+            background: #1e3a5f; color: white;
+            padding: 2px 8px; border-radius: 10px; font-size: 0.72rem;
+        }
+        .snapshot-round-header .ref-badge {
+            background: #f3f4f6; color: #9ca3af;
+            padding: 2px 8px; border-radius: 10px; font-size: 0.72rem;
+        }
+        .snapshot-member {
+            display: flex; align-items: center; gap: 8px;
+            padding: 5px 0; font-size: 0.84rem; border-bottom: 1px solid #f1f5f9;
+        }
+        .snapshot-member:last-child { border-bottom: none; }
+        .snap-role { font-size: 0.72rem; font-weight: 700; padding: 1px 6px; border-radius: 8px; }
+        .snap-chair  { background: #dbeafe; color: #1e40af; }
+        .snap-member { background: #d1fae5; color: #065f46; }
+        .snap-coi { background: #fee2e2; color: #991b1b; font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; border: 1px solid #fca5a5; }
+
+        .action-bar {
+            display: flex; gap: 10px; flex-wrap: wrap;
+            margin-top: 16px; padding-top: 14px;
+            border-top: 1px solid #e5e7eb;
+        }
+        .btn-send-review {
+            padding: 10px 24px; background: #1e3a5f; color: white;
+            border: none; border-radius: 6px; cursor: pointer;
+            font-weight: 700; font-size: 0.9rem;
+        }
+        .btn-withdraw {
+            padding: 10px 20px; background: #fee2e2; color: #991b1b;
+            border: none; border-radius: 6px; cursor: pointer;
+            font-weight: 700; font-size: 0.88rem;
+        }
+        .btn-change-round {
+            padding: 10px 20px; background: #fef3c7; color: #92400e;
+            border: none; border-radius: 6px; cursor: pointer;
+            font-weight: 700; font-size: 0.88rem;
+        }
+        .btn-send-review:disabled,
+        .btn-withdraw:disabled,
+        .btn-change-round:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 3px; font-size: 0.83rem; font-weight: 600; color: #374151; }
+        .form-group label .req { color: #ef4444; margin-left: 2px; }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%; padding: 8px 11px; border: 1px solid #d1d5db;
+            border-radius: 6px; font-size: 0.86rem; color: #1f2937;
+        }
+        .form-group textarea { min-height: 80px; resize: vertical; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .form-hint { font-size: 0.74rem; color: #9ca3af; margin-top: 2px; }
+        .form-section {
+            font-size: 0.77rem; font-weight: 700; color: #6b7280;
+            letter-spacing: 0.05em; border-top: 1px solid #e5e7eb;
+            padding-top: 12px; margin-top: 4px; margin-bottom: 8px;
+        }
+
+        .user-search-wrap { position: relative; }
+        .user-search-results {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: white; border: 1px solid #d1d5db;
+            border-radius: 0 0 6px 6px; z-index: 200;
+            max-height: 160px; overflow-y: auto; display: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .user-search-item { padding: 7px 11px; cursor: pointer; font-size: 0.85rem; }
+        .user-search-item:hover { background: #f0f9ff; }
+        .user-selected-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: #dbeafe; color: #1e40af; border-radius: 6px;
+            padding: 4px 10px; font-size: 0.82rem; font-weight: 600; margin-top: 4px;
+        }
+        .user-selected-badge .clear-btn {
+            background: none; border: none; cursor: pointer;
+            color: #6b7280; font-size: 0.9rem; line-height: 1; padding: 0;
+        }
+
+        .modal-backdrop {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.55); z-index: 1000;
+            align-items: center; justify-content: center;
+        }
+        .modal-backdrop.show { display: flex; }
+        .modal {
+            background: white; border-radius: 12px; padding: 26px;
+            width: 90%; max-width: 680px; max-height: 90vh;
+            overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .modal h2 { color: #1e3a5f; font-size: 1.1rem; margin-bottom: 18px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
+        .modal-close { float: right; background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #9ca3af; line-height: 1; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+        .btn-primary { padding: 9px 20px; background: #1e3a5f; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .btn-primary-danger { padding: 9px 20px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .btn-cancel  { padding: 9px 20px; background: #f3f4f6; color: #374151; border: none; border-radius: 6px; cursor: pointer; }
+        .btn-primary:disabled, .btn-primary-danger:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .notify-text {
+            background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+            padding: 14px; font-size: 0.88rem; white-space: pre-wrap;
+            word-break: break-word; line-height: 1.7;
+        }
+        .copy-btn {
+            padding: 6px 14px; background: #6366f1; color: white;
+            border: none; border-radius: 5px; cursor: pointer;
+            font-size: 0.83rem; font-weight: 600; margin-top: 10px;
+        }
+
+        .loading { text-align: center; padding: 60px; color: rgba(255,255,255,0.8); font-size: 1rem; }
+        .error-card { background: #fee2e2; border-radius: 10px; padding: 30px; text-align: center; color: #991b1b; }
+
+        #toast {
+            position: fixed; bottom: 25px; right: 25px;
+            padding: 14px 22px; border-radius: 8px;
+            font-size: 0.9rem; font-weight: 600; z-index: 9999;
+            display: none; max-width: 380px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        #toast.success { background: #d1fae5; color: #065f46; }
+        #toast.error   { background: #fee2e2; color: #991b1b; }
+
+        /* ── 意見表明（投票）集計バッジ ── */
+        .vote-summary {
+            display: flex; gap: 10px; flex-wrap: wrap;
+            align-items: center; margin-bottom: 14px;
+        }
+        .vote-stat {
+            display: flex; flex-direction: column; align-items: center;
+            border-radius: 8px; padding: 8px 16px; min-width: 84px;
+        }
+        .vote-stat .v-num { font-size: 1.4rem; font-weight: 800; line-height: 1.1; }
+        .vote-stat .v-lbl { font-size: 0.72rem; font-weight: 600; margin-top: 2px; }
+        .vote-stat.approve { background: #d1fae5; }
+        .vote-stat.approve .v-num, .vote-stat.approve .v-lbl { color: #065f46; }
+        .vote-stat.abstain { background: #f3f4f6; }
+        .vote-stat.abstain .v-num, .vote-stat.abstain .v-lbl { color: #6b7280; }
+        .vote-stat.reject  { background: #fee2e2; }
+        .vote-stat.reject  .v-num, .vote-stat.reject .v-lbl { color: #991b1b; }
+        .vote-progress {
+            font-size: 0.82rem; color: #475569; font-weight: 600;
+            background: #eef2ff; border-radius: 8px; padding: 8px 14px;
+        }
+        .vote-progress.complete { background: #dcfce7; color: #166534; }
+
+        /* ── 委員ごとの意見表明一覧 ── */
+        .vote-list { display: grid; gap: 8px; margin-bottom: 14px; }
+        .vote-row {
+            display: flex; gap: 10px; align-items: flex-start;
+            border-radius: 8px; padding: 10px 14px; font-size: 0.86rem;
+            background: #f8fafc; border-left: 3px solid #cbd5e1;
+        }
+        .vote-row.approve { border-left-color: #10b981; }
+        .vote-row.abstain { border-left-color: #9ca3af; }
+        .vote-row.reject  { border-left-color: #ef4444; }
+        .vote-row .vr-name { font-weight: 700; color: #1e293b; min-width: 84px; }
+        .vote-badge {
+            display: inline-block; padding: 1px 8px; border-radius: 8px;
+            font-size: 0.74rem; font-weight: 700; white-space: nowrap;
+        }
+        .vote-badge.approve { background: #d1fae5; color: #065f46; }
+        .vote-badge.abstain { background: #e5e7eb; color: #4b5563; }
+        .vote-badge.reject  { background: #fee2e2; color: #991b1b; }
+        .vr-comment { color: #334155; white-space: pre-wrap; word-break: break-word; }
+        .vr-time { font-size: 0.74rem; color: #9ca3af; }
+        .vote-empty { color: #9ca3af; font-size: 0.84rem; padding: 8px; }
+
+        /* ── 委員の意見表明フォーム ── */
+        .vote-form {
+            border: 1px solid #e2e8f0; border-radius: 10px;
+            padding: 14px 16px; margin-bottom: 16px; background: #fafbfc;
+        }
+        .vote-form h4 { font-size: 0.86rem; color: #1e3a5f; margin-bottom: 4px; }
+        .vote-form .vf-hint { font-size: 0.76rem; color: #9ca3af; margin-bottom: 10px; }
+        .vote-choice { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+        .vote-radio { display: none; }
+        .vote-radio-label {
+            padding: 7px 16px; border-radius: 18px; font-size: 0.84rem;
+            font-weight: 700; cursor: pointer; border: 2px solid transparent;
+            user-select: none;
+        }
+        .vote-radio-label.lbl-approve { background: #ecfdf5; color: #047857; }
+        .vote-radio-label.lbl-abstain { background: #f3f4f6; color: #6b7280; }
+        .vote-radio-label.lbl-reject  { background: #fef2f2; color: #b91c1c; }
+        .vote-radio:checked + .lbl-approve { border-color: #10b981; background: #d1fae5; }
+        .vote-radio:checked + .lbl-abstain { border-color: #9ca3af; background: #e5e7eb; }
+        .vote-radio:checked + .lbl-reject  { border-color: #ef4444; background: #fee2e2; }
+        .vote-textarea {
+            width: 100%; padding: 9px 12px; border: 1px solid #d1d5db;
+            border-radius: 6px; font-size: 0.86rem; resize: vertical;
+            min-height: 60px; margin-bottom: 8px;
+        }
+        .vote-submit {
+            padding: 8px 20px; background: #1e3a5f; color: white;
+            border: none; border-radius: 6px; cursor: pointer;
+            font-weight: 700; font-size: 0.86rem;
+        }
+        .vote-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+        .my-vote-note {
+            font-size: 0.78rem; color: #6366f1; font-weight: 600; margin-top: 6px;
+        }
+
+        /* ── 期日アラートトグル ── */
+        .alert-box {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            background: #fffbeb; border: 1px solid #fde68a;
+            border-radius: 8px; padding: 10px 14px; margin-top: 10px;
+            font-size: 0.83rem; color: #92400e;
+        }
+        .alert-box.off { background: #f3f4f6; border-color: #e5e7eb; color: #6b7280; }
+        .btn-alert-toggle {
+            padding: 5px 14px; border: none; border-radius: 6px;
+            cursor: pointer; font-weight: 700; font-size: 0.8rem;
+        }
+        .btn-alert-toggle.on  { background: #fef3c7; color: #92400e; }
+        .btn-alert-toggle.off { background: #e0f2fe; color: #0369a1; }
+
+        /* ── Slack投稿状態 ── */
+        .slack-box {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            border-radius: 8px; padding: 10px 14px; margin-top: 10px;
+            font-size: 0.83rem;
+        }
+        .slack-box.ok   { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+        .slack-box.fail { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+        .btn-slack-resend {
+            padding: 5px 14px; background: #4a154b; color: white;
+            border: none; border-radius: 6px; cursor: pointer;
+            font-weight: 700; font-size: 0.8rem;
+        }
+        .btn-slack-resend:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ── 送出時の期日アラート設定 ── */
+        .send-alert-box {
+            background: #fffbeb; border: 1px solid #fde68a;
+            border-radius: 8px; padding: 12px 16px;
+        }
+        .sa-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .sa-row + .sa-row { margin-top: 10px; }
+        .sa-check { display: flex; align-items: center; gap: 6px;
+                    font-size: 0.88rem; font-weight: 700; color: #92400e; cursor: pointer; }
+        .sa-check input { width: 16px; height: 16px; cursor: pointer; }
+        .sa-label { font-size: 0.84rem; font-weight: 600; color: #374151; }
+        .sa-row input[type="datetime-local"] {
+            padding: 6px 10px; border: 1px solid #d1d5db;
+            border-radius: 6px; font-size: 0.85rem;
+        }
+        .sa-hint { font-size: 0.74rem; color: #9ca3af; }
+
+        /* ── アラート設定履歴 ── */
+        .alert-log-list { display: grid; gap: 6px; margin-top: 8px; }
+        .alert-log-row {
+            display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+            font-size: 0.8rem; padding: 6px 10px;
+            background: #f8fafc; border-radius: 6px;
+        }
+        .alert-log-row .al-time { color: #9ca3af; font-size: 0.74rem; white-space: nowrap; }
+        .alert-log-row .al-who  { font-weight: 700; color: #1e293b; }
+        .al-state { padding: 1px 7px; border-radius: 8px; font-size: 0.72rem; font-weight: 700; }
+        .al-state.on  { background: #fef3c7; color: #92400e; }
+        .al-state.off { background: #e5e7eb; color: #6b7280; }
+        .al-note { color: #475569; }
+    </style>
+</head>
+<body>
+<div class="container" id="main-container">
+    <div class="loading">読み込み中...</div>
+</div>
+<div id="toast"></div>
+
+<!-- ─── 編集モーダル ─── -->
+<div class="modal-backdrop" id="modal-edit">
+    <div class="modal">
+        <button class="modal-close" id="modal-edit-close">✕</button>
+        <h2>✏️ 案件編集</h2>
+        <div class="form-section">基本情報</div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>申請No（大学付番）</label>
+                <input type="text" id="edit-application-no" placeholder="例：2026-01">
+            </div>
+            <div class="form-group">
+                <label>新規 / 継続<span class="req">*</span></label>
+                <select id="edit-is-new">
+                    <option value="1">新規</option>
+                    <option value="0">継続</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>課題名 / 事業名<span class="req">*</span></label>
+            <input type="text" id="edit-title">
+        </div>
+        <div class="form-group">
+            <label>申請組織 / 共同機関<span class="req">*</span></label>
+            <input type="text" id="edit-org-name">
+        </div>
+        <div class="form-group">
+            <label>内容概要</label>
+            <textarea id="edit-content"></textarea>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>期間（開始）</label>
+                <input type="date" id="edit-period-start">
+            </div>
+            <div class="form-group">
+                <label>期間（終了）</label>
+                <input type="date" id="edit-period-end">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>研究費 / 事業費（旧テキスト欄）</label>
+            <input type="text" id="edit-research-fee">
+            <div class="form-hint">※ 以下の直接経費・間接経費欄が優先されます。旧データ互換のため残しています。</div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>直接経費（円）</label>
+                <input type="number" id="edit-direct-fee" placeholder="例：1000000" min="0">
+            </div>
+            <div class="form-group">
+                <label>間接経費（円）</label>
+                <input type="number" id="edit-indirect-fee" placeholder="例：300000" min="0">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>合計経費（自動計算）</label>
+            <div id="edit-total-fee-display" style="padding:6px 10px;background:#f3f4f6;border-radius:5px;font-size:0.9rem;color:#374151;">
+                ―
+            </div>
+        </div>
+
+        <div class="form-section">本学担当者（申請者が希望）</div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>担当者名</label>
+                <input type="text" id="edit-rep-name" placeholder="希望担当者名（文字列）">
+            </div>
+            <div class="form-group">
+                <label>所属</label>
+                <input type="text" id="edit-faculty-dept">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>FUJINアカウント連携</label>
+            <div class="user-search-wrap">
+                <input type="text" id="edit-rep-user-search" placeholder="氏名で検索（任意）" autocomplete="off">
+                <div class="user-search-results" id="edit-rep-user-results"></div>
+            </div>
+            <div id="edit-rep-user-selected" style="margin-top:5px;"></div>
+            <div class="form-hint">変更しない場合はそのまま。「解除」で紐付けを削除。</div>
+        </div>
+        <div class="form-section">審議設定</div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>審議期間（開始）</label>
+                <input type="date" id="edit-review-start">
+            </div>
+            <div class="form-group">
+                <label>審査期限（日時・アラート基準）</label>
+                <input type="datetime-local" id="edit-review-end">
+                <div class="form-hint">この日時を過ぎても未決のとき、委員長へリマインドします。</div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>事前協議の有無</label>
+            <textarea id="edit-pre-consultation" placeholder="事前協議の内容を記入（空欄可）"></textarea>
+        </div>
+        <div class="form-group">
+            <label>申請書PDF URL</label>
+            <input type="text" id="edit-doc-url">
+        </div>
+        <div class="modal-actions">
+            <button class="btn-cancel" id="btn-cancel-edit">キャンセル</button>
+            <button class="btn-primary" id="btn-submit-edit">保存する</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── 取り下げモーダル ─── -->
+<div class="modal-backdrop" id="modal-withdraw">
+    <div class="modal">
+        <button class="modal-close" id="modal-withdraw-close">✕</button>
+        <h2>🚫 取り下げ</h2>
+        <p style="font-size:0.88rem;color:#374151;margin-bottom:14px;">
+            取り下げると、それまでの記録を保持したまま審議を終了します。この操作は元に戻せません。
+        </p>
+        <div class="form-group">
+            <label>取り下げ理由（任意）</label>
+            <textarea id="withdraw-reason" placeholder="例：申請者からの辞退申し出があったため" style="min-height:80px;width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:0.86rem;resize:vertical;"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-cancel" id="btn-cancel-withdraw">キャンセル</button>
+            <button class="btn-primary-danger" id="btn-submit-withdraw">取り下げる</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── 通知文モーダル ─── -->
+<div class="modal-backdrop" id="modal-notify">
+    <div class="modal">
+        <button class="modal-close" id="modal-notify-close">✕</button>
+        <h2>📨 承認通知文</h2>
+        <div class="notify-text" id="notify-text-content"></div>
+        <button class="copy-btn" id="btn-copy-notify">📋 コピー</button>
+    </div>
+</div>
+
+<!-- ─── 通知記録モーダル（事務局・委員長） ─── -->
+{% if is_admin or is_chair %}
+<div class="modal-backdrop" id="modal-notify-log">
+    <div class="modal" style="max-width:720px;">
+        <button class="modal-close" id="modal-notify-log-close">✕</button>
+        <h2>📨 通知記録</h2>
+        <p style="font-size:0.84rem;color:#6b7280;margin:6px 0 14px;">
+            この案件についてSlackへ送られた通知の記録です。
+        </p>
+        <div id="notify-log-body">
+            <div style="text-align:center;padding:30px;color:#9ca3af;">⏳ 読み込み中...</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+const CASE_ID          = {{ case_id }};
+const IS_ADMIN         = {{ 'true' if is_admin else 'false' }};
+const IS_CHAIR         = {{ 'true' if is_chair else 'false' }};
+const IS_COMMITTEE     = {{ 'true' if is_committee else 'false' }};
+const CURRENT_USER     = {{ current_user_id }};
+const TYPE_LABELS      = {{ type_labels | tojson }};
+const STATUS_LABELS    = {{ status_labels | tojson }};
+const API_USERS_SEARCH = '{{ url_for("ext_engagement.api_users_search") }}';
+
+let caseData      = null;
+let viewerData    = null;
+let membersCache  = null;
+let editRepUserId = null;
+// 状態遷移（審議開始・委員変更など）の多重送信ガード。
+// 送信開始時に true にし、loadCase() で画面が描き直されるまで解除しない。
+// confirm 中の連打や、画面遷移が遅れている間の二度押しによる
+// 無用な 400 エラーを防ぐ。
+let transitionBusy = false;
+
+// ─── ユーティリティ ───
+function toast(msg, isError) {
+    const $t = $('#toast');
+    $t.text(msg).removeClass('success error').addClass(isError ? 'error' : 'success').fadeIn();
+    setTimeout(() => $t.fadeOut(), 4000);
+}
+function escHtml(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function statusBadge(s) {
+    return `<span class="status-badge status-${s}">${STATUS_LABELS[s] || s}</span>`;
+}
+function typeBadge(tk, tl) {
+    return `<span class="type-badge type-${tk}">${tl}</span>`;
+}
+function commentTypeLabel(t) {
+    const m = { opinion:'意見', question:'質問', answer:'回答', conclusion:'結論',
+                motion:'委員長提案', motion_adopted:'提案 採択', motion_withdrawn:'提案 取り下げ', motion_superseded:'提案 差し替え' };
+    const c = { opinion:'lbl-opinion', question:'lbl-question', answer:'lbl-answer', conclusion:'lbl-conclusion',
+                motion:'lbl-motion', motion_adopted:'lbl-motion_adopted', motion_withdrawn:'lbl-motion_withdrawn', motion_superseded:'lbl-motion_superseded' };
+    return `<span class="comment-type-label ${c[t]||'lbl-opinion'}">${m[t]||t}</span>`;
+}
+function fmtFee(val) {
+    if (val === null || val === undefined) return '<span style="color:#9ca3af">未入力</span>';
+    return Number(val).toLocaleString('ja-JP') + ' 円';
+}
+
+// ─── メインロード ───
+function loadCase() {
+    $.get(`/ext_engagement/api/case/${CASE_ID}`, function(resp) {
+        if (!resp.success) {
+            $('#main-container').html(`<div class="error-card">⚠️ ${escHtml(resp.error)}</div>`);
+            return;
+        }
+        caseData   = resp.case;
+        viewerData = resp.viewer;
+        renderAll(resp);
+    }).fail(() => {
+        $('#main-container').html('<div class="error-card">⚠️ 通信エラーが発生しました</div>');
+    }).always(() => {
+        // 画面が描き直された（または失敗が確定した）ので、状態遷移ガードを解除
+        transitionBusy = false;
+    });
+}
+
+function renderAll(resp) {
+    const c  = resp.case;
+    const v  = resp.viewer;
+    const tk = c.type_key;
+
+    // ── ヘッダカード ──
+    const appNoHtml = c.application_no
+        ? `<span class="case-app-no">申請No: ${escHtml(c.application_no)}</span>` : '';
+    const roundHtml = c.review_round > 1
+        ? `<span style="font-size:0.78rem;color:#6366f1;font-weight:600;">第${c.review_round}回</span>` : '';
+
+    // 経費サマリ：direct_fee/indirect_fee 優先、なければ research_fee
+    const feeMetaHtml = (() => {
+        if (c.direct_fee !== null && c.direct_fee !== undefined) {
+            const total = (Number(c.direct_fee) + Number(c.indirect_fee || 0)).toLocaleString('ja-JP');
+            const ind   = c.indirect_fee !== null && c.indirect_fee !== undefined
+                ? Number(c.indirect_fee).toLocaleString('ja-JP') + '円' : '―';
+            return `<span>💴 直接: ${Number(c.direct_fee).toLocaleString('ja-JP')}円 / 間接: ${ind} / 合計: ${total}円</span>`;
+        }
+        return c.research_fee ? `<span>💴 ${escHtml(c.research_fee)}</span>` : '';
+    })();
+
+    const headerHtml = `
+    <div class="case-header-card status-${c.status}">
+        <div class="case-id-row">
+            <span class="case-id-str">${escHtml(c.case_display_id)}</span>
+            ${appNoHtml}
+            ${typeBadge(tk, c.type_label)}
+            <span style="font-size:0.8rem;color:#6b7280">${c.is_new_application ? '新規' : '継続'}</span>
+            ${statusBadge(c.status)}
+            ${roundHtml}
+            ${resp.open_motion ? `<span class="motion-band">📌 委員長提案 第${resp.open_motion.motion_no}号 審議中（表明 ${resp.open_motion.vote_summary.total_voted}／${resp.open_motion.vote_summary.eligible}）</span>` : ''}
+        </div>
+        <div class="case-title-main">${escHtml(c.title)}</div>
+        <div class="case-meta-row">
+            <span>🏢 ${escHtml(c.org_label)}：${escHtml(c.org_name)}</span>
+            ${c.period_start ? `<span>📅 ${c.period_start}${c.period_end ? ' ～ ' + c.period_end : ''}</span>` : ''}
+            ${feeMetaHtml}
+        </div>
+    </div>`;
+
+    // ── 詳細カード ──
+    const repLine = (() => {
+        const namePart = [c.faculty_dept, c.representative_name].filter(Boolean).join(' ');
+        let html = namePart ? escHtml(namePart) : '<span style="color:#9ca3af">未入力</span>';
+        if (resp.preferred_rep_info) {
+            html += ` <span class="rep-user-badge">👤 ${escHtml(resp.preferred_rep_info.full_name)}</span>`;
+        }
+        return html;
+    })();
+    const consultHtml = c.pre_consultation
+        ? `<div class="consultation-block">${escHtml(c.pre_consultation)}</div>`
+        : `<div class="no-consultation">記録なし</div>`;
+    const docUrlHtml = c.doc_url
+        ? `<a href="${escHtml(c.doc_url)}" target="_blank" style="color:#6366f1">📄 申請書を開く</a>`
+        : '<span style="color:#9ca3af">なし</span>';
+    const decisionHtml = c.decision
+        ? `<div style="background:#eff6ff;border-radius:6px;padding:10px 14px;font-size:0.88rem;white-space:pre-wrap;">${escHtml(c.decision)}</div>`
+        : '';
+    const adminBtns = v.is_admin ? `
+        <button class="action-btn btn-edit" id="btn-open-edit">✏️ 編集</button>
+        ${c.status === 'approved' ? `<button class="action-btn btn-warn" id="btn-open-notify">📨 通知文</button>` : ''}
+    ` : '';
+
+    // 直接・間接経費の合計表示
+    const totalFee = (c.direct_fee !== null && c.direct_fee !== undefined &&
+                      c.indirect_fee !== null && c.indirect_fee !== undefined)
+        ? (Number(c.direct_fee) + Number(c.indirect_fee)).toLocaleString('ja-JP') + ' 円'
+        : null;
+
+    const detailHtml = `
+    <div class="card">
+        <div class="card-title">📋 案件詳細 ${adminBtns}</div>
+        <div class="detail-grid">
+            <div class="detail-label">${escHtml(c.content_label)}</div>
+            <div class="detail-value pre-wrap">${escHtml(c.content) || '<span style="color:#9ca3af">未入力</span>'}</div>
+            <div class="detail-label">${escHtml(c.rep_label)}</div>
+            <div class="detail-value">${repLine}</div>
+            <div class="detail-label">${escHtml(c.period_label)}</div>
+            <div class="detail-value">${c.period_start ? escHtml(c.period_start + (c.period_end ? ' ～ ' + c.period_end : '')) : '<span style="color:#9ca3af">未設定</span>'}</div>
+            <div class="detail-label">研究費 / 事業費（旧）</div>
+            <div class="detail-value">${escHtml(c.research_fee) || '<span style="color:#9ca3af">未入力</span>'}</div>
+            <div class="detail-label">直接経費</div>
+            <div class="detail-value">${fmtFee(c.direct_fee)}</div>
+            <div class="detail-label">間接経費</div>
+            <div class="detail-value">${fmtFee(c.indirect_fee)}</div>
+            <div class="detail-label">合計経費</div>
+            <div class="detail-value">${totalFee || '<span style="color:#9ca3af">―</span>'}</div>
+            <div class="detail-label">事前協議</div>
+            <div class="detail-value">${consultHtml}</div>
+            <div class="detail-label">審議開始 / 審査期限</div>
+            <div class="detail-value">${c.review_start ? escHtml(c.review_start) : '<span style="color:#9ca3af">―</span>'}${c.review_end ? '　～　審査期限 ' + escHtml(c.review_end) : ''}</div>
+            <div class="detail-label">申請書</div>
+            <div class="detail-value">${docUrlHtml}</div>
+            ${c.approved_date ? `<div class="detail-label">承認日</div><div class="detail-value">${escHtml(c.approved_date)}</div>` : ''}
+            ${decisionHtml ? `<div class="detail-label">結論</div><div class="detail-value">${decisionHtml}</div>` : ''}
+        </div>
+    </div>`;
+
+    // ── 委員スナップショット（read-only、全ラウンド） ──
+    let snapshotHtml = '';
+    if (resp.snapshots && resp.snapshots.length) {
+        const rounds = {};
+        resp.snapshots.forEach(s => {
+            if (!rounds[s.round_no]) rounds[s.round_no] = [];
+            rounds[s.round_no].push(s);
+        });
+        const roundNos  = Object.keys(rounds).map(Number).sort((a,b) => a-b);
+        const maxRound  = roundNos[roundNos.length - 1];
+
+        let roundsHtml = '';
+        roundNos.forEach(rno => {
+            const isRef     = rno < maxRound;
+            const badgeHtml = isRef
+                ? `<span class="ref-badge">第${rno}回（参考）</span>`
+                : `<span class="round-badge">第${rno}回</span>`;
+            const members = rounds[rno];
+            const confirmedAt = members[0].confirmed_at || '';
+
+            let membersHtml = members.map(s => {
+                const isCommitteeCoi = s.coi_excluded === 'committee';
+                const roleClass = s.role === 'chair' ? 'snap-chair' : 'snap-member';
+                const roleLabel = s.role === 'chair' ? '委員長' : '委員';
+                const roleBadge = isCommitteeCoi
+                    ? `<span class="snap-coi">COIにより委員除外</span>`
+                    : `<span class="snap-role ${roleClass}">${roleLabel}</span>`;
+                const chairCoiHtml = s.coi_excluded === 'chair_only'
+                    ? `<span class="snap-coi">COIにより委員長除外</span>`
+                    : '';
+                return `
+                <div class="snapshot-member">
+                    ${roleBadge}
+                    <span style="flex:1;font-weight:600">${escHtml(s.full_name || '')}</span>
+                    ${chairCoiHtml}
+                </div>`;
+            }).join('');
+
+            roundsHtml += `
+            <div class="snapshot-card" ${isRef ? 'style="opacity:0.6"' : ''}>
+                <div class="snapshot-round-header">
+                    ${badgeHtml}
+                    <span style="font-size:0.75rem;color:#9ca3af">確定：${confirmedAt}</span>
+                </div>
+                ${membersHtml}
+            </div>`;
+        });
+
+        snapshotHtml = `
+        <div class="card">
+            <div class="card-title">👥 審査委員（確定）</div>
+            ${roundsHtml}
+        </div>`;
+    }
+
+    // ── 管理パネル ──
+    let adminPanelHtml = '';
+    if ((v.is_admin || IS_CHAIR) && c.status === 'draft') {
+        // 審査期限の既定値：本日＋7日の 17:00（審査期間は既定1週間）
+        const dl = new Date();
+        dl.setDate(dl.getDate() + 7);
+        dl.setHours(17, 0, 0, 0);
+        const pad = n => String(n).padStart(2, '0');
+        const defaultDeadline =
+            `${dl.getFullYear()}-${pad(dl.getMonth()+1)}-${pad(dl.getDate())}`
+            + `T${pad(dl.getHours())}:${pad(dl.getMinutes())}`;
+
+        // round_no が 2 以上＝委員変更を経た再宣言。文面・見出しを変える。
+        const isRereview = (c.review_round || 1) >= 2;
+        const panelTitle = isRereview
+            ? '🔧 審議開始宣言（委員構成の変更後）'
+            : '🔧 審議開始宣言';
+        const declareNote = isRereview
+            ? '委員構成を確認し、審議を再開します。委員会への通知には'
+              + '「委員構成を変更し、審議を再開します」と記されます。'
+            : '委員構成と審査期限を確認し、審議の開始を宣言します。';
+        const startBtnLabel = isRereview ? '✅ 審議を開始／再開する' : '✅ 審議開始を宣言する';
+
+        // 委員選定（COI確認・代理委員長）は事務局のみが操作できる。
+        // 委員長が見るときは現在の委員構成の確認のみ（読み取り）。
+        const memberSection = `
+            <div class="admin-section">
+                <h3>委員・委員長のCOI確認${v.is_admin ? 'と代理委員長設定' : '（確認）'}</h3>
+                <div class="member-list" id="member-list">
+                    <div style="color:#9ca3af;font-size:0.85rem">読み込み中...</div>
+                </div>
+            </div>`;
+
+        adminPanelHtml = `
+        <div class="card" id="admin-panel">
+            <div class="card-title">${panelTitle}</div>
+            <div style="font-size:0.84rem;color:#475569;margin-bottom:12px;padding:8px 12px;background:#f8fafc;border-radius:6px;">
+                ${declareNote}
+            </div>
+            ${memberSection}
+            <div class="admin-section">
+                <h3>審査期限と期日アラート</h3>
+                <div class="send-alert-box">
+                    <div class="sa-row">
+                        <label class="sa-label">審査期限（日時）</label>
+                        <input type="datetime-local" id="send-review-end" value="${defaultDeadline}">
+                        <span class="sa-hint">既定は本日から1週間後です。状況に応じて変更できます。</span>
+                    </div>
+                    <div class="sa-row">
+                        <label class="sa-check">
+                            <input type="checkbox" id="send-alert-enabled" checked>
+                            <span>期日アラートを有効にする</span>
+                        </label>
+                        <span class="sa-hint">既定で有効です。不要なときはチェックを外してください。</span>
+                    </div>
+                </div>
+            </div>
+            <div class="admin-section">
+                <h3>委員会への通知</h3>
+                <div class="send-alert-box" style="background:#eef2ff;border-color:#c7d2fe;">
+                    <div class="sa-row">
+                        <label class="sa-check">
+                            <input type="checkbox" id="send-notify-committee" checked>
+                            <span>審議開始を委員会のSlackチャンネルへ通知する</span>
+                        </label>
+                        <span class="sa-hint">既定で通知します。不要なときはチェックを外してください。</span>
+                    </div>
+                    <div class="sa-row" style="display:block;">
+                        <label class="sa-label" style="display:block;margin-bottom:4px;">委員会に添えるメッセージ（任意）</label>
+                        <textarea id="send-chair-message" rows="3"
+                            placeholder="審議にあたっての依頼事項やひとことを入力（空欄でも可）"
+                            style="width:100%;padding:8px 12px;border:1px solid #c7d2fe;border-radius:6px;font-size:0.86rem;resize:vertical;"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="action-bar">
+                <button class="btn-send-review" id="btn-send-review">${startBtnLabel}</button>
+                ${v.is_admin ? '<button class="btn-withdraw" id="btn-withdraw">🚫 取り下げ</button>' : ''}
+            </div>
+        </div>`;
+    } else if (v.is_admin && c.status === 'reviewing') {
+        adminPanelHtml = `
+        <div class="card">
+            <div class="card-title">🔧 管理者操作</div>
+            <div class="action-bar" style="margin-top:0;padding-top:0;border-top:none;">
+                <button class="btn-change-round" id="btn-change-round">🔄 委員変更（下書き状態へ．審議コメントは再開後残ります）</button>
+                <button class="btn-withdraw" id="btn-withdraw">🚫 取り下げ</button>
+            </div>
+        </div>`;
+    } else if (v.is_admin && resp.coi_info && resp.coi_info.length && !['draft','reviewing'].includes(c.status)) {
+        let coiRows = resp.coi_info.map(r => `
+            <div class="member-item">
+                <span class="member-name">${escHtml(r.full_name)}</span>
+                <span class="coi-badge ${r.excluded_roles === 'committee' ? 'coi-committee' : 'coi-chair'}">
+                    ${r.excluded_roles === 'committee' ? '委員COI' : '委員長COI'}
+                </span>
+                <span style="font-size:0.78rem;color:#6b7280">${escHtml(r.reason || '')}</span>
+            </div>`).join('');
+        adminPanelHtml = `
+        <div class="card">
+            <div class="card-title">🔧 COI記録</div>
+            <div class="member-list">${coiRows}</div>
+        </div>`;
+    }
+
+    // ── 意見表明（投票）カード ──
+    // 委員長が「いま委員からどんな意見が出ているか」を一目で把握するためのもの。
+    // 集計と委員ごとの一覧を常時表示し、審議中は委員が意見を表明できる。
+    let voteHtml = '';
+    {
+        const vs = resp.vote_summary || { counts:{approve:0,abstain:0,reject:0},
+                                          total_voted:0, eligible:0, all_voted:false, votes:[] };
+        const cnt = vs.counts || {approve:0,abstain:0,reject:0};
+
+        // 集計バッジ
+        const progressCls = (vs.eligible > 0 && vs.all_voted) ? 'complete' : '';
+        const progressTxt = vs.eligible > 0
+            ? `意見表明 ${vs.total_voted} / ${vs.eligible} 名`
+              + (vs.all_voted ? '（全員表明済み）' : '')
+            : `意見表明 ${vs.total_voted} 名`;
+
+        const summaryBar = `
+        <div class="vote-summary">
+            <div class="vote-stat approve">
+                <span class="v-num">${cnt.approve}</span>
+                <span class="v-lbl">承認でよい</span>
+            </div>
+            <div class="vote-stat abstain">
+                <span class="v-num">${cnt.abstain}</span>
+                <span class="v-lbl">意見を控える</span>
+            </div>
+            <div class="vote-stat reject">
+                <span class="v-num">${cnt.reject}</span>
+                <span class="v-lbl">不承認</span>
+            </div>
+            <div class="vote-progress ${progressCls}">${progressTxt}</div>
+        </div>`;
+
+        // 委員ごとの意見表明一覧
+        let listHtml = '';
+        if (vs.votes && vs.votes.length) {
+            vs.votes.forEach(vt => {
+                listHtml += `
+                <div class="vote-row ${vt.vote}">
+                    <span class="vr-name">${escHtml(vt.full_name)}</span>
+                    <div style="flex:1">
+                        <span class="vote-badge ${vt.vote}">${escHtml(vt.vote_label)}</span>
+                        ${vt.comment ? `<div class="vr-comment" style="margin-top:4px">${escHtml(vt.comment)}</div>` : ''}
+                    </div>
+                    <span class="vr-time">${vt.updated_at}</span>
+                </div>`;
+            });
+        } else {
+            listHtml = `<div class="vote-empty">まだ意見表明はありません</div>`;
+        }
+
+        // 委員向け：意見表明フォーム（審議中・委員・COI除外でない場合のみ）
+        // 委員長は判定する立場なので、ここでは表明しない。
+        let formHtml = '';
+        // adminアカウントは is_committee_member() の admin ショートカットにより
+        // v.is_committee=true となるが、審議の当事者ではない（閲覧・管理のみ）。
+        // 入力フォームは出さない。一覧・集計の閲覧はそのまま。
+        const canVote = (c.status === 'reviewing') && v.is_committee && !v.is_coi && !v.is_chair && !v.is_admin;
+        if (canVote) {
+            const mv = resp.my_vote;  // {vote, comment} または null
+            const chk = k => (mv && mv.vote === k) ? 'checked' : '';
+            formHtml = `
+            <div class="vote-form">
+                <h4>あなたの意見を表明</h4>
+                <div class="vf-hint">いつでも変更できます。コメントは任意です。</div>
+                <div class="vote-choice">
+                    <input type="radio" class="vote-radio" name="vchoice" id="v-approve" value="approve" ${chk('approve')}>
+                    <label class="vote-radio-label lbl-approve" for="v-approve">承認でよい</label>
+                    <input type="radio" class="vote-radio" name="vchoice" id="v-abstain" value="abstain" ${chk('abstain')}>
+                    <label class="vote-radio-label lbl-abstain" for="v-abstain">意見を控える</label>
+                    <input type="radio" class="vote-radio" name="vchoice" id="v-reject" value="reject" ${chk('reject')}>
+                    <label class="vote-radio-label lbl-reject" for="v-reject">不承認</label>
+                </div>
+                <textarea class="vote-textarea" id="vote-comment" placeholder="意見に添えるコメント（任意）">${mv ? escHtml(mv.comment) : ''}</textarea>
+                <button class="vote-submit" id="btn-vote">${mv ? '意見を更新する' : '意見を表明する'}</button>
+                ${mv ? '<div class="my-vote-note">※ あなたは既に意見を表明済みです（上書きできます）</div>' : ''}
+            </div>`;
+        }
+
+        voteHtml = `
+        <div class="card" id="vote-card">
+            <div class="card-title">🗳️ 委員の意見表明</div>
+            ${summaryBar}
+            ${formHtml}
+            <div class="vote-list" id="vote-list">${listHtml}</div>
+        </div>`;
+    }
+
+    // ── 委員長提案（motion）カード ──
+    const motionHtml = renderMotionCard(resp);
+
+    // ── コメントカード ──
+    let commentHtml = `
+    <div class="card" id="comment-card">
+        <div class="card-title">💬 審議コメント</div>
+        <div class="comment-list" id="comment-list">`;
+
+    if (!resp.comments.length) {
+        commentHtml += `<div class="empty-comment">まだコメントはありません</div>`;
+    } else {
+        resp.comments.forEach(cm => {
+            commentHtml += `
+            <div class="comment-item ${cm.is_conclusion ? 'conclusion' : cm.comment_type}">
+                <div class="comment-header">
+                    ${commentTypeLabel(cm.is_conclusion ? 'conclusion' : cm.comment_type)}
+                    <span class="comment-author">${escHtml(cm.author_name)}</span>
+                    <span>${cm.created_at}</span>
+                </div>
+                <div class="comment-body">${escHtml(cm.content)}</div>
+            </div>`;
+        });
+    }
+    commentHtml += `</div>`;
+
+    // adminアカウントは v.is_committee=true となるが審議の当事者ではないため入力UIは出さない。
+    // 委員長は委員会構成員から外れていても、判定する立場として審議中に発言できる。
+    // v.is_chair は is_effective_chair（COIで委員長除外された場合は false）の結果なので、
+    // COI除外された委員長には自動的にフォームを出さない。
+    const canComment = (c.status === 'reviewing') && !v.is_admin &&
+        ((v.is_committee && !v.is_coi) || v.is_chair);
+    if (canComment) {
+        const formHint = v.is_chair
+            ? '審議中の議論・委員への照会・申請者への質問とその回答をここに記録します。最終的な結論は下の結論宣言で行ってください。'
+            : '審議中の議論・委員長への照会・申請者への質問とその回答をここに記録します。委員の賛否は上の「委員の意見表明」で行ってください。';
+        commentHtml += `
+        <div class="comment-form">
+            <div style="font-size:0.78rem;color:#9ca3af;margin-bottom:8px;">
+                ${formHint}
+            </div>
+            <div class="comment-type-select">
+                <input type="radio" class="type-radio" name="ctype" id="ct-opinion" value="opinion" checked>
+                <label class="type-radio-label" for="ct-opinion">意見</label>
+                <input type="radio" class="type-radio" name="ctype" id="ct-question" value="question">
+                <label class="type-radio-label" for="ct-question">質問</label>
+                <input type="radio" class="type-radio" name="ctype" id="ct-answer" value="answer">
+                <label class="type-radio-label" for="ct-answer">回答</label>
+            </div>
+            <textarea class="comment-textarea" id="new-comment" placeholder="審議意見・質問・回答を入力"></textarea>
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:#374151;margin:8px 0;cursor:pointer;">
+                <input type="checkbox" id="comment-notify-committee" style="width:15px;height:15px;cursor:pointer;">
+                <span>委員会全員に通知を発出（チェックするとSlackチャンネルへ通知）</span>
+            </label>
+            <button class="comment-submit" id="btn-post-comment">投稿する</button>
+        </div>`;
+    } else if (c.status === 'reviewing' && v.is_coi) {
+        commentHtml += `<div style="margin-top:12px;padding:10px 14px;background:#fee2e2;border-radius:6px;font-size:0.85rem;color:#991b1b;">⚠️ この案件はCOI対象のため、審議への参加が制限されています。</div>`;
+    } else if (c.status === 'draft' && !v.is_admin) {
+        commentHtml += `<div style="margin-top:12px;padding:10px 14px;background:#f0f9ff;border-radius:6px;font-size:0.85rem;color:#0369a1;">ℹ️ 委員選定中です。審議開始後にコメントできます。</div>`;
+    }
+    commentHtml += `</div>`;
+
+    // ── 結論パネル / 期日アラート / Slack投稿状態 ──
+    let concludeHtml = '';
+
+    // 期日アラートカード（審議中・委員長または事務局に表示）
+    // 委員長／事務局のどちらも設定でき、設定の経緯を履歴で確認できる。
+    let alertCardHtml = '';
+    if (c.status === 'reviewing' && (v.is_admin || IS_CHAIR)) {
+        const alertOn   = c.alert_enabled !== 0;
+        const setByName = resp.alert_set_by_name || '';
+        const setAt     = c.alert_set_at || '';
+        const setLine   = (setByName || setAt)
+            ? `最終設定：${escHtml(setByName || '不明')}　${escHtml(setAt)}`
+            : '設定記録なし';
+        // datetime-local 用に 'YYYY-MM-DD HH:MM' → 'YYYY-MM-DDTHH:MM'
+        const reviewEndLocal = c.review_end ? c.review_end.replace(' ', 'T') : '';
+
+        // 設定履歴
+        let logRows = '';
+        (resp.alert_logs || []).forEach(lg => {
+            const actMap = { send_to_review:'送出時設定', toggle:'ON/OFF変更', deadline:'期限変更' };
+            logRows += `
+            <div class="alert-log-row">
+                <span class="al-time">${escHtml(lg.changed_at)}</span>
+                <span class="al-who">${escHtml(lg.changed_by_name || '')}</span>
+                <span class="al-state ${lg.enabled ? 'on' : 'off'}">${lg.enabled ? 'ON' : 'OFF'}</span>
+                <span class="al-note">${escHtml(actMap[lg.action] || lg.action)}${lg.review_end ? '／審査期限 ' + escHtml(lg.review_end) : ''}${lg.note ? '（' + escHtml(lg.note) + '）' : ''}</span>
+            </div>`;
+        });
+        if (!logRows) logRows = '<div style="color:#9ca3af;font-size:0.8rem;padding:4px;">履歴なし</div>';
+
+        alertCardHtml = `
+        <div class="card">
+            <div class="card-title">⏰ 期日アラート</div>
+            <div class="alert-box ${alertOn ? '' : 'off'}" id="alert-box">
+                <span>${alertOn
+                    ? '🔔 アラート：ON（審査期限の超過・全員表明をSlackでお知らせ）'
+                    : '🔕 アラート：OFF（リマインドは送られません）'}</span>
+                <button class="btn-alert-toggle ${alertOn ? 'on' : 'off'}" id="btn-alert-toggle">
+                    ${alertOn ? 'OFFにする' : 'ONにする'}
+                </button>
+            </div>
+            <div style="font-size:0.78rem;color:#9ca3af;margin:8px 2px 4px;">${setLine}</div>
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:8px;">
+                <div>
+                    <label style="font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-bottom:4px;">審査期限（日時）</label>
+                    <input type="datetime-local" id="alert-review-end" value="${reviewEndLocal}"
+                           style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem;">
+                </div>
+                <button class="btn-alert-toggle on" id="btn-alert-deadline" style="height:32px;">
+                    審査期限を更新
+                </button>
+            </div>
+            <div style="font-size:0.74rem;color:#9ca3af;margin-top:4px;">
+                審査期限を変えると、その日時を基準にアラートが再び効きます。
+            </div>
+            <div style="font-size:0.8rem;font-weight:700;color:#6b7280;margin:14px 2px 4px;">設定履歴</div>
+            <div class="alert-log-list">${logRows}</div>
+        </div>`;
+    }
+
+    if (c.status === 'reviewing' && IS_CHAIR) {
+        // 委員長向け：意見表明の全体像サマリ＋結論宣言
+        const vs2 = resp.vote_summary || { counts:{approve:0,abstain:0,reject:0},
+                                           total_voted:0, eligible:0, all_voted:false };
+        const c2  = vs2.counts || {approve:0,abstain:0,reject:0};
+        const voteLine = vs2.eligible > 0
+            ? `委員 ${vs2.eligible} 名中 ${vs2.total_voted} 名が表明`
+              + `（承認でよい ${c2.approve}・意見を控える ${c2.abstain}・不承認 ${c2.reject}）`
+              + (vs2.all_voted ? '　▶ 全員表明済み。判定可能です。' : '')
+            : '審査委員が登録されていません';
+
+        // 委員長提案の状態を結論宣言に反映
+        let motionNote = '';
+        let presetStatus = 'approved';
+        let presetDecision = '';
+        let concludeDisabled = '';
+        if (resp.open_motion) {
+            motionNote = `<div style="font-size:0.84rem;color:#92400e;margin-bottom:10px;padding:8px 12px;background:#fef3c7;border-radius:6px;">
+                📌 委員長提案 第${resp.open_motion.motion_no}号 が審議中です。採択・取り下げ・修正再提案を行ってから結論を確定してください。</div>`;
+            concludeDisabled = 'disabled';
+        } else if (resp.adopted_motion) {
+            const am = resp.adopted_motion, ac = am.vote_summary.counts;
+            const toSt = (resp.motion_labels && resp.motion_labels.to_status) || {};
+            presetStatus   = toSt[am.proposed_decision] || 'approved';
+            presetDecision = resp.adopted_decision_text || '';
+            motionNote = `<div style="font-size:0.84rem;color:#5b21b6;margin-bottom:10px;padding:8px 12px;background:#f5f3ff;border-radius:6px;">
+                📌 委員長提案 第${am.motion_no}号（${escHtml(am.decision_label)}）を委員会が承認済み
+                （賛成 ${ac.agree}・修正意見あり ${ac.amend}・反対 ${ac.disagree}／${am.vote_summary.total_voted}／${am.vote_summary.eligible} 名）。
+                結果と文面を下に引き継ぎました。文面は編集できます。</div>`;
+        }
+
+        concludeHtml = `
+        <div class="card">
+            <div class="card-title">⚖️ 結論宣言（委員長）</div>
+            <div style="font-size:0.84rem;color:#475569;margin-bottom:10px;padding:8px 12px;background:#f8fafc;border-radius:6px;">
+                ${escHtml(voteLine)}
+            </div>
+            ${motionNote}
+            <div class="conclude-panel">
+                <h3>審議結果を確定してください</h3>
+                <div class="conclude-row">
+                    <div>
+                        <label style="font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-bottom:4px;">結果</label>
+                        <select id="conclude-status">
+                            <option value="approved" ${presetStatus==='approved'?'selected':''}>承認</option>
+                            <option value="rejected" ${presetStatus==='rejected'?'selected':''}>不承認</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-bottom:4px;">承認日</label>
+                        <input type="date" id="conclude-date" value="${new Date().toISOString().split('T')[0]}">
+                    </div>
+                </div>
+                <textarea class="conclude-textarea" id="conclude-decision" placeholder="結論の要旨・所見（任意）">${escHtml(presetDecision)}</textarea>
+                <div style="font-size:0.78rem;color:#9ca3af;margin-bottom:8px;">
+                    確定すると連携審査委員会のSlackチャンネルへ @channel 付きで結論を投稿します。
+                </div>
+                <button class="btn-conclude" id="btn-conclude" ${concludeDisabled}>✅ 結論を確定する</button>
+            </div>
+        </div>`;
+    }
+    // 期日アラートカードを結論パネルの前に置く
+    concludeHtml = alertCardHtml + concludeHtml;
+
+    // 結論済み案件：Slack投稿の状態と再送ボタン（管理者・委員長に表示）
+    if ((c.status === 'approved' || c.status === 'rejected')
+         && (v.is_admin || IS_CHAIR)) {
+        let slackBox;
+        if (c.slack_notified_at) {
+            slackBox = `
+            <div class="slack-box ok">
+                <span>✅ Slackチャンネルへ投稿済み（${escHtml(c.slack_notified_at)}）</span>
+                <button class="btn-slack-resend" id="btn-slack-resend">再投稿</button>
+            </div>`;
+        } else {
+            const err = c.slack_notify_error
+                ? `（前回エラー：${escHtml(c.slack_notify_error)}）` : '';
+            slackBox = `
+            <div class="slack-box fail">
+                <span>⚠️ Slackチャンネルへ未投稿です${err}</span>
+                <button class="btn-slack-resend" id="btn-slack-resend">Slackへ投稿</button>
+            </div>`;
+        }
+        concludeHtml += `
+        <div class="card">
+            <div class="card-title">📣 結論のSlack通知</div>
+            ${slackBox}
+        </div>`;
+    }
+
+    // ── 組み立て ──
+    // 通知記録ボタンは事務局・委員長（および admin）のみ表示
+    const notifyLogBtn = (IS_ADMIN || IS_CHAIR)
+        ? `<button class="notify-log-btn" id="btn-notify-log">📨 通知記録</button>`
+        : '';
+    $('#main-container').html(`
+        <div class="header">
+            <a href="{{ url_for('ext_engagement.index') }}" class="back-btn">← 一覧へ</a>
+            <div class="header-title">
+                <h1>🤝 連携申請審査 詳細</h1>
+                <div class="sub">北近畿地域連携機構</div>
+            </div>
+            ${notifyLogBtn}
+        </div>
+        ${headerHtml}
+        ${detailHtml}
+        ${snapshotHtml}
+        ${adminPanelHtml}
+        ${voteHtml}
+        ${motionHtml}
+        ${commentHtml}
+        ${concludeHtml}
+    `);
+
+    if ((v.is_admin || IS_CHAIR) && c.status === 'draft') {
+        loadMembersForAdmin(resp.coi_info, resp.acting_chair_info);
+    }
+
+    bindEvents();
+}
+
+// ─── 委員長提案（motion）カード描画 ───
+let lastResp = null;   // 直近の案件データ（提案フォームの再描画用）
+
+function motionTallyHtml(vs) {
+    const c = vs.counts || {agree:0, amend:0, disagree:0};
+    const done = vs.eligible > 0 && vs.all_voted;
+    return `
+    <div class="motion-tally">
+        <span class="mt-stat agree">賛成 ${c.agree}</span>
+        <span class="mt-stat amend">修正意見あり ${c.amend}</span>
+        <span class="mt-stat disagree">反対 ${c.disagree}</span>
+        <span class="mt-progress ${done ? 'complete' : ''}">表明 ${vs.total_voted}／${vs.eligible} 名${done ? '（全員表明済み）' : ''}</span>
+    </div>`;
+}
+
+function motionVotesHtml(votes) {
+    if (!votes || !votes.length) return `<div class="vote-empty">まだ意見表明はありません</div>`;
+    return votes.map(v => `
+        <div class="mv-row ${v.vote}">
+            <span class="vr-name">${escHtml(v.full_name)}</span>
+            <div style="flex:1">
+                <span class="mv-badge ${v.vote}">${escHtml(v.vote_label)}</span>${v.is_chair ? '<span style="margin-left:6px;font-size:0.72rem;font-weight:700;color:#6b21a8;">委員長</span>' : ''}
+                ${v.comment ? `<div style="margin-top:4px;color:#374151;white-space:pre-wrap;">${escHtml(v.comment)}</div>` : ''}
+            </div>
+            <span class="vr-time" style="font-size:0.74rem;color:#9ca3af;">${v.updated_at}</span>
+        </div>`).join('');
+}
+
+function motionBodyHtml(m) {
+    let h = `
+    <div class="motion-head">
+        <span class="motion-no">📌 第${m.motion_no}号</span>
+        <span class="motion-status ${m.status}">${escHtml(m.status_label)}</span>
+        <span>提案者：${escHtml(m.proposed_by_name || '')}</span>
+        <span>${m.created_at}</span>
+        ${m.round_no > 1 ? `<span>（第${m.round_no}回審議）</span>` : ''}
+    </div>
+    <div class="motion-field"><div class="mf-label">結論案</div><div class="mf-body motion-decision">${escHtml(m.decision_label)}</div></div>
+    <div class="motion-field"><div class="mf-label">提案の趣旨</div><div class="mf-body">${escHtml(m.proposal)}</div></div>`;
+    if (m.conditions) h += `<div class="motion-field"><div class="mf-label">承認に付す条件（結論文面に明記）</div><div class="mf-body">${escHtml(m.conditions)}</div></div>`;
+    if (m.reason)     h += `<div class="motion-field"><div class="mf-label">提案理由</div><div class="mf-body">${escHtml(m.reason)}</div></div>`;
+    if (m.new_review_end) h += `<div class="motion-field"><div class="mf-label">審査期限</div><div class="mf-body">${escHtml(m.old_review_end || '―')} → <b>${escHtml(m.new_review_end)}</b> に延長</div></div>`;
+    if (m.status !== 'open') {
+        h += `<div class="motion-field"><div class="mf-label">処理</div><div class="mf-body">${escHtml(m.status_label)}　${escHtml(m.closed_by_name || '')}　${m.closed_at || ''}${m.closing_note ? '<br>' + escHtml(m.closing_note) : ''}</div></div>`;
+    }
+    return h;
+}
+
+function motionCreateFormHtml(c, prefill, supersedesId) {
+    const p = prefill || {};
+    const dec = p.proposed_decision || 'approve_cond';
+    const opt = (k, l) => `<option value="${k}" ${dec === k ? 'selected' : ''}>${l}</option>`;
+    const reviewEndLocal = c.review_end ? c.review_end.replace(' ', 'T') : '';
+    return `
+    <div class="motion-form" id="motion-create-form">
+        <h4 style="font-size:0.9rem;color:#5b21b6;margin-bottom:2px;">${supersedesId ? `第${p.motion_no}号 を修正して再提案` : '委員長提案を起案する'}</h4>
+        <div style="font-size:0.76rem;color:#9ca3af;">委員長決定ではなく、委員会に諮って承認を得るための提案です。起案すると委員へ Slack で通知され（既定ON）、委員は賛否を表明できます。</div>
+        <label class="mf-lbl">結論案</label>
+        <select id="mo-decision">
+            ${opt('approve_cond', '承認（条件を文面に明記）')}
+            ${opt('approve', '承認')}
+            ${opt('reject', '不承認')}
+            ${opt('continue', '継続審議（審査期限の延長のみ）')}
+        </select>
+        <label class="mf-lbl">提案の趣旨（必須）</label>
+        <textarea id="mo-proposal" placeholder="例：委員から表明された懸念（…）を踏まえ、本件は承認としつつ、下記の条件を結論文面に明記することを提案します。">${escHtml(p.proposal || '')}</textarea>
+        <div id="mo-cond-wrap" style="${dec === 'approve_cond' ? '' : 'display:none'}">
+            <label class="mf-lbl">承認に付す条件（結論文面に明記する事項）</label>
+            <textarea id="mo-conditions" placeholder="例：研究の実施に先立ち、人を対象とする研究倫理審査委員会の審査を受け承認を得ること。承認後、その旨を連携審査委員会へ報告すること。">${escHtml(p.conditions || '')}</textarea>
+        </div>
+        <label class="mf-lbl">提案理由・経緯（任意）</label>
+        <textarea id="mo-reason" placeholder="委員からの指摘内容、申請者との確認事項など">${escHtml(p.reason || '')}</textarea>
+        <label class="mf-lbl">審査期限（延長する場合に変更。変更なしなら据え置き）</label>
+        <input type="datetime-local" id="mo-review-end" value="${reviewEndLocal}">
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:#374151;margin:10px 0;cursor:pointer;">
+            <input type="checkbox" id="mo-notify" checked style="width:15px;height:15px;cursor:pointer;">
+            <span>委員会全員に通知を発出（Slackチャンネルへ @channel 付きで投稿）</span>
+        </label>
+        <div style="display:flex;gap:8px;">
+            <button class="btn-motion primary" id="btn-motion-create" data-supersedes="${supersedesId || ''}">📌 提案を出す</button>
+            <button class="btn-motion ghost" id="btn-motion-cancel">キャンセル</button>
+        </div>
+    </div>`;
+}
+
+function renderMotionCard(resp) {
+    lastResp = resp;
+    const c = resp.case, v = resp.viewer;
+    const motions = resp.motions || [];
+    const open = resp.open_motion;
+    const isReviewing = c.status === 'reviewing';
+    // 表示条件：審議中の関係者、または提案の履歴がある案件
+    if (!(isReviewing || motions.length)) return '';
+
+    let inner = '';
+
+    if (open) {
+        inner += `<div class="motion-box" id="motion-open-box">${motionBodyHtml(open)}${motionTallyHtml(open.vote_summary)}
+            <div id="motion-vote-list">${motionVotesHtml(open.votes)}</div>`;
+
+        // 委員長：投票には参加せず、委員と同じ欄に発言だけを残す
+        // （委員長が admin アカウントで操作している場合も出す。委員長の役割を優先）
+        if (isReviewing && IS_CHAIR) {
+            const mv = resp.my_motion_vote;
+            inner += `
+            <div class="vote-form" style="margin-top:12px;">
+                <h4>この提案についての委員長の発言</h4>
+                <div class="vf-hint">委員長は投票には参加しません。委員の意見と同じ欄に発言として並びます（上書きできます）。</div>
+                <textarea class="vote-textarea" id="motion-vote-comment" placeholder="委員への説明・補足など">${mv ? escHtml(mv.comment) : ''}</textarea>
+                <button class="vote-submit" id="btn-motion-vote" data-mid="${open.id}" data-remark="1">${mv ? '発言を更新する' : '発言する'}</button>
+            </div>`;
+        }
+
+        // 委員：提案への意見表明フォーム
+        const canVote = isReviewing && v.is_committee && !v.is_coi && !v.is_chair && !v.is_admin;
+        if (canVote) {
+            const mv = resp.my_motion_vote;
+            const chk = k => (mv && mv.vote === k) ? 'checked' : '';
+            inner += `
+            <div class="vote-form" style="margin-top:12px;">
+                <h4>この提案へのあなたの意見</h4>
+                <div class="vf-hint">いつでも変更できます。「修正意見あり」の場合はコメントに修正案をお書きください。</div>
+                <div class="vote-choice">
+                    <input type="radio" class="vote-radio" name="mvchoice" id="mv-agree" value="agree" ${chk('agree')}>
+                    <label class="vote-radio-label lbl-agree" for="mv-agree">賛成</label>
+                    <input type="radio" class="vote-radio" name="mvchoice" id="mv-amend" value="amend" ${chk('amend')}>
+                    <label class="vote-radio-label lbl-amend" for="mv-amend">修正意見あり</label>
+                    <input type="radio" class="vote-radio" name="mvchoice" id="mv-disagree" value="disagree" ${chk('disagree')}>
+                    <label class="vote-radio-label lbl-disagree" for="mv-disagree">反対</label>
+                </div>
+                <textarea class="vote-textarea" id="motion-vote-comment" placeholder="意見に添えるコメント（任意）">${mv ? escHtml(mv.comment) : ''}</textarea>
+                <button class="vote-submit" id="btn-motion-vote" data-mid="${open.id}">${mv ? '意見を更新する' : '意見を表明する'}</button>
+                ${mv ? '<div class="my-vote-note">※ あなたは既にこの提案に意見を表明済みです（上書きできます）</div>' : ''}
+            </div>`;
+        }
+
+        // 委員長：採択／取り下げ／修正再提案
+        if (isReviewing && IS_CHAIR) {
+            inner += `
+            <div class="motion-form" id="motion-close-panel">
+                <h4 style="font-size:0.88rem;color:#5b21b6;">委員長の処理</h4>
+                <div style="font-size:0.76rem;color:#9ca3af;margin-bottom:6px;">採択すると、結論宣言パネルに結論案と文面が引き継がれます。修正意見が出た場合は「修正して再提案」で新しい号として出し直せます。</div>
+                <textarea id="motion-close-note" placeholder="採択・取り下げにあたっての付記（任意）"></textarea>
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:#374151;margin:8px 0;cursor:pointer;">
+                    <input type="checkbox" id="motion-close-notify" style="width:15px;height:15px;cursor:pointer;">
+                    <span>この処理を委員会全員に通知（Slack）。採択の場合は続く結論宣言で通知されるため通常は不要です</span>
+                </label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="btn-motion adopt" id="btn-motion-adopt" data-mid="${open.id}">✅ 採択する</button>
+                    <button class="btn-motion warn"  id="btn-motion-supersede" data-mid="${open.id}">✏️ 修正して再提案</button>
+                    <button class="btn-motion ghost" id="btn-motion-withdraw" data-mid="${open.id}">🚫 取り下げる</button>
+                </div>
+                <div id="motion-supersede-form"></div>
+            </div>`;
+        }
+        inner += `</div>`;
+    } else if (isReviewing && IS_CHAIR) {
+        inner += `
+        <div style="font-size:0.84rem;color:#475569;margin-bottom:10px;">
+            委員から懸念や条件付けの必要が示されたときは、委員長決定ではなく、委員長から委員会に提案し、委員の賛否を経て結論に進めます。
+        </div>
+        <button class="btn-motion primary" id="btn-motion-open-form">📌 委員長提案を起案する</button>
+        <div id="motion-create-wrap"></div>`;
+    } else if (isReviewing) {
+        inner += `<div style="font-size:0.84rem;color:#9ca3af;">現在、審議中の委員長提案はありません。</div>`;
+    }
+
+    // 過去の提案
+    const past = motions.filter(m => m.status !== 'open');
+    if (past.length) {
+        inner += `<details class="motion-history"><summary>過去の提案（${past.length}件）</summary>` +
+            past.map(m => `<div class="motion-box closed">${motionBodyHtml(m)}${motionTallyHtml(m.vote_summary)}${motionVotesHtml(m.votes)}</div>`).join('') +
+            `</details>`;
+    }
+
+    return `
+    <div class="card motion-card" id="motion-card">
+        <div class="card-title">📌 委員長提案</div>
+        ${inner}
+    </div>`;
+}
+
+// ─── 委員長提案：イベント（一度だけ登録） ───
+let motionEventsBound = false;
+function bindMotionEvents() {
+    if (motionEventsBound) return;
+    motionEventsBound = true;
+
+    // 起案フォームを開く
+    $(document).on('click', '#btn-motion-open-form', function() {
+        $('#motion-create-wrap').html(motionCreateFormHtml(lastResp.case, null, null));
+        $(this).hide();
+    });
+    // 修正して再提案（差し替え）フォームを開く
+    $(document).on('click', '#btn-motion-supersede', function() {
+        const om = lastResp.open_motion;
+        $('#motion-supersede-form').html(motionCreateFormHtml(lastResp.case, om, om.id));
+    });
+    $(document).on('click', '#btn-motion-cancel', function() {
+        $('#motion-create-form').remove();
+        $('#btn-motion-open-form').show();
+    });
+    // 結論案に応じて条件欄の表示切替
+    $(document).on('change', '#mo-decision', function() {
+        $('#mo-cond-wrap').toggle($(this).val() === 'approve_cond');
+    });
+
+    // 起案（新規／差し替え）
+    $(document).on('click', '#btn-motion-create', function() {
+        const supersedesId = $(this).data('supersedes');
+        const payload = {
+            proposed_decision: $('#mo-decision').val(),
+            proposal:   $('#mo-proposal').val().trim(),
+            conditions: $('#mo-conditions').val().trim(),
+            reason:     $('#mo-reason').val().trim(),
+            notify:     $('#mo-notify').is(':checked'),
+        };
+        const re = $('#mo-review-end').val();
+        const cur = (lastResp.case.review_end || '').replace(' ', 'T');
+        if (re && re !== cur) payload.new_review_end = re;
+        if (supersedesId) payload.supersedes_id = supersedesId;
+        if (!payload.proposal) { toast('提案の趣旨を入力してください', true); return; }
+        if (payload.proposed_decision === 'approve_cond' && !payload.conditions) { toast('承認に付す条件を入力してください', true); return; }
+        const msg = (supersedesId ? '現在の提案を差し替えて再提案します。' : '委員長提案を出します。')
+            + (payload.new_review_end ? `\n審査期限を ${payload.new_review_end.replace('T',' ')} に変更します。` : '')
+            + (payload.notify ? '\n委員会のSlackチャンネルへ @channel 付きで通知します。' : '')
+            + '\nよろしいですか？';
+        if (!confirm(msg)) return;
+        $(this).prop('disabled', true).text('送信中...');
+        $.ajax({
+            url: `/ext_engagement/api/case/${CASE_ID}/motion`,
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success(resp) {
+                if (resp.success) {
+                    if (resp.slack_notified && resp.slack_ok === false) toast(`第${resp.motion_no}号を出しました（Slack通知は失敗）`, true);
+                    else toast(`委員長提案 第${resp.motion_no}号 を出しました`, false);
+                    loadCase();
+                } else { toast('エラー: ' + resp.error, true);
+                         $('#btn-motion-create').prop('disabled', false).text('📌 提案を出す'); }
+            },
+            error: () => { toast('通信エラー', true);
+                           $('#btn-motion-create').prop('disabled', false).text('📌 提案を出す'); },
+        });
+    });
+
+    // 委員：提案への意見表明
+    $(document).on('click', '#btn-motion-vote', function() {
+        const mid      = $(this).data('mid');
+        const isRemark = $(this).data('remark') === 1 || $(this).data('remark') === '1';
+        const vote     = isRemark ? 'remark' : $('input[name="mvchoice"]:checked').val();
+        if (!vote) { toast('賛成／修正意見あり／反対 のいずれかを選んでください', true); return; }
+        const comment = $('#motion-vote-comment').val().trim();
+        if (isRemark && !comment) { toast('発言内容を入力してください', true); return; }
+        $(this).prop('disabled', true).text('送信中...');
+        $.ajax({
+            url: `/ext_engagement/api/case/${CASE_ID}/motion/${mid}/vote`,
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ vote, comment }),
+            success(resp) {
+                if (resp.success) { toast(isRemark ? '発言を記録しました' : '提案への意見を表明しました', false); loadCase(); }
+                else { toast('エラー: ' + resp.error, true);
+                       $('#btn-motion-vote').prop('disabled', false).text('意見を表明する'); }
+            },
+            error: () => { toast('通信エラー', true);
+                           $('#btn-motion-vote').prop('disabled', false).text('意見を表明する'); },
+        });
+    });
+
+    // 委員長：採択／取り下げ
+    function closeMotion(mid, action, btn) {
+        const note   = $('#motion-close-note').val().trim();
+        const notify = $('#motion-close-notify').is(':checked');
+        const label  = action === 'adopt' ? '採択' : '取り下げ';
+        if (!confirm(`この提案を${label}します。よろしいですか？`)) return;
+        $(btn).prop('disabled', true);
+        $.ajax({
+            url: `/ext_engagement/api/case/${CASE_ID}/motion/${mid}/close`,
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ action, note, notify }),
+            success(resp) {
+                if (resp.success) {
+                    toast(action === 'adopt' ? '提案を採択しました。結論宣言パネルに引き継ぎました' : '提案を取り下げました', false);
+                    loadCase();
+                    if (action === 'adopt') setTimeout(() => { const el = document.getElementById('conclude-decision'); if (el) el.scrollIntoView({behavior:'smooth', block:'center'}); }, 600);
+                } else { toast('エラー: ' + resp.error, true); $(btn).prop('disabled', false); }
+            },
+            error: () => { toast('通信エラー', true); $(btn).prop('disabled', false); },
+        });
+    }
+    $(document).on('click', '#btn-motion-adopt',    function() { closeMotion($(this).data('mid'), 'adopt', this); });
+    $(document).on('click', '#btn-motion-withdraw', function() { closeMotion($(this).data('mid'), 'withdraw', this); });
+}
+bindMotionEvents();
+
+// ─── 管理パネル：委員リスト描画 ───
+function loadMembersForAdmin(coiInfo, actingChairInfo) {
+    if (membersCache) {
+        renderMemberList(membersCache, coiInfo, actingChairInfo);
+        return;
+    }
+    $.get('/ext_engagement/api/committee_members', function(resp) {
+        if (!resp.success) return;
+        membersCache = resp.members;
+        renderMemberList(resp.members, coiInfo, actingChairInfo);
+    });
+}
+
+function renderMemberList(members, coiInfo, actingChairInfo) {
+    const coiMap  = {};
+    (coiInfo || []).forEach(r => { coiMap[r.user_id] = r; });
+    const actingId = actingChairInfo ? actingChairInfo.id : null;
+    // COIの設定・代理委員長の指名は事務局（管理者）のみが操作できる。
+    // 委員長が見るときは現在の状態のバッジのみ表示する。
+    const canEdit = IS_ADMIN;
+
+    let html = '';
+    members.forEach(m => {
+        const coi = coiMap[m.id];
+        const roleParts = [];
+        if (m.is_chair)     roleParts.push('委員長');
+        if (m.is_committee) roleParts.push('委員');
+
+        let coiBadge = '', coiBtns = '';
+        if (coi) {
+            if (coi.excluded_roles === 'committee') {
+                coiBadge = `<span class="coi-badge coi-committee">委員COI</span>`;
+                if (canEdit)
+                    coiBtns = `<button class="coi-btn coi-btn-clear" data-uid="${m.id}" data-action="coi-clear">COI解除</button>`;
+            } else {
+                coiBadge = `<span class="coi-badge coi-chair">委員長COI</span>`;
+                if (canEdit)
+                    coiBtns = `
+                        <button class="coi-btn coi-btn-set" data-uid="${m.id}" data-action="coi-full">委員COIへ変更</button>
+                        <button class="coi-btn coi-btn-clear" data-uid="${m.id}" data-action="coi-clear">COI解除</button>`;
+            }
+        } else {
+            coiBadge = `<span class="coi-badge coi-none">参加可</span>`;
+            if (canEdit) {
+                const arr = [];
+                if (m.is_committee)
+                    arr.push(`<button class="coi-btn coi-btn-set" data-uid="${m.id}" data-action="coi-full" title="委員・委員長両方から除外">委員COI</button>`);
+                if (m.is_chair)
+                    arr.push(`<button class="coi-btn coi-btn-chair" data-uid="${m.id}" data-action="coi-chair" title="委員長役割のみ除外">委員長のみCOI</button>`);
+                coiBtns = arr.join('');
+            }
+        }
+
+        // ── 代行（代理委員長）指名 ──
+        // 委員長プール＝委員全員。本来の委員長がCOI（chair_only）で抜けた場合に
+        // 備え、委員のうち「委員COI（完全除外）でない者」の誰でも代行に指名できる。
+        // 指名操作は事務局（管理者）のみが行う。
+        const isFullyExcluded = coi && coi.excluded_roles === 'committee';
+        let actingBtn = '';
+        if (actingId === m.id) {
+            // 既に代行に指名されている人
+            if (canEdit)
+                actingBtn = `<button class="coi-btn coi-btn-clear" data-uid="${m.id}" data-action="acting-clear">代理解除</button>`;
+            coiBadge += ` <span class="coi-badge" style="background:#dbeafe;color:#1e40af;">代理委員長</span>`;
+        } else if (canEdit && !isFullyExcluded) {
+            // 完全除外（委員COI）でない委員は誰でも代行候補
+            actingBtn = `<button class="coi-btn coi-btn-acting" data-uid="${m.id}" data-action="acting-set">代理委員長に指名</button>`;
+        }
+
+        html += `
+        <div class="member-item">
+            <span class="member-name">${escHtml(m.full_name)}</span>
+            <span class="member-role">${roleParts.join('・')}</span>
+            ${coiBadge}
+            <div class="coi-controls">${coiBtns}${actingBtn}</div>
+        </div>`;
+    });
+    $('#member-list').html(html || '<div style="color:#9ca3af;font-size:0.85rem">委員が登録されていません</div>');
+}
+
+// ─── イベントバインド ───
+function bindEvents() {
+
+    // 編集モーダル開放
+    $(document).on('click', '#btn-open-edit', function() {
+        if (!caseData) return;
+        const c = caseData;
+        $('#edit-application-no').val(c.application_no || '');
+        $('#edit-is-new').val(c.is_new_application ? '1' : '0');
+        $('#edit-title').val(c.title || '');
+        $('#edit-org-name').val(c.org_name || '');
+        $('#edit-content').val(c.content || '');
+        $('#edit-period-start').val(c.period_start || '');
+        $('#edit-period-end').val(c.period_end || '');
+        $('#edit-research-fee').val(c.research_fee || '');
+        // 直接経費・間接経費（新フィールド）
+        $('#edit-direct-fee').val((c.direct_fee !== null && c.direct_fee !== undefined) ? c.direct_fee : '');
+        $('#edit-indirect-fee').val((c.indirect_fee !== null && c.indirect_fee !== undefined) ? c.indirect_fee : '');
+        updateEditTotalFeeDisplay();
+        $('#edit-rep-name').val(c.representative_name || '');
+        $('#edit-faculty-dept').val(c.faculty_dept || '');
+        $('#edit-review-start').val(c.review_start || '');
+        // datetime-local は 'YYYY-MM-DDTHH:MM' 形式。
+        // サーバは 'YYYY-MM-DD HH:MM' で返すのでスペースを T に変換。
+        $('#edit-review-end').val(c.review_end ? c.review_end.replace(' ', 'T') : '');
+        $('#edit-pre-consultation').val(c.pre_consultation || '');
+        $('#edit-doc-url').val(c.doc_url || '');
+        editRepUserId = c.preferred_rep_user_id || null;
+        $('#edit-rep-user-selected').html('');
+        if (editRepUserId && caseData._preferred_rep_name) {
+            showEditRepBadge(editRepUserId, caseData._preferred_rep_name);
+        } else if (editRepUserId) {
+            $('#edit-rep-user-selected').html(`<span class="user-selected-badge">👤 ID:${editRepUserId} <button class="clear-btn" id="btn-edit-clear-rep">✕</button></span>`);
+        }
+        $('#modal-edit').addClass('show');
+    });
+    $('#modal-edit-close, #btn-cancel-edit').on('click', () => $('#modal-edit').removeClass('show'));
+
+    // 直接経費・間接経費 合計自動計算
+    $(document).on('input', '#edit-direct-fee, #edit-indirect-fee', function() {
+        updateEditTotalFeeDisplay();
+    });
+
+    // 編集保存
+    $(document).on('click', '#btn-submit-edit', function() {
+        const dVal = $('#edit-direct-fee').val().trim();
+        const iVal = $('#edit-indirect-fee').val().trim();
+        const payload = {
+            application_no:        $('#edit-application-no').val().trim(),
+            is_new_application:    $('#edit-is-new').val() === '1',
+            title:                 $('#edit-title').val().trim(),
+            org_name:              $('#edit-org-name').val().trim(),
+            content:               $('#edit-content').val().trim(),
+            research_fee:          $('#edit-research-fee').val().trim(),
+            direct_fee:            dVal !== '' ? parseInt(dVal) : null,
+            indirect_fee:          iVal !== '' ? parseInt(iVal) : null,
+            period_start:          $('#edit-period-start').val(),
+            period_end:            $('#edit-period-end').val(),
+            representative_name:   $('#edit-rep-name').val().trim(),
+            faculty_dept:          $('#edit-faculty-dept').val().trim(),
+            preferred_rep_user_id: editRepUserId || null,
+            pre_consultation:      $('#edit-pre-consultation').val().trim(),
+            review_start:          $('#edit-review-start').val(),
+            review_end:            $('#edit-review-end').val(),
+            doc_url:               $('#edit-doc-url').val().trim(),
+        };
+        if (!payload.title || !payload.org_name) { toast('課題名と申請組織は必須です', true); return; }
+        $(this).prop('disabled', true).text('保存中...');
+        $.ajax({
+            url: `/ext_engagement/api/case/${CASE_ID}/update`,
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success(resp) {
+                if (resp.success) { toast('保存しました', false); $('#modal-edit').removeClass('show'); membersCache = null; loadCase(); }
+                else { toast('エラー: ' + resp.error, true); }
+            },
+            error: () => toast('通信エラー', true),
+            complete: () => $('#btn-submit-edit').prop('disabled', false).text('保存する'),
+        });
+    });
+
+    // ユーザ検索
+    let editSearchTimer = null;
+    $(document).on('input', '#edit-rep-user-search', function() {
+        clearTimeout(editSearchTimer);
+        const q = $(this).val().trim();
+        if (!q) { $('#edit-rep-user-results').hide().html(''); return; }
+        editSearchTimer = setTimeout(() => {
+            $.get(API_USERS_SEARCH, { q }, function(resp) {
+                if (!resp.success || !resp.users.length) {
+                    $('#edit-rep-user-results').html('<div class="user-search-item" style="color:#9ca3af">該当なし</div>').show();
+                    return;
+                }
+                let html = '';
+                resp.users.forEach(u => {
+                    html += `<div class="user-search-item edit-rep-item" data-id="${u.id}" data-name="${escHtml(u.full_name)}">${escHtml(u.full_name)}</div>`;
+                });
+                $('#edit-rep-user-results').html(html).show();
+            });
+        }, 300);
+    });
+    $(document).on('click', '.edit-rep-item', function() {
+        editRepUserId = $(this).data('id');
+        const name    = $(this).data('name');
+        $('#edit-rep-user-results').hide().html('');
+        $('#edit-rep-user-search').val('');
+        showEditRepBadge(editRepUserId, name);
+    });
+    $(document).on('click', '#btn-edit-clear-rep', function() {
+        editRepUserId = null;
+        $('#edit-rep-user-selected').html('');
+    });
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('.user-search-wrap').length) $('#edit-rep-user-results').hide();
+    });
+
+    // 審議開始宣言（審査期限・期日アラート・委員会通知を伴う）
+    $(document).on('click', '#btn-send-review', function() {
+        if (transitionBusy) return;   // 多重送信ガード
+        const alertEnabled     = $('#send-alert-enabled').is(':checked');
+        const reviewEnd        = $('#send-review-end').val();  // 'YYYY-MM-DDTHH:MM'
+        const notifyCommittee  = $('#send-notify-committee').is(':checked');
+        const chairMessage     = ($('#send-chair-message').val() || '').trim();
+        if (!reviewEnd) {
+            toast('審査期限（日時）を設定してください', true);
+            return;
+        }
+        const isRereview = (caseData && (caseData.review_round || 1) >= 2);
+        const lines = [];
+        lines.push(isRereview
+            ? '委員構成を確認し、審議を再開します。'
+            : '委員構成と審査期限を確認し、審議を開始します。');
+        lines.push(`審査期限：${reviewEnd.replace('T',' ')}`);
+        lines.push(alertEnabled ? '期日アラート：ON' : '期日アラート：OFF');
+        lines.push(notifyCommittee
+            ? '委員会のSlackチャンネルへ通知します。'
+            : '委員会への通知は行いません。');
+        if (!confirm(lines.join('\n') + '\nよろしいですか？')) return;
+
+        const btnLabel = isRereview ? '✅ 審議を開始／再開する' : '✅ 審議開始を宣言する';
+        transitionBusy = true;   // 成功時は loadCase() 完了まで解除しない
+        $(this).prop('disabled', true).text('宣言中...');
+        $.ajax({
+            url: `/ext_engagement/api/case/${CASE_ID}/send_to_review`,
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({
+                alert_enabled:    alertEnabled,
+                review_end:       reviewEnd,
+                notify_committee: notifyCommittee,
+                chair_message:    chairMessage,
+            }),
+            success(resp) {
+                if (resp.success) {
+                    if (resp.slack_notified && resp.slack_ok === false) {
+                        toast('審議を開始しました（委員会への通知は失敗しました）', true);
+                    } else if (resp.slack_notified) {
+                        toast('審議を開始し、委員会へ通知しました', false);
+                    } else {
+                        toast('審議を開始しました', false);
+                    }
+                    membersCache = null; loadCase();   // 完了時に transitionBusy 解除
+                } else {
+                    toast('エラー: ' + resp.error, true);
+                    transitionBusy = false;
+                    $('#btn-send-review').prop('disabled', false).text(btnLabel);
+                }
+            },
+            error: () => {
+                toast('通信エラー', true);
+                transitionBusy = false;
+                $('#btn-send-review').prop('disabled', false).text(btnLabel);
+            },
+        });
+    });
+
+    // 取り下げモーダル
+    $(document).on('click', '#btn-withdraw', function() {
+        $('#withdraw-reason').val('');
+        $('#modal-withdraw').addClass('show');
+    });
+    $('#modal-withdraw-close, #btn-cancel-withdraw').on('click', () => $('#modal-withdraw').removeClass('show'));
+
+    // 取り下げ実行
+    $(document).on('click', '#btn-submit-withdraw', function() {
+        const reason = $('#withdraw-reason').val().trim();
+        $(this).prop('disabled', true).text('処理中...');
+        $.ajax({
+            url: `/ext_engagement/api/case/${CASE_ID}/withdraw`,
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ reason }),
+            success(resp) {
+                if (resp.success) {
+                    toast('取り下げました', false);
+                    $('#modal-withdraw').removeClass('show');
+                    membersCache = null;
+                    loadCase();
+                } else { toast('エラー: ' + resp.error, true); }
+            },
+            error: () => toast('通信エラー', true),
+            complete: () => $('#btn-submit-withdraw').prop('disabled', false).text('取り下げる'),
+        });
+    });
+
+    // 委員変更
+    $(document).on('click', '#btn-change-round', function() {
+        if (transitionBusy) return;   // 多重送信ガード
+        if (!confirm('審議をやり直します。現在のコメントは参考情報として保持されます。よろしいですか？')) return;
+        transitionBusy = true;   // 成功時は loadCase() 完了まで解除しない
+        $(this).prop('disabled', true).text('処理中...');
+        $.ajax({
+            url: `/ext_engagement/api/case/${CASE_ID}/change_round`,
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({}),
+            success(resp) {
+                if (resp.success) {
+                    toast(`第${resp.new_round}回の委員選定に移行しました`, false);
+                    membersCache = null; loadCase();   // 完了時に transitionBusy 解除
+                } else {
+                    toast('エラー: ' + resp.error, true);
+                    transitionBusy = false;
+                    $('#btn-change-round').prop('disabled', false).text('🔄 委員変更（審議やり直し）');
+                }
+            },
+            error: () => {
+                toast('通信エラー', true);
+                transitionBusy = false;
+                $('#btn-change-round').prop('disabled', false).text('🔄 委員変更（審議やり直し）');
+            },
+        });
+    });
+
+    // コメント投稿
+    $(document).on('click', '#btn-post-comment', function() {
+        const content         = $('#new-comment').val().trim();
+        const comment_type    = $('input[name="ctype"]:checked').val() || 'opinion';
+        const notifyCommittee = $('#comment-notify-committee').is(':checked');
+        if (!content) { toast('コメントを入力してください', true); return; }
+        $(this).prop('disabled', true).text('投稿中...');
+        $.ajax({
+            url: `/ext_engagement/api/case/${CASE_ID}/comment`,
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({
+                content, comment_type, notify_committee: notifyCommittee,
+            }),
+            success(resp) {
+                if (resp.success) {
+                    appendComment(resp.comment);
+                    $('#new-comment').val('');
+                    $('#comment-notify-committee').prop('checked', false);
+                    if (resp.slack_notified && resp.slack_ok === false) {
+                        toast('投稿しました（委員会への通知は失敗しました）', true);
+                    } else if (resp.slack_notified) {
+                        toast('投稿し、委員会へ通知しました', false);
+                    } else {
+                        toast('投稿しました', false);
+                    }
+                } else { toast('エラー: ' + resp.error, true); }
+            },
+            error: () => toast('通信エラー', true),
+            complete: () => $('#btn-post-comment').prop('disabled', false).text('投稿する'),
+        });
+    });
+
+    // 結論宣言
+    $(document).on('click', '#btn-conclude', function() {
+        const status   = $('#conclude-status').val();
+        const decision = $('#conclude-decision').val().trim();
+        const date     = $('#conclude-date').val();
+        if (!confirm(`「${STATUS_LABELS[status]}」で確定しますか？\nこの操作は取り消せません。\n確定後、連携審査委員会のSlackチャンネルへ結論を投稿します。`)) return;
+        $(this).prop('disabled', true).text('処理中...');
+        $.ajax({
+            url: `/ext_engagement/api/case/${CASE_ID}/conclude`,
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ status, decision, approved_date: date }),
+            success(resp) {
+                if (resp.success) {
+                    if (resp.slack_ok) {
+                        toast('結論を確定し、Slackへ投稿しました', false);
+                    } else {
+                        toast('結論を確定しました（Slack投稿は失敗。下の「Slack通知」から再投稿できます）', true);
+                    }
+                    membersCache = null; loadCase();
+                } else { toast('エラー: ' + resp.error, true); }
+            },
+            error: () => toast('通信エラー', true),
+            complete: () => $('#btn-conclude').prop('disabled', false).text('✅ 結論を確定する'),
+        });
+    });
+
+    // 委員の意見表明（投票）
+    $(document).on('click', '#btn-vote', function() {
+        const vote = $('input[name="vchoice"]:checked').val();
+        if (!vote) { toast('承認でよい／意見を控える／不承認 のいずれかを選んでください', true); return; }
+        const comment = $('#vote-comment').val().trim();
+        $(this).prop('disabled', true).text('送信中...');
+        $.ajax({
+            url: `/ext_engagement/api/case/${CASE_ID}/vote`,
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ vote, comment }),
+            success(resp) {
+                if (resp.success) { toast('意見を表明しました', false); loadCase(); }
+                else { toast('エラー: ' + resp.error, true);
+                       $('#btn-vote').prop('disabled', false).text('意見を表明する'); }
+            },
+            error: () => { toast('通信エラー', true);
+                           $('#btn-vote').prop('disabled', false).text('意見を表明する'); },
+        });
+    });
+
+    // 期日アラートのON/OFF
+    $(document).on('click', '#btn-alert-toggle', function() {
+        // 現在ONなら（btnに on クラス）OFFへ、その逆
+        const turnOn = $(this).hasClass('off');
+        $(this).prop('disabled', true);
+        // ON/OFFのみ送る。review_end キーを送らないので審査期限は据え置き。
+        $.ajax({
+            url: `/ext_engagement/api/case/${CASE_ID}/alert`,
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ enabled: turnOn }),
+            success(resp) {
+                if (resp.success) {
+                    toast(turnOn ? '期日アラートをONにしました' : '期日アラートをOFFにしました', false);
+                    loadCase();
+                } else { toast('エラー: ' + resp.error, true);
+                         $('#btn-alert-toggle').prop('disabled', false); }
+            },
+            error: () => { toast('通信エラー', true);
+                           $('#btn-alert-toggle').prop('disabled', false); },
+        });
+    });
+
+    // 審査期限の更新（アラート基準日時の変更）
+    $(document).on('click', '#btn-alert-deadline', function() {
+        const reviewEnd = $('#alert-review-end').val();  // 'YYYY-MM-DDTHH:MM'
+        if (!reviewEnd) { toast('審査期限（日時）を入力してください', true); return; }
+        // 現在のアラートON/OFF状態を維持したまま期限だけ変更する。
+        const keepEnabled = !$('#btn-alert-toggle').hasClass('off');
+        if (!confirm(`審査期限を ${reviewEnd.replace('T',' ')} に変更します。\nリマインドはこの新しい期限を基準に再び効きます。よろしいですか？`)) return;
+        $(this).prop('disabled', true).text('更新中...');
+        $.ajax({
+            url: `/ext_engagement/api/case/${CASE_ID}/alert`,
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ enabled: keepEnabled, review_end: reviewEnd }),
+            success(resp) {
+                if (resp.success) { toast('審査期限を更新しました', false); loadCase(); }
+                else { toast('エラー: ' + resp.error, true);
+                       $('#btn-alert-deadline').prop('disabled', false).text('審査期限を更新'); }
+            },
+            error: () => { toast('通信エラー', true);
+                           $('#btn-alert-deadline').prop('disabled', false).text('審査期限を更新'); },
+        });
+    });
+
+    // 結論のSlack再投稿
+    $(document).on('click', '#btn-slack-resend', function() {
+        $(this).prop('disabled', true).text('投稿中...');
+        $.ajax({
+            url: `/ext_engagement/api/case/${CASE_ID}/notify_slack`,
+            method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({}),
+            success(resp) {
+                if (resp.success) { toast('Slackチャンネルへ投稿しました', false); loadCase(); }
+                else { toast('エラー: ' + resp.error, true);
+                       $('#btn-slack-resend').prop('disabled', false).text('再投稿'); }
+            },
+            error: () => { toast('通信エラー', true);
+                           $('#btn-slack-resend').prop('disabled', false).text('再投稿'); },
+        });
+    });
+
+    // COI操作
+    $(document).on('click', '[data-action]', function() {
+        const uid    = $(this).data('uid');
+        const action = $(this).data('action');
+        if (action === 'coi-full')       setCoi(uid, 'committee', '');
+        else if (action === 'coi-chair') setCoi(uid, 'chair_only', '');
+        else if (action === 'coi-clear') removeCoi(uid);
+        else if (action === 'acting-set')   setActingChair(uid);
+        else if (action === 'acting-clear') setActingChair(null);
+    });
+
+    // 通知文
+    $(document).on('click', '#btn-open-notify', function() {
+        $.get(`/ext_engagement/api/case/${CASE_ID}/notify_text`, function(resp) {
+            if (!resp.success) { toast('取得エラー: ' + resp.error, true); return; }
+            $('#notify-text-content').text(resp.text);
+            $('#modal-notify').addClass('show');
+        });
+    });
+    $('#modal-notify-close').on('click', () => $('#modal-notify').removeClass('show'));
+    $(document).on('click', '#btn-copy-notify', function() {
+        navigator.clipboard.writeText($('#notify-text-content').text())
+            .then(() => toast('クリップボードにコピーしました', false));
+    });
+
+    // ── 通知記録モーダル（事務局・委員長） ──
+    $(document).on('click', '#btn-notify-log', openNotifyLogModal);
+    $('#modal-notify-log-close').on('click',
+        () => $('#modal-notify-log').removeClass('show'));
+}
+
+// 通知記録モーダルを開いて内容を読み込む
+function openNotifyLogModal() {
+    $('#modal-notify-log').addClass('show');
+    $('#notify-log-body').html(
+        '<div style="text-align:center;padding:30px;color:#9ca3af;">⏳ 読み込み中...</div>');
+    $.get(`/ext_engagement/api/case/${CASE_ID}/notify_log`, function(resp) {
+        if (!resp.success) {
+            $('#notify-log-body').html(
+                `<div style="color:#991b1b;padding:20px;">⚠ ${escHtml(resp.error)}</div>`);
+            return;
+        }
+        let html = '';
+
+        // ── 点検・送信予定 ──
+        const plan = resp.plan || {};
+        const planColor = plan.active ? '#0e7490' : '#6b7280';
+        const planBg    = plan.active ? '#ecfeff' : '#f3f4f6';
+        const planBd    = plan.active ? '#a5f3fc' : '#e5e7eb';
+        html += `
+        <div style="font-size:0.82rem;font-weight:700;color:#374151;margin:2px 0 6px;">
+            ⏰ 点検・送信予定
+        </div>
+        <div style="background:${planBg};border:1px solid ${planBd};border-radius:8px;
+                    padding:11px 14px;margin-bottom:18px;font-size:0.85rem;color:${planColor};">
+            ${escHtml(plan.message || '')}
+        </div>`;
+
+        // ── 送信済みの通知（履歴） ──
+        html += `
+        <div style="font-size:0.82rem;font-weight:700;color:#374151;margin:2px 0 6px;">
+            📋 送信済みの通知
+        </div>`;
+        const hist = resp.history || [];
+        if (!hist.length) {
+            html += `<div style="color:#9ca3af;font-size:0.85rem;padding:14px 4px;">
+                まだ通知の記録はありません。</div>`;
+        } else {
+            html += '<div style="display:grid;gap:8px;">';
+            hist.forEach(h => {
+                const ok = (h.status === 'success');
+                const statusBadge = ok
+                    ? '<span style="background:#dcfce7;color:#065f46;border-radius:10px;padding:2px 9px;font-size:0.73rem;font-weight:700;">送信成功</span>'
+                    : '<span style="background:#fee2e2;color:#991b1b;border-radius:10px;padding:2px 9px;font-size:0.73rem;font-weight:700;">送信失敗</span>';
+                const targetIcon = (h.target_kind === 'dm') ? '✉️' : '📢';
+                const errLine = (!ok && h.error)
+                    ? `<div style="color:#991b1b;font-size:0.8rem;margin-top:3px;">⚠ ${escHtml(h.error)}</div>`
+                    : '';
+                const byLine = h.created_by_name
+                    ? `　操作：${escHtml(h.created_by_name)}` : '';
+                const roundLine = (h.round_no && h.round_no >= 2)
+                    ? `　第${h.round_no}回` : '';
+                html += `
+                <div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 13px;">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        ${statusBadge}
+                        <span style="font-weight:700;color:#1e3a5f;font-size:0.86rem;">
+                            ${escHtml(h.kind_label)}</span>
+                        <span style="color:#9ca3af;font-size:0.8rem;">${escHtml(h.created_at)}</span>
+                    </div>
+                    <div style="font-size:0.82rem;color:#475569;margin-top:4px;">
+                        ${targetIcon} ${escHtml(h.target_label)}${roundLine}${byLine}
+                    </div>
+                    ${h.summary ? `<div style="font-size:0.82rem;color:#64748b;margin-top:2px;">${escHtml(h.summary)}</div>` : ''}
+                    ${errLine}
+                </div>`;
+            });
+            html += '</div>';
+        }
+        $('#notify-log-body').html(html);
+    }).fail(() => {
+        $('#notify-log-body').html(
+            '<div style="color:#991b1b;padding:20px;">⚠ 通信エラー</div>');
+    });
+}
+
+function appendComment(cm) {
+    const cls  = cm.is_conclusion ? 'conclusion' : cm.comment_type;
+    const html = `
+    <div class="comment-item ${cls}">
+        <div class="comment-header">
+            ${commentTypeLabel(cm.is_conclusion ? 'conclusion' : cm.comment_type)}
+            <span class="comment-author">${escHtml(cm.author_name)}</span>
+            <span>${cm.created_at}</span>
+        </div>
+        <div class="comment-body">${escHtml(cm.content)}</div>
+    </div>`;
+    const $list = $('#comment-list');
+    $list.find('.empty-comment').remove();
+    $list.append(html);
+}
+
+function setCoi(uid, excluded_roles, reason) {
+    $.ajax({
+        url: `/ext_engagement/api/case/${CASE_ID}/coi/add`,
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({ user_id: uid, reason, excluded_roles }),
+        success(resp) {
+            if (resp.success) { toast('COIを設定しました', false); membersCache = null; reloadAdminPanel(); }
+            else { toast('エラー: ' + resp.error, true); }
+        },
+        error: () => toast('通信エラー', true),
+    });
+}
+
+function removeCoi(uid) {
+    $.ajax({
+        url: `/ext_engagement/api/case/${CASE_ID}/coi/remove`,
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({ user_id: uid }),
+        success(resp) {
+            if (resp.success) { toast('COIを解除しました', false); membersCache = null; reloadAdminPanel(); }
+            else { toast('エラー: ' + resp.error, true); }
+        },
+        error: () => toast('通信エラー', true),
+    });
+}
+
+function setActingChair(uid) {
+    $.ajax({
+        url: `/ext_engagement/api/case/${CASE_ID}/acting_chair`,
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({ user_id: uid }),
+        success(resp) {
+            if (resp.success) { toast(uid ? '代理委員長を指名しました' : '代理委員長を解除しました', false); membersCache = null; reloadAdminPanel(); }
+            else { toast('エラー: ' + resp.error, true); }
+        },
+        error: () => toast('通信エラー', true),
+    });
+}
+
+function reloadAdminPanel() {
+    $.get(`/ext_engagement/api/case/${CASE_ID}`, function(resp) {
+        if (!resp.success) return;
+        if (resp.case.status === 'draft') {
+            loadMembersForAdmin(resp.coi_info, resp.acting_chair_info);
+        }
+    });
+}
+
+function updateEditTotalFeeDisplay() {
+    const d = parseInt($('#edit-direct-fee').val()) || 0;
+    const i = parseInt($('#edit-indirect-fee').val()) || 0;
+    const dEmpty = $('#edit-direct-fee').val().trim() === '';
+    const iEmpty = $('#edit-indirect-fee').val().trim() === '';
+    if (dEmpty && iEmpty) {
+        $('#edit-total-fee-display').text('―');
+    } else {
+        const total = d + i;
+        $('#edit-total-fee-display').text(total.toLocaleString('ja-JP') + ' 円'
+            + (dEmpty || iEmpty ? '　※片方未入力' : ''));
+    }
+}
+
+function showEditRepBadge(uid, name) {
+    $('#edit-rep-user-selected').html(`
+        <span class="user-selected-badge">
+            👤 ${escHtml(name)}
+            <button class="clear-btn" id="btn-edit-clear-rep">✕</button>
+        </span>`);
+}
+
+$(document).ready(loadCase);
+</script>
+</body>
+</html>

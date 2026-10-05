@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新規申請 - キターレオンライン審議</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh; padding: 15px;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header {
+            background: white; padding: 16px 24px; border-radius: 10px;
+            margin-bottom: 14px; display: flex; align-items: center;
+            gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { flex: 1; font-size: 1.2rem; color: #4a3a7a; min-width: 200px; }
+        .nav-btn {
+            padding: 9px 16px; background: #94a3b8; color: white; border: none;
+            border-radius: 6px; cursor: pointer; text-decoration: none;
+            font-size: 0.88rem; font-weight: 600; white-space: nowrap;
+        }
+        .nav-btn:hover { opacity: 0.9; }
+        .card {
+            background: white; border-radius: 10px; padding: 22px 26px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 14px;
+        }
+        .card h2 {
+            font-size: 1rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 16px;
+        }
+        .card.disabled { opacity: 0.5; pointer-events: none; }
+        .field { margin-bottom: 15px; }
+        .field label {
+            display: block; font-size: 0.85rem; font-weight: 600;
+            color: #4a3a7a; margin-bottom: 5px;
+        }
+        .field .req { color: #ef4444; font-size: 0.8rem; }
+        .field input[type=text], .field input[type=date], .field textarea {
+            width: 100%; padding: 9px 11px; border: 1px solid #d1d5db;
+            border-radius: 6px; font-size: 0.9rem; font-family: inherit;
+        }
+        .field textarea { resize: vertical; min-height: 70px; }
+        .field-row { display: flex; gap: 12px; flex-wrap: wrap; }
+        .field-row .field { flex: 1; min-width: 180px; }
+        .hint { font-size: 0.78rem; color: #9ca3af; margin-top: 4px; }
+        .check-row {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 0.86rem; color: #4a3a7a; margin-bottom: 8px;
+        }
+        .btn {
+            padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer;
+            font-size: 0.9rem; font-weight: 600;
+        }
+        .btn.primary { background: #6d5fb8; color: white; }
+        .btn.green { background: #10b981; color: white; }
+        .btn.secondary { background: #e5e7eb; color: #374151; }
+        .btn.small { padding: 6px 12px; font-size: 0.82rem; }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .info-note {
+            font-size: 0.82rem; color: #92400e; background: #fffbeb;
+            border: 1px solid #fde68a; border-radius: 6px;
+            padding: 10px 13px; margin-bottom: 16px; line-height: 1.7;
+        }
+        .doc-item {
+            display: flex; gap: 10px; align-items: center; padding: 8px 10px;
+            background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px;
+            margin-bottom: 6px; font-size: 0.85rem;
+        }
+        .doc-item .doc-title { font-weight: 600; color: #4a3a7a; flex: 1; }
+        .del-btn {
+            padding: 4px 10px; background: #ef4444; color: white; border: none;
+            border-radius: 5px; cursor: pointer; font-size: 0.78rem;
+        }
+        .del-btn:hover { opacity: 0.9; }
+        .empty-msg { color: #9ca3af; font-size: 0.85rem; padding: 10px 0; }
+        .step-label {
+            display: inline-block; background: #6d5fb8; color: white;
+            font-size: 0.78rem; font-weight: 700; border-radius: 10px;
+            padding: 2px 10px; margin-right: 6px;
+        }
+        #toast {
+            position: fixed; bottom: 22px; right: 22px; padding: 13px 20px;
+            border-radius: 8px; font-size: 0.88rem; font-weight: 600;
+            z-index: 9999; display: none; max-width: 340px;
+        }
+        #toast.error { background: #fee2e2; color: #991b1b; }
+        #toast.success { background: #d1fae5; color: #065f46; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>＋ 新規申請</h1>
+        <a href="{{ url_for('kitare_deliberation.index') }}" class="nav-btn">← 一覧へ戻る</a>
+    </div>
+
+    <!-- ステップ1：案件情報 -->
+    <div class="card" id="card-case">
+        <h2><span class="step-label">STEP 1</span>案件情報</h2>
+        <div class="field">
+            <label>案件名 <span class="req">＊必須</span></label>
+            <input type="text" id="f-title" placeholder="例：連携研究員の委嘱について">
+        </div>
+        <div class="check-row">
+            <input type="checkbox" id="f-personnel">
+            <label for="f-personnel" style="margin:0;font-weight:600">特定案件（公開画面では案件名をぼかして表示する）</label>
+        </div>
+        <div class="field" id="public-title-field" style="display:none">
+            <label>公開用タイトル</label>
+            <input type="text" id="f-public-title" placeholder="例：連携研究員審議">
+            <div class="hint">特定案件のとき、学内公開ページにはこの表記が出ます（未入力なら「特定案件」）。</div>
+        </div>
+        <div class="field">
+            <label>申請者名</label>
+            <input type="text" id="f-applicant-name" placeholder="未入力ならログイン名を使用">
+        </div>
+        <div class="field">
+            <label>所属</label>
+            <input type="text" id="f-affiliation" placeholder="例：北近畿地域連携機構">
+        </div>
+        <div class="field">
+            <label>添書（送付メッセージ）</label>
+            <textarea id="f-cover-letter" rows="4"
+                placeholder="（任意）申請にあたってのメッセージや趣旨を記入できます。&#10;単純な連絡事項はここにそのまま記入すれば、PDF化して添付する必要はありません。"></textarea>
+            <div class="hint">審議担当者・業務会議に向けた送付時のメッセージです。後から STEP2 で編集することもできます。</div>
+        </div>
+        <button class="btn primary" id="btn-create">この内容で案件を作成</button>
+        <div class="hint" style="margin-top:6px">案件を作成すると STEP 2 の書類アップロードに進めます。</div>
+    </div>
+
+    <!-- ステップ2：書類 -->
+    <div class="card disabled" id="card-docs">
+        <h2><span class="step-label">STEP 2</span>申請書類</h2>
+        <div class="info-note">
+            審議に必要な書類をアップロードしてください（最大 {{ max_documents }} 件、
+            1ファイル {{ max_file_mb }}MB まで）。書類は任意です。なくても申請できますが、
+            審議に必要な資料はできるだけ添付してください。
+        </div>
+        <div class="field">
+            <label>添書（送付メッセージ）</label>
+            <textarea id="d-cover-letter" rows="4"
+                placeholder="（任意）単純な連絡事項はここにそのまま記入できます。"></textarea>
+            <div class="hint">STEP1 で入力した内容を編集できます。「添書を保存」で反映されます。</div>
+            <button class="btn secondary small" id="btn-save-cover" style="margin-top:6px">添書を保存</button>
+        </div>
+        <div class="field">
+            <label>書類タイトル</label>
+            <input type="text" id="d-title" placeholder="例：申請書、研究計画書 など">
+        </div>
+        <div class="field">
+            <label>備考</label>
+            <input type="text" id="d-note" placeholder="（任意）">
+        </div>
+        <div class="field">
+            <label>ファイル</label>
+            <input type="file" id="d-file">
+        </div>
+        <button class="btn primary small" id="btn-upload">この書類を追加</button>
+
+        <div style="margin-top:16px">
+            <div style="font-size:0.85rem;font-weight:600;color:#4a3a7a;margin-bottom:6px">アップロード済みの書類</div>
+            <div id="docs-list"><div class="empty-msg">まだありません</div></div>
+        </div>
+    </div>
+
+    <!-- ステップ3：申請 -->
+    <div class="card disabled" id="card-submit">
+        <h2><span class="step-label">STEP 3</span>申請</h2>
+        <div class="info-note">
+            申請ボタンを押すと業務会議（委員長・事務局）へ通知が送られ、受理判断に入ります。
+            申請後は書類の追加・削除ができなくなります。
+        </div>
+        <button class="btn green" id="btn-submit">申請する</button>
+    </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const URL_BASE = '{{ url_for("kitare_deliberation.index") }}';
+let CASE_ID = null;
+
+function toast(msg, isErr) {
+    const $t = $('#toast');
+    $t.text(msg).removeClass('error success')
+      .addClass(isErr ? 'error' : 'success').fadeIn();
+    setTimeout(() => $t.fadeOut(), 4000);
+}
+function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function ajaxErr(xhr, fallback) {
+    let msg = fallback || '通信エラー';
+    try { const r = JSON.parse(xhr.responseText); if (r && r.error) msg = r.error; } catch(e) {}
+    return msg;
+}
+
+// 特定案件チェックで公開用タイトル欄を出し入れ
+$('#f-personnel').on('change', function() {
+    $('#public-title-field').toggle($(this).is(':checked'));
+});
+
+// STEP1：案件作成
+$('#btn-create').on('click', function() {
+    const title = $('#f-title').val().trim();
+    if (!title) { toast('案件名は必須です', true); return; }
+    $(this).prop('disabled', true);
+    $.ajax({
+        url: URL_BASE + 'api/case', method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            title: title,
+            is_personnel: $('#f-personnel').is(':checked'),
+            public_title: $('#f-public-title').val().trim(),
+            applicant_name: $('#f-applicant-name').val().trim(),
+            applicant_affiliation: $('#f-affiliation').val().trim(),
+            cover_letter: $('#f-cover-letter').val().trim()
+        })
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '作成失敗', true); $('#btn-create').prop('disabled', false); return; }
+        CASE_ID = r.case_id;
+        toast('案件 ' + r.case_display_id + ' を作成しました');
+        $('#d-cover-letter').val($('#f-cover-letter').val());
+        $('#card-case').addClass('disabled');
+        $('#card-docs').removeClass('disabled');
+        $('#card-submit').removeClass('disabled');
+    }).fail(function(xhr) {
+        toast(ajaxErr(xhr), true); $('#btn-create').prop('disabled', false);
+    });
+});
+
+// STEP2：添書の保存
+$('#btn-save-cover').on('click', function() {
+    if (!CASE_ID) { toast('先に案件を作成してください', true); return; }
+    $('#btn-save-cover').prop('disabled', true);
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/cover_letter',
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({ cover_letter: $('#d-cover-letter').val().trim() })
+    }).done(function(r) {
+        $('#btn-save-cover').prop('disabled', false);
+        if (!r.success) { toast(r.error || '保存失敗', true); return; }
+        toast('添書を保存しました');
+    }).fail(function(xhr) {
+        $('#btn-save-cover').prop('disabled', false);
+        toast(ajaxErr(xhr), true);
+    });
+});
+
+// STEP2：書類アップロード
+$('#btn-upload').on('click', function() {
+    if (!CASE_ID) { toast('先に案件を作成してください', true); return; }
+    const title = $('#d-title').val().trim();
+    const file = $('#d-file')[0].files[0];
+    if (!title) { toast('書類タイトルを入力してください', true); return; }
+    if (!file)  { toast('ファイルを選択してください', true); return; }
+
+    const fd = new FormData();
+    fd.append('title', title);
+    fd.append('note', $('#d-note').val().trim());
+    fd.append('file', file);
+    $('#btn-upload').prop('disabled', true);
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/document',
+        method: 'POST', data: fd, processData: false, contentType: false
+    }).done(function(r) {
+        $('#btn-upload').prop('disabled', false);
+        if (!r.success) { toast(r.error || 'アップロード失敗', true); return; }
+        toast('書類を追加しました');
+        $('#d-title').val(''); $('#d-note').val(''); $('#d-file').val('');
+        loadDocs();
+    }).fail(function(xhr) {
+        $('#btn-upload').prop('disabled', false);
+        toast(ajaxErr(xhr), true);
+    });
+});
+
+function loadDocs() {
+    if (!CASE_ID) return;
+    $.get(URL_BASE + 'api/case/' + CASE_ID + '/view', function(resp) {
+        if (!resp.success) return;
+        const docs = resp.documents || [];
+        if (!docs.length) {
+            $('#docs-list').html('<div class="empty-msg">まだありません</div>');
+            return;
+        }
+        let html = '';
+        docs.forEach(d => {
+            html += `<div class="doc-item">
+                <span class="doc-title">${esc(d.title)}</span>
+                <span style="color:#9ca3af;font-size:0.78rem">${esc(d.original_filename)}</span>
+                <button class="del-btn" data-id="${d.id}">削除</button>
+            </div>`;
+        });
+        $('#docs-list').html(html);
+    });
+}
+
+$('#docs-list').on('click', '.del-btn', function() {
+    const docId = $(this).data('id');
+    if (!confirm('この書類を削除しますか？')) return;
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/document/' + docId,
+        method: 'DELETE'
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '削除失敗', true); return; }
+        toast('削除しました');
+        loadDocs();
+    }).fail(function(xhr) { toast(ajaxErr(xhr), true); });
+});
+
+// STEP3：申請
+$('#btn-submit').on('click', function() {
+    if (!CASE_ID) { toast('先に案件を作成してください', true); return; }
+    if (!confirm('申請します。\n業務会議へ通知が送られ、受理判断に入ります。\n申請後は書類を変更できません。よろしいですか？')) return;
+    $(this).prop('disabled', true);
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/submit',
+        method: 'POST', contentType: 'application/json', data: '{}'
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '申請失敗', true); $('#btn-submit').prop('disabled', false); return; }
+        toast('申請しました');
+        setTimeout(() => { location.href = URL_BASE + 'case/' + CASE_ID + '/applicant'; }, 900);
+    }).fail(function(xhr) {
+        toast(ajaxErr(xhr), true); $('#btn-submit').prop('disabled', false);
+    });
+});
+</script>
+</body>
+</html>

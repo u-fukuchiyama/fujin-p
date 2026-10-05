@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>訪問者統計 - まちなかキャンパス</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --c-primary:#059669;--c-primary-d:#047857;--c-surface:#ecfdf5;
+  --c-card:#fff;--c-text:#1f2937;--c-muted:#64748b;--c-border:#d1d5db;
+  --c-info:#0ea5e9;--c-warn:#f59e0b;--c-danger:#ef4444;
+  --c-purple:#7c3aed;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;
+     background:var(--c-surface);color:var(--c-text);min-height:100vh;
+     padding-bottom:48px;line-height:1.6}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;
+       position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;justify-content:space-between;
+      max-width:960px;margin:0 auto;gap:8px;flex-wrap:wrap}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;
+      background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:960px;margin:0 auto;padding:16px 14px}
+.flashes{max-width:960px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+/* ── サマリーカード ── */
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.s-card{background:#fff;border-radius:12px;padding:16px 14px;
+        box-shadow:0 1px 4px rgba(0,0,0,.07);border-top:3px solid transparent}
+.s-card.green {border-color:var(--c-primary)}
+.s-card.blue  {border-color:var(--c-info)}
+.s-card.amber {border-color:var(--c-warn)}
+.s-card.red   {border-color:var(--c-danger)}
+.s-card.purple{border-color:var(--c-purple)}
+.s-num{font-size:1.7rem;font-weight:900;color:var(--c-text);line-height:1.1}
+.s-unit{font-size:.75rem;font-weight:400;color:var(--c-muted);margin-left:2px}
+.s-label{font-size:.74rem;color:var(--c-muted);margin-top:4px}
+
+/* ── チャートカード ── */
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:640px){.chart-grid{grid-template-columns:1fr}}
+.chart-card{background:#fff;border-radius:12px;padding:18px;
+            box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.chart-card.full{grid-column:1/-1}
+.chart-title{font-size:.88rem;font-weight:700;color:var(--c-primary-d);margin-bottom:12px}
+.chart-wrap{position:relative;width:100%}
+.chart-wrap.h200{height:200px}
+.chart-wrap.h260{height:260px}
+.chart-wrap.h220{height:220px}
+
+/* ── テーブル ── */
+.tbl-card{background:#fff;border-radius:12px;padding:18px;
+          box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:14px}
+.tbl-title{font-size:.88rem;font-weight:700;color:var(--c-primary-d);margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:.83rem}
+th{text-align:left;padding:7px 10px;border-bottom:2px solid var(--c-border);
+   font-size:.78rem;color:var(--c-muted)}
+td{padding:7px 10px;border-bottom:1px solid var(--c-border)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafafa}
+.rank{font-weight:800;color:var(--c-primary-d);width:28px}
+.num-cell{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.medal-1{color:#f59e0b}
+.medal-2{color:#94a3b8}
+.medal-3{color:#b45309}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🏘️ まちなかキャンパス</div>
+    <a href="{{ url_for('machinaka.reports_list') }}" class="back">‹ 日報一覧</a>
+    {% include 'machinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+
+  {# ── サマリーカード ── #}
+  <div class="summary-grid">
+    <div class="s-card green">
+      <div class="s-num">{{ total_visitors }}<span class="s-unit">人</span></div>
+      <div class="s-label">延べ訪問者数</div>
+    </div>
+    <div class="s-card blue">
+      <div class="s-num">{{ total_days }}<span class="s-unit">日</span></div>
+      <div class="s-label">日報記録日数</div>
+    </div>
+    <div class="s-card green">
+      <div class="s-num">{{ open_days }}<span class="s-unit">日</span></div>
+      <div class="s-label">通常開館日数</div>
+    </div>
+    <div class="s-card amber">
+      <div class="s-num">{{ closed_days }}<span class="s-unit">日</span></div>
+      <div class="s-label">休館日数</div>
+    </div>
+    <div class="s-card blue">
+      <div class="s-num">{{ avg_visitors }}<span class="s-unit">人</span></div>
+      <div class="s-label">1日平均（全日）</div>
+    </div>
+    <div class="s-card purple">
+      <div class="s-num">{{ avg_open }}<span class="s-unit">人</span></div>
+      <div class="s-label">1日平均（開館日）</div>
+    </div>
+  </div>
+
+  {# ── チャート行1: 月別棒グラフ（全幅） ── #}
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-title">📊 月別訪問者数</div>
+      <div class="chart-wrap h260"><canvas id="chartMonthly"></canvas></div>
+    </div>
+  </div>
+
+  {# ── チャート行2: 日別折れ線 + 累積 ── #}
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-title">📈 日別訪問者数（直近90日）</div>
+      <div class="chart-wrap h220"><canvas id="chartDaily"></canvas></div>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-title">📉 訪問者数累積推移</div>
+      <div class="chart-wrap h220"><canvas id="chartCumul"></canvas></div>
+    </div>
+  </div>
+
+  {# ── チャート行3: 曜日別 + 月別開館日数 ── #}
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-title">📅 曜日別平均訪問者数（開館日）</div>
+      <div class="chart-wrap h200"><canvas id="chartDow"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">🗓️ 月別開館日数</div>
+      <div class="chart-wrap h200"><canvas id="chartOpenDays"></canvas></div>
+    </div>
+  </div>
+
+  {# ── テーブル: 来訪者トップ5 ── #}
+  <div class="tbl-card">
+    <div class="tbl-title">🏆 来訪者数トップ5</div>
+    <table>
+      <thead>
+        <tr>
+          <th>順位</th>
+          <th>日付</th>
+          <th style="text-align:right">訪問者数</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in top5 %}
+        <tr>
+          <td class="rank">
+            {% if loop.index == 1 %}<span class="medal-1">🥇</span>
+            {% elif loop.index == 2 %}<span class="medal-2">🥈</span>
+            {% elif loop.index == 3 %}<span class="medal-3">🥉</span>
+            {% else %}{{ loop.index }}
+            {% endif %}
+          </td>
+
+          <td>{{ t.report_date }}</td>
+          <td class="num-cell">{{ t.visitor_count }} 人</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ── テーブル: 年度別集計 ── #}
+  <div class="tbl-card">
+    <div class="tbl-title">📋 年度別集計</div>
+    <table>
+      <thead>
+        <tr>
+          <th>年度</th>
+          <th style="text-align:right">訪問者数</th>
+          <th style="text-align:right">記録日数</th>
+          <th style="text-align:right">開館</th>
+          <th style="text-align:right">休館</th>
+          <th style="text-align:right">部分休館</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in fiscal_rows %}
+        <tr>
+          <td>{{ f.fiscal_year }}</td>
+          <td class="num-cell">{{ f.total_visitors }} 人</td>
+          <td class="num-cell">{{ f.total_days }} 日</td>
+          <td class="num-cell">{{ f.open_days }}</td>
+          <td class="num-cell">{{ f.closed_days }}</td>
+          <td class="num-cell">{{ f.partial_days }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+// ── データ受け取り ──
+var monthlyLabels    = {{ monthly_labels    | safe }};
+var monthlyVisitors  = {{ monthly_visitors  | safe }};
+var monthlyOpenDays  = {{ monthly_open_days | safe }};
+var dailyLabels      = {{ daily_labels      | safe }};
+var dailyVisitors    = {{ daily_visitors    | safe }};
+var cumulLabels      = {{ cumul_labels      | safe }};
+var cumulative       = {{ cumulative        | safe }};
+var dowLabels        = {{ dow_labels        | safe }};
+var dowAvg           = {{ dow_avg           | safe }};
+
+// ── 共通オプション ──
+Chart.defaults.font.family = "'Hiragino Sans', 'Noto Sans JP', sans-serif";
+Chart.defaults.font.size   = 11;
+
+// ── 月別訪問者数（棒グラフ） ──
+new Chart(document.getElementById('chartMonthly'), {
+  type: 'bar',
+  data: {
+    labels: monthlyLabels,
+    datasets: [{
+      label: '訪問者数',
+      data: monthlyVisitors,
+      backgroundColor: 'rgba(5,150,105,.75)',
+      borderRadius: 4,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false },
+           ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 24 } },
+      y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,.06)' } }
+    }
+  }
+});
+
+// ── 日別訪問者数（折れ線） ──
+new Chart(document.getElementById('chartDaily'), {
+  type: 'line',
+  data: {
+    labels: dailyLabels,
+    datasets: [{
+      label: '訪問者数',
+      data: dailyVisitors,
+      borderColor: '#0ea5e9',
+      backgroundColor: 'rgba(14,165,233,.12)',
+      borderWidth: 1.5,
+      pointRadius: 2,
+      pointHoverRadius: 5,
+      fill: true,
+      tension: 0.3,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false },
+           ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 20 } },
+      y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,.06)' } }
+    }
+  }
+});
+
+// ── 累積訪問者数（折れ線） ──
+new Chart(document.getElementById('chartCumul'), {
+  type: 'line',
+  data: {
+    labels: cumulLabels,
+    datasets: [{
+      label: '累積訪問者数',
+      data: cumulative,
+      borderColor: '#7c3aed',
+      backgroundColor: 'rgba(124,58,237,.1)',
+      borderWidth: 2,
+      pointRadius: 0,
+      fill: true,
+      tension: 0.2,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false },
+           ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 16 } },
+      y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,.06)' } }
+    }
+  }
+});
+
+// ── 曜日別平均（棒グラフ） ──
+var dowColors = ['#059669','#059669','#059669','#059669','#059669','#0ea5e9','#ef4444'];
+new Chart(document.getElementById('chartDow'), {
+  type: 'bar',
+  data: {
+    labels: dowLabels,
+    datasets: [{
+      label: '平均訪問者数',
+      data: dowAvg,
+      backgroundColor: dowColors,
+      borderRadius: 5,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false } },
+      y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,.06)' } }
+    }
+  }
+});
+
+// ── 月別開館日数（棒グラフ） ──
+new Chart(document.getElementById('chartOpenDays'), {
+  type: 'bar',
+  data: {
+    labels: monthlyLabels,
+    datasets: [{
+      label: '開館日数',
+      data: monthlyOpenDays,
+      backgroundColor: 'rgba(5,150,105,.6)',
+      borderRadius: 3,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false },
+           ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 18 } },
+      y: { beginAtZero: true, max: 31, grid: { color: 'rgba(0,0,0,.06)' } }
+    }
+  }
+});
+</script>
+</body>
+</html>

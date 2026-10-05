@@ -1,0 +1,348 @@
+{#
+  日報一覧ページ（カレンダー目次付き一覧）
+  * ページ本体がカレンダー＋日報一覧
+  * ヘッダー1行に全操作ボタンを集約
+  * 右コラムの各日報から詳細・編集へリンク
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日報一覧 - まちなかキャンパス</title>
+<style>
+:root {
+  --c-primary:#059669; --c-primary-d:#047857; --c-surface:#ecfdf5;
+  --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-ng:#ef4444; --c-warn:#f59e0b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh}
+header{background:var(--c-primary);color:#fff;padding:8px 14px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:1300px;margin:0 auto}
+.site-name{font-size:1rem;font-weight:800;margin-right:2px;white-space:nowrap}
+.hbtn{display:inline-flex;align-items:center;gap:3px;padding:5px 11px;border-radius:7px;font-size:.76rem;font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap;border:1.5px solid rgba(255,255,255,.5);color:#fff;background:rgba(255,255,255,.15)}
+.hbtn:hover{background:rgba(255,255,255,.28)}
+.hbtn.accent{background:#fff;color:var(--c-primary-d);border-color:#fff}
+.hbtn.accent:hover{background:#ecfdf5}
+.hsp{flex:1}
+#loading{text-align:center;padding:60px;color:var(--c-muted);font-size:.95rem}
+.layout{display:grid;grid-template-columns:250px 1fr;max-width:1300px;margin:0 auto;min-height:calc(100vh - 46px)}
+.sidebar{background:#fff;border-right:1px solid var(--c-border);display:flex;flex-direction:column;position:sticky;top:46px;height:calc(100vh - 46px)}
+.sb-head{padding:9px 11px;border-bottom:1px solid var(--c-border);flex-shrink:0;background:#f8fafc}
+.sb-sel{flex:1;padding:4px 5px;border:1px solid var(--c-border);border-radius:5px;font-size:.76rem;background:#fff;font-family:inherit}
+.sb-btn{flex-shrink:0;padding:4px 9px;background:var(--c-primary);color:#fff;border:none;border-radius:5px;font-size:.76rem;font-weight:700;cursor:pointer}
+.sb-body{flex:1;overflow-y:auto;padding:10px}
+.main{padding:14px 18px;overflow-y:auto}
+.main-ttl{font-size:.8rem;color:var(--c-muted);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--c-border)}
+.report-card{background:#fff;border-radius:10px;padding:12px 16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-border)}
+.report-card.open{border-left-color:var(--c-ok)}
+.report-card.closed{border-left-color:var(--c-muted)}
+.report-card.partial{border-left-color:var(--c-warn)}
+.rc-head{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:6px}
+.rc-date{font-size:.92rem;font-weight:800}
+.rc-badge{font-size:.69rem;padding:2px 8px;border-radius:9px;color:#fff;font-weight:700}
+.rc-insp{font-size:.69rem;padding:2px 8px;border-radius:9px;font-weight:700}
+.rc-insp.ok{background:#d1fae5;color:#065f46}
+.rc-insp.pending{background:#fef3c7;color:#92400e}
+.rc-meta{font-size:.76rem;color:var(--c-muted);margin-bottom:6px}
+.rc-body{font-size:.84rem;line-height:1.7;color:var(--c-text);background:#f8fafc;padding:8px 12px;border-radius:6px;border-left:3px solid var(--c-primary);margin-bottom:8px}
+.rc-body img{width:70%;height:auto;display:block;margin:6px auto}
+.rc-actions{display:flex;gap:7px;justify-content:flex-end}
+.rc-link{font-size:.73rem;padding:4px 11px;border-radius:6px;text-decoration:none;font-weight:700;border:1px solid}
+.rc-link.detail{color:var(--c-primary);border-color:var(--c-primary)}
+.rc-link.edit{color:var(--c-muted);border-color:var(--c-border)}
+.rc-link:hover{opacity:.75}
+@media(max-width:700px){
+  .layout{grid-template-columns:1fr}
+  .sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid var(--c-border)}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">&#x1F4CB; &#x65E5;&#x5831;&#x4E00;&#x89A7;</div>
+    <a href="{{ url_for('machinaka.index') }}" class="hbtn">&#x2190; &#x30C0;&#x30C3;&#x30B7;&#x30E5;&#x30DC;&#x30FC;&#x30C9;</a>
+    <a href="{{ url_for('machinaka.reports_stats') }}" class="hbtn">&#x1F4CA; &#x7D71;&#x8A08;</a>
+    <a href="#" id="mdLink" class="hbtn" onclick="openMdExport(event)">&#x1F4C4; MD&#x30C6;&#x30AD;&#x30B9;&#x30C8;</a>
+    <div class="hsp"></div>
+    <button onclick="copyHtml()" id="copyBtn" class="hbtn accent">&#x1F4CB; HTML&#x3092;&#x30B3;&#x30D4;&#x30FC;</button>
+    {% if approve_ok %}
+    <a href="{{ url_for('machinaka.report_new') }}?date={{ today.isoformat() }}" class="hbtn accent">&#xFF0B; &#x65E5;&#x5831;&#x4F5C;&#x6210;</a>
+    {% endif %}
+    {% include 'machinaka_std_nav.html' %}
+  </div>
+</header>
+
+<div id="loading">&#x30C7;&#x30FC;&#x30BF;&#x3092;&#x8AAD;&#x307F;&#x8FBC;&#x307F;&#x4E2D;&#x2026;</div>
+
+<div class="layout" id="mainLayout" style="display:none">
+  <aside class="sidebar">
+    <div class="sb-head">
+      <div style="font-size:.68rem;color:var(--c-muted);margin-bottom:4px">&#x5E74;&#x6708;&#x30B8;&#x30E3;&#x30F3;&#x30D7;</div>
+      <div style="display:flex;gap:4px;align-items:center">
+        <select id="jy" class="sb-sel"></select>
+        <select id="jm" class="sb-sel"></select>
+        <button class="sb-btn" onclick="doJump()">&rarr;</button>
+      </div>
+    </div>
+    <div class="sb-body" id="sbBody"></div>
+  </aside>
+  <main class="main">
+    <div class="main-ttl" id="mainTtl" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <span id="mainTtlText"></span>
+      <span>
+        <button id="btnDesc" onclick="setOrder('desc')" style="padding:3px 10px;font-size:.72rem;font-weight:700;border-radius:5px;border:1px solid var(--c-primary);background:var(--c-primary);color:#fff;cursor:pointer">新→旧</button>
+        <button id="btnAsc"  onclick="setOrder('asc')"  style="padding:3px 10px;font-size:.72rem;font-weight:700;border-radius:5px;border:1px solid var(--c-border);background:#fff;color:var(--c-muted);cursor:pointer">旧→新</button>
+      </span>
+    </div>
+    <div id="reportList"></div>
+  </main>
+</div>
+
+<script>
+var APPROVE_OK  = {{ 'true' if approve_ok else 'false' }};
+var INSPECT_OK  = {{ 'true' if inspect_ok else 'false' }};
+var URL_ALL     = "{{ url_for('machinaka.reports_all_json') }}";
+var URL_DETAIL  = "{{ url_for('machinaka.report_detail', rid=1) }}".replace('/1', '/');
+var URL_EDIT    = "{{ url_for('machinaka.report_edit',   rid=1) }}".replace('/1/edit', '/');
+var URL_MD_BASE = "{{ url_for('machinaka.reports_export_md') }}";
+var ALL_DATA    = null;
+
+window.addEventListener('DOMContentLoaded', function() {
+  fetch(URL_ALL)
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      var jaWd=['日','月','火','水','木','金','土'];
+      data.forEach(function(r){
+        var d=new Date(r.date+'T00:00:00');
+        r.dateLabel=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+jaWd[d.getDay()]+'）';
+      });
+      ALL_DATA=data;
+      render(data);
+      document.getElementById('loading').style.display='none';
+      document.getElementById('mainLayout').style.display='grid';
+    })
+    .catch(function(e){
+      document.getElementById('loading').textContent='データ取得エラー: '+e;
+    });
+});
+
+var SORT_ORDER = 'desc';
+
+function setOrder(ord) {
+  SORT_ORDER = ord;
+  var dBtn=document.getElementById('btnDesc'), aBtn=document.getElementById('btnAsc');
+  dBtn.style.background=ord==='desc'?'var(--c-primary)':'#fff';
+  dBtn.style.color=ord==='desc'?'#fff':'var(--c-muted)';
+  dBtn.style.borderColor=ord==='desc'?'var(--c-primary)':'var(--c-border)';
+  aBtn.style.background=ord==='asc'?'var(--c-primary)':'#fff';
+  aBtn.style.color=ord==='asc'?'#fff':'var(--c-muted)';
+  aBtn.style.borderColor=ord==='asc'?'var(--c-primary)':'var(--c-border)';
+  var sorted=ALL_DATA.slice(); if(ord==='asc') sorted.reverse();
+  renderSidebar(ord==='asc'?MONTHS_ASC:MONTHS_DESC, BY_MONTH);
+  renderReportList(sorted);
+}
+
+var MONTHS_DESC=[], MONTHS_ASC=[], BY_MONTH={};
+
+function render(data) {
+  var dates=data.map(function(r){return r.date;}).sort();
+
+  // データのある月のみ
+  BY_MONTH={};
+  data.forEach(function(r){
+    var ym=r.date.slice(0,7);
+    if(!BY_MONTH[ym])BY_MONTH[ym]=[];
+    BY_MONTH[ym].push(r);
+  });
+  MONTHS_ASC=Object.keys(BY_MONTH).sort();
+  MONTHS_DESC=MONTHS_ASC.slice().reverse();
+
+  renderSidebar(MONTHS_DESC, BY_MONTH);
+  renderYearSelect(MONTHS_DESC);
+  renderReportList(data);
+
+  // stats計算
+  var totalVisitors=0, daysOpen=0, daysClosed=0, daysPartial=0, daysInsp=0;
+  data.forEach(function(r){
+    totalVisitors+=(r.visitors||0);
+    if(r.status==='open') daysOpen++;
+    else if(r.status==='closed') daysClosed++;
+    else if(r.status==='partial') daysPartial++;
+    if(r.inspected) daysInsp++;
+  });
+
+  function fmtJa(s){var d=new Date(s+'T00:00:00');return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';}
+  var ttl=fmtJa(dates[0])+'～'+fmtJa(dates[dates.length-1])
+    +'　延べ訪問者：'+totalVisitors+'人'
+    +'　記録日数：'+data.length+'日'
+    +'　通常開館：'+daysOpen+'日'
+    +(daysClosed?'　休館：'+daysClosed+'日':'')
+    +(daysPartial?'　部分休館：'+daysPartial+'日':'')
+    +(daysInsp?'　点検済：'+daysInsp+'日':'');
+  document.getElementById('mainTtlText').textContent=ttl;
+
+  var link=document.getElementById('mdLink');
+  link.dataset.from=dates[0]; link.dataset.to=dates[dates.length-1];
+}
+
+function renderSidebar(months,byMonth) {
+  var DN=['日','月','火','水','木','金','土'];
+  var html='';
+  months.forEach(function(ym){
+    var yp=ym.split('-'),y=yp[0],m=yp[1];
+    var label=parseInt(y)+'年'+parseInt(m)+'月';
+    var dim=new Date(parseInt(y),parseInt(m),0).getDate();
+    var fd=new Date(parseInt(y),parseInt(m)-1,1).getDay();
+    var rm={};(byMonth[ym]||[]).forEach(function(r){rm[r.date]=r;});
+    var rows='<tr>'+DN.map(function(d,i){
+      return '<th style="text-align:center;padding:2px 3px;font-size:.65rem;color:'+(i===0?'#dc2626':i===6?'#2563eb':'#64748b')+'">'+d+'</th>';
+    }).join('')+'</tr>';
+    var cells=[];
+    for(var k=0;k<fd;k++) cells.push('<td></td>');
+    for(var d=1;d<=dim;d++){
+      var ds=ym+'-'+String(d).padStart(2,'0');
+      var dow=new Date(parseInt(y),parseInt(m)-1,d).getDay();
+      var r=rm[ds];
+      var dc=dow===0?'#dc2626':dow===6?'#2563eb':'#1f2937';
+      if(r){
+        var dot='<span style="display:block;width:5px;height:5px;border-radius:50%;background:'+r.statusColor+';margin:1px auto 0"></span>';
+        cells.push('<td style="padding:1px"><a href="#r-'+ds+'" style="display:block;padding:2px;text-align:center;border-radius:3px;background:#f0fdf4;border:1px solid #a7f3d0;text-decoration:none"><span style="color:'+dc+';font-size:.7rem;font-weight:700">'+d+'</span>'+dot+'</a></td>');
+      } else {
+        cells.push('<td style="padding:2px 3px;text-align:center"><span style="color:'+dc+';font-size:.7rem">'+d+'</span></td>');
+      }
+    }
+    while(cells.length%7!==0) cells.push('<td></td>');
+    var tr=rows;
+    for(var i=0;i<cells.length;i+=7) tr+='<tr>'+cells.slice(i,i+7).join('')+'</tr>';
+    html+='<div id="month-'+ym+'" style="margin-bottom:12px">'
+      +'<div style="font-size:.8rem;font-weight:800;color:#047857;margin-bottom:3px;padding-bottom:2px;border-bottom:2px solid #d1fae5">'+label+'</div>'
+      +'<table style="border-collapse:collapse;width:100%">'+tr+'</table>'
+      +'</div>';
+  });
+  document.getElementById('sbBody').innerHTML=html;
+}
+
+function renderYearSelect(months) {
+  var years=[];
+  months.forEach(function(ym){var y=ym.slice(0,4);if(years.indexOf(y)<0)years.push(y);});
+  years.sort().reverse();
+  var jy=document.getElementById('jy');
+  jy.innerHTML=years.map(function(y){return '<option value="'+y+'">'+y+'年</option>';}).join('');
+  jy.onchange=function(){updateMonthSelect(months);};
+  updateMonthSelect(months);
+}
+
+function updateMonthSelect(months) {
+  var y=document.getElementById('jy').value;
+  var jm=document.getElementById('jm');
+  var av=months.filter(function(ym){return ym.slice(0,4)===y;});
+  av.sort().reverse();
+  jm.innerHTML=av.map(function(ym){
+    return '<option value="'+ym.slice(5)+'">'+parseInt(ym.slice(5))+'月</option>';
+  }).join('');
+}
+
+function doJump() {
+  var y=document.getElementById('jy').value, m=document.getElementById('jm').value;
+  var el=document.getElementById('month-'+y+'-'+m);
+  if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+  else alert(y+'年'+parseInt(m)+'月はありません');
+}
+
+function renderReportList(data) {
+  var esc=function(s){return (s||''). replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  var html='';
+  data.forEach(function(r){
+    var ts=(r.openTime&&r.status!=='closed')?r.openTime+'～'+r.closeTime:'';
+    var hasHtml=/<[a-z]/i.test(r.body||'');
+    var bc=r.body?(hasHtml?r.body:esc(r.body).replace(/\n/g,'<br>')):'';
+    var insp=r.inspected;
+    var actions='<div class="rc-actions">';
+    if(APPROVE_OK||INSPECT_OK){
+      actions+='<a href="'+URL_DETAIL+r.id+'" class="rc-link detail">詳細</a>';
+    }
+    if(APPROVE_OK){
+      actions+='<a href="'+URL_EDIT+r.id+'/edit" class="rc-link edit">編集</a>';
+    }
+    actions+='</div>';
+    html+='<div class="report-card '+r.status+'" id="r-'+r.date+'">'+
+      '<div class="rc-head">'
+      +'<span class="rc-date">'+r.dateLabel+'</span>'
+      +'<span class="rc-badge" style="background:'+r.statusColor+'">'+r.statusLabel+'</span>'
+      +'<span class="rc-insp '+(insp?'ok':'pending')+'">'+( insp?'✓ 点検済':'未点検')+'</span>'
+      +'</div>'
+      +'<div class="rc-meta">'
+      +r.staff+(ts?' / '+ts:'')+(r.closureNote?' / '+esc(r.closureNote):'')+' / 訪問 <strong>'+r.visitors+'</strong>名'+(insp?' / 点検: '+r.inspector:'')
+      +'</div>'
+      +(bc?'<div class="rc-body">'+bc+'</div>':'')
+      +actions
+      +'</div>';
+  });
+  document.getElementById('reportList').innerHTML=html||'<p style="color:#94a3b8">日報はありません</p>';
+}
+
+function buildExportHtml() {
+  if(!ALL_DATA) return '';
+  var dates=ALL_DATA.map(function(r){return r.date;}).sort();
+  function fmtJa(s){var d=new Date(s+'T00:00:00');return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';}
+  var from=fmtJa(dates[0]),to=fmtJa(dates[dates.length-1]);
+  var byMonth={};
+  ALL_DATA.forEach(function(r){var ym=r.date.slice(0,7);if(!byMonth[ym])byMonth[ym]=[];byMonth[ym].push(r);});
+  var monthList=Object.keys(byMonth).sort().reverse();
+  var DN=['日','月','火','水','木','金','土'];
+  var toc='';
+  monthList.forEach(function(ym){
+    var yp=ym.split('-'),y=yp[0],m=yp[1];
+    var label=parseInt(y)+'年'+parseInt(m)+'月';
+    var dim=new Date(parseInt(y),parseInt(m),0).getDate();
+    var fd=new Date(parseInt(y),parseInt(m)-1,1).getDay();
+    var rm={};(byMonth[ym]||[]).forEach(function(r){rm[r.date]=r;});
+    var rows='<tr>'+DN.map(function(d,i){return '<th style="text-align:center;padding:3px;font-size:.68rem;color:'+(i===0?'#dc2626':i===6?'#2563eb':'#64748b')+'">'+d+'</th>';}).join('')+'</tr>';
+    var cells=[];for(var k=0;k<fd;k++)cells.push('<td></td>');
+    for(var d=1;d<=dim;d++){
+      var ds=ym+'-'+String(d).padStart(2,'0');
+      var dow=new Date(parseInt(y),parseInt(m)-1,d).getDay();
+      var r=rm[ds];var dc=dow===0?'#dc2626':dow===6?'#2563eb':'#1f2937';
+      if(r){ cells.push('<td style="padding:1px"><a href="#r-'+ds+'" style="display:block;padding:2px;text-align:center;border-radius:4px;background:#f0fdf4;border:1px solid #a7f3d0;text-decoration:none"><span style="color:'+dc+';font-size:.75rem;font-weight:700">'+d+'</span><span style="display:block;width:6px;height:6px;border-radius:50%;background:'+r.statusColor+';margin:1px auto 0"></span></a></td>');
+      } else { cells.push('<td style="padding:2px 3px;text-align:center"><span style="color:'+dc+';font-size:.75rem">'+d+'</span></td>'); }
+    }
+    while(cells.length%7!==0)cells.push('<td></td>');
+    var tr=rows;for(var i=0;i<cells.length;i+=7)tr+='<tr>'+cells.slice(i,i+7).join('')+'</tr>';
+    toc+='<div id="month-'+ym+'" style="margin-bottom:16px"><div style="font-size:.88rem;font-weight:800;color:#047857;margin-bottom:4px;padding-bottom:3px;border-bottom:2px solid #d1fae5">'+label+'</div><table style="border-collapse:collapse;width:100%">'+tr+'</table></div>';
+  });
+  var esc=function(s){return (s||''). replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  var body='';
+  ALL_DATA.forEach(function(r){
+    var ts=(r.openTime&&r.status!=='closed')?r.openTime+'～'+r.closeTime:'';
+    var hasHtml=/<[a-z]/i.test(r.body||'');
+    var bc=r.body?(hasHtml?r.body:esc(r.body).replace(/\n/g,'<br>')):'';
+    var insp=r.inspected;
+    body+='<div id="r-'+r.date+'" style="margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid #e2e8f0">'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px"><strong>'+r.dateLabel+'</strong> <span style="background:'+r.statusColor+';color:#fff;font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:9px">'+r.statusLabel+'</span> <span style="background:'+(insp?'#d1fae5':'#fef3c7')+';color:'+(insp?'#065f46':'#92400e')+';font-size:.72rem;padding:2px 9px;border-radius:9px">'+(insp?'\u2713 \u70b9\u691c\u6e08':'\u672a\u70b9\u691c')+'</span></div>'
+      +'<div style="font-size:.82rem;color:#64748b;margin-bottom:6px">'+r.staff+(ts?' / '+ts:'')+(r.closureNote?' / '+esc(r.closureNote):'')+' / \u8a2a\u554f '+r.visitors+'\u540d'+(insp?' / \u70b9\u691c: '+r.inspector:'')+'</div>'
+      +(bc?'<div style="font-size:.88rem;line-height:1.75;background:#f8fafc;padding:10px 14px;border-radius:6px;border-left:3px solid #059669">'+bc+'</div>':'')
+      +'<div style="margin-top:5px"><a href="#top" style="font-size:.72rem;color:#94a3b8;text-decoration:none">\u25b2 \u76ee\u6b21\u3078</a></div></div>';
+  });
+  var jumpFn='function doJump(){var y=document.getElementById("jy").value,m=document.getElementById("jm").value,el=document.getElementById("month-"+y+"-"+m);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});else alert(y+"\u5e74"+parseInt(m)+"\u6708\u306f\u3042\u308a\u307e\u305b\u3093");}';
+  var years=[];monthList.forEach(function(ym){var y=ym.slice(0,4);if(years.indexOf(y)<0)years.push(y);});
+  var yOpts=years.map(function(y){return '<option value="'+y+'">'+y+'年</option>';}).join('');
+  var mOpts='';for(var mi=1;mi<=12;mi++){mOpts+='<option value="'+String(mi).padStart(2,'0')+'">'+mi+'月</option>';}
+  var css='*{box-sizing:border-box;margin:0;padding:0}body{font-family:"Hiragino Sans","Noto Sans JP",sans-serif;background:#f0fdf4;color:#1f2937;padding:20px}.wrap{max-width:980px;margin:0 auto}.ttl{font-size:1.05rem;font-weight:800;color:#047857;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #d1fae5}.layout{display:grid;grid-template-columns:260px 1fr;gap:20px;align-items:start}.sidebar{position:sticky;top:20px;background:#fff;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,.08);display:flex;flex-direction:column;max-height:calc(100vh - 40px)}.sb-head{padding:10px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0}.sb-sel{flex:1;padding:4px 5px;border:1px solid #d1d5db;border-radius:5px;font-size:.78rem;background:#f8fafc;font-family:inherit}.sb-btn{flex-shrink:0;padding:4px 10px;background:#059669;color:#fff;border:none;border-radius:5px;font-size:.78rem;font-weight:700;cursor:pointer}.sb-body{flex:1;overflow-y:auto;padding:12px}.main{background:#fff;border-radius:12px;padding:20px 24px;box-shadow:0 1px 6px rgba(0,0,0,.08)}@media(max-width:640px){.layout{grid-template-columns:1fr}.sidebar{position:static;max-height:none}}';
+  var SC='<scr'+'ipt>',SCE='</scr'+'ipt>';
+  return '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>まちなかキャンパス 日報一覧 '+from+'～'+to+'</title><style>'+css+'</style>'+SC+jumpFn+SCE+'</head><body><div class="wrap"><div class="ttl" id="top">まちなかキャンパス 日報一覧&nbsp;<span style="font-size:.78rem;font-weight:400;color:#64748b">'+from+'～'+to+'（'+ALL_DATA.length+'件）</span></div><div class="layout"><aside class="sidebar"><div class="sb-head"><div style="display:flex;gap:4px;align-items:center"><select id="jy" class="sb-sel">'+yOpts+'</select><select id="jm" class="sb-sel">'+mOpts+'</select><button class="sb-btn" onclick="doJump()">&rarr;</button></div></div><div class="sb-body">'+toc+'</div></aside><main class="main">'+body+'</main></div></div></body></html>';
+}
+
+function copyHtml() {
+  if(!ALL_DATA){alert('データがまだ読み込み中です');return;}
+  navigator.clipboard.writeText(buildExportHtml()).then(function(){
+    var btn=document.getElementById('copyBtn'),orig=btn.textContent;
+    btn.textContent='✅ コピーしました！';
+    setTimeout(function(){btn.textContent=orig;},2500);
+  }).catch(function(){alert('コピーに失敗しました');});
+}
+</script>
+</body>
+</html>

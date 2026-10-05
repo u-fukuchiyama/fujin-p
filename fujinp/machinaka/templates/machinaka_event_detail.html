@@ -1,0 +1,293 @@
+{#
+  まちなかキャンパス イベント詳細
+  context: event, performances, is_applicant, is_approver,
+           past_public, today, uid, apply_ok, detail_html
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ event.title }} - まちなかキャンパス</title>
+<style>
+:root{
+  --c-primary:#059669; --c-primary-d:#047857; --c-surface:#ecfdf5;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-ng:#ef4444; --c-warn:#f59e0b; --c-info:#0ea5e9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px;line-height:1.6}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:720px;margin:0 auto;gap:6px}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:720px;margin:0 auto;padding:14px}
+.flashes{max-width:720px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.card{background:#fff;border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.head-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+h1{font-size:1.15rem;font-weight:800}
+.status-badge{display:inline-block;padding:3px 11px;border-radius:13px;color:#fff;font-size:.76rem;font-weight:700}
+
+.meta-table{width:100%;font-size:.86rem}
+.meta-table tr{border-bottom:1px solid var(--c-border)}
+.meta-table tr:last-child{border-bottom:none}
+.meta-table th{text-align:left;padding:9px 0;color:var(--c-muted);font-weight:600;width:120px;vertical-align:top}
+.meta-table td{padding:9px 0;vertical-align:top}
+
+.sec-title{font-size:.9rem;font-weight:700;color:var(--c-primary-d);margin:16px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--c-surface)}
+.detail-html{font-size:.92rem;line-height:1.75;padding:8px 0}
+.detail-html h1,.detail-html h2,.detail-html h3{margin:14px 0 6px;font-weight:700}
+.detail-html p{margin-bottom:8px}
+.summary{font-size:.92rem;color:var(--c-text);padding:6px 0;white-space:pre-wrap}
+.notes{font-size:.85rem;color:var(--c-muted);padding:6px 0;white-space:pre-wrap}
+
+.perf-item{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px dashed var(--c-border);flex-wrap:wrap}
+.perf-item:last-child{border-bottom:none}
+.perf-time{font-weight:700;font-size:.9rem;color:var(--c-primary-d)}
+.perf-note{font-size:.84rem;color:var(--c-muted);flex:1;min-width:200px;white-space:pre-wrap}
+.perf-actions{display:flex;gap:6px}
+
+.btn{display:inline-block;padding:7px 14px;border-radius:8px;text-decoration:none;font-size:.83rem;font-weight:700;border:none;cursor:pointer}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-outline{background:#fff;color:var(--c-primary);border:1px solid var(--c-primary)}
+.btn-danger{background:var(--c-ng);color:#fff}
+.btn-warn{background:var(--c-warn);color:#fff}
+.btn-grey{background:var(--c-muted);color:#fff}
+.btn-sm{padding:4px 10px;font-size:.76rem}
+
+.action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+.form-inline{margin-top:10px;padding:12px;background:var(--c-surface);border-radius:8px}
+.form-inline textarea,.form-inline input[type=date],.form-inline input[type=datetime-local]{width:100%;padding:7px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem;margin-bottom:6px}
+.form-inline label{display:block;font-size:.8rem;color:var(--c-muted);margin-bottom:3px}
+.form-inline summary{cursor:pointer;font-size:.84rem;color:var(--c-primary-d);padding:4px 0;font-weight:700}
+
+.locbadge{display:inline-block;padding:2px 9px;border-radius:11px;background:#fef3c7;color:#92400e;font-size:.74rem;font-weight:700}
+.locbadge.full{background:#fee2e2;color:#991b1b}
+.locbadge.none{background:#e5e7eb;color:#374151}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🏘️ まちなかキャンパス</div>
+    <a href="{{ url_for('machinaka.index') }}" class="back">‹ 戻る</a>
+    {% include 'machinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <div class="card">
+    <div class="head-row">
+      <span class="status-badge" style="background:{{ event.status_color }}">{{ event.status_label }}</span>
+      {% set loc = event.location_use or 'none' %}
+      <span class="locbadge {{ loc }}">専有: {{ event.location_label }}</span>
+    </div>
+    <h1>{{ event.title }}</h1>
+    {% if event.summary %}<div class="summary">{{ event.summary }}</div>{% endif %}
+
+    <table class="meta-table">
+      <tr><th>期間</th><td>{{ event.event_start_date | fmtdate_m }} 〜 {{ event.event_end_date | fmtdate_m }}</td></tr>
+      <tr><th>申請者</th><td>{{ event.applicant_name or '(不明)' }}</td></tr>
+      <tr><th>申請日時</th><td>{{ event.apply_datetime | fmtdatetime_m }}</td></tr>
+      {% if event.applicant_public_date %}
+      <tr><th>希望公開日</th><td>{{ event.applicant_public_date | fmtdate_m }}</td></tr>
+      {% endif %}
+      {% if event.approver_public_date %}
+      <tr><th>確定公開日</th><td>{{ event.approver_public_date | fmtdate_m }}</td></tr>
+      {% endif %}
+      {% if event.approve_datetime %}
+      <tr><th>承認日時</th><td>{{ event.approve_datetime | fmtdatetime_m }}</td></tr>
+      {% endif %}
+      {% if event.approver_notes %}
+      <tr><th>承認者コメント</th><td style="white-space:pre-wrap">{{ event.approver_notes }}</td></tr>
+      {% endif %}
+      {% if event.cancel_note %}
+      <tr><th>中止／延期メモ</th><td style="white-space:pre-wrap">{{ event.cancel_note }}</td></tr>
+      {% endif %}
+    </table>
+
+    {% if detail_html %}
+    <div class="sec-title">詳細</div>
+    <div class="detail-html">{{ detail_html | safe }}</div>
+    {% endif %}
+
+    {% if event.other_notes %}
+    <div class="sec-title">その他</div>
+    <div class="notes">{{ event.other_notes }}</div>
+    {% endif %}
+  </div>
+
+  {# 公演 #}
+  <div class="card">
+    <div class="sec-title" style="margin-top:0">公演</div>
+    {% if performances %}
+      {% for p in performances %}
+      <div class="perf-item">
+        <div class="perf-time">
+          {{ p.start_datetime | fmtdatetime_m }} 〜 {{ p.end_datetime | fmtdatetime_m }}
+        </div>
+        {% if p.note %}<div class="perf-note">{{ p.note }}</div>{% endif %}
+        {% if (is_applicant or is_approver) and event.status in ('pending','approved') %}
+        <div class="perf-actions">
+          <form method="POST" action="{{ url_for('machinaka.perf_delete', pid=p.id) }}" onsubmit="return confirm('削除しますか?')">
+            <button type="submit" class="btn btn-sm btn-grey">削除</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <p style="color:var(--c-muted);font-size:.85rem">登録された公演はありません</p>
+    {% endif %}
+
+    {% if (is_applicant or is_approver) and event.status in ('pending','approved') %}
+    <details style="margin-top:12px">
+      <summary style="cursor:pointer;font-size:.84rem;color:var(--c-primary-d);font-weight:700">＋ 公演を追加</summary>
+      <form method="POST" action="{{ url_for('machinaka.perf_add', eid=event.id) }}" class="form-inline">
+        <label>開始日時</label>
+        <input type="datetime-local" name="start_datetime" required>
+        <label>終了日時</label>
+        <input type="datetime-local" name="end_datetime" required>
+        <label>備考</label>
+        <textarea name="perf_note" rows="2"></textarea>
+        <button type="submit" class="btn btn-primary btn-sm">追加</button>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+
+  {# 申請者操作 #}
+  {% if is_applicant %}
+  <div class="card">
+    <div class="sec-title" style="margin-top:0">操作</div>
+    <div class="action-row">
+      {% if event.status in ('pending','approved') and not past_public %}
+      <a href="{{ url_for('machinaka.apply_edit', eid=event.id) }}" class="btn btn-outline">編集</a>
+      <form method="POST" action="{{ url_for('machinaka.withdraw', eid=event.id) }}" onsubmit="return confirm('申請を取り下げますか?')" style="display:inline">
+        <button type="submit" class="btn btn-grey">取り下げ</button>
+      </form>
+      {% endif %}
+    </div>
+
+    {% if event.status == 'approved' %}
+    <details>
+      <summary>中止・延期</summary>
+      <form method="POST" action="{{ url_for('machinaka.cancel_event', eid=event.id) }}" class="form-inline" onsubmit="return confirm('中止しますか?')">
+        <label>中止理由（任意）</label>
+        <textarea name="cancel_note" rows="2"></textarea>
+        <button type="submit" class="btn btn-danger btn-sm">中止する</button>
+      </form>
+      <form method="POST" action="{{ url_for('machinaka.postpone_event', eid=event.id) }}" class="form-inline" onsubmit="return confirm('延期しますか?')">
+        <label>延期理由（任意）</label>
+        <textarea name="cancel_note" rows="2"></textarea>
+        <button type="submit" class="btn btn-warn btn-sm">延期する</button>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# 承認者操作 #}
+  {% if is_approver %}
+  <div class="card">
+    <div class="sec-title" style="margin-top:0">承認者操作</div>
+    {% if event.status == 'pending' %}
+    <details open>
+      <summary>承認する</summary>
+      <form method="POST" action="{{ url_for('machinaka.do_approve', eid=event.id) }}" class="form-inline">
+        <label>公開日（確定）</label>
+        <input type="date" name="approver_public_date" value="{{ event.applicant_public_date or '' }}">
+        <label>承認コメント</label>
+        <textarea name="approver_notes" rows="2"></textarea>
+        <button type="submit" class="btn btn-primary btn-sm">承認</button>
+      </form>
+    </details>
+    <details>
+      <summary>不承認</summary>
+      <form method="POST" action="{{ url_for('machinaka.do_reject', eid=event.id) }}" class="form-inline" onsubmit="return confirm('不承認にしますか?')">
+        <label>不承認理由</label>
+        <textarea name="approver_notes" rows="2"></textarea>
+        <button type="submit" class="btn btn-danger btn-sm">不承認</button>
+      </form>
+    </details>
+    {% endif %}
+
+    <details>
+      <summary>メモ・公開日を更新</summary>
+      <form method="POST" action="{{ url_for('machinaka.update_notes', eid=event.id) }}" class="form-inline">
+        <label>公開日</label>
+        <input type="date" name="approver_public_date" value="{{ event.approver_public_date or '' }}">
+        <label>承認者コメント</label>
+        <textarea name="approver_notes" rows="2">{{ event.approver_notes or '' }}</textarea>
+        <button type="submit" class="btn btn-primary btn-sm">更新</button>
+      </form>
+    </details>
+
+    <details>
+      <summary>状態を変更</summary>
+      <form method="POST" action="{{ url_for('machinaka.set_status', eid=event.id) }}" class="form-inline" onsubmit="return confirm('状態を変更しますか?')">
+        <label>状態</label>
+        <select name="status" style="width:100%;padding:7px 10px;border:1px solid var(--c-border);border-radius:6px;margin-bottom:6px">
+          <option value="pending"   {% if event.status=='pending'   %}selected{% endif %}>申請中</option>
+          <option value="approved"  {% if event.status=='approved'  %}selected{% endif %}>承認済</option>
+          <option value="rejected"  {% if event.status=='rejected'  %}selected{% endif %}>不承認</option>
+          <option value="withdrawn" {% if event.status=='withdrawn' %}selected{% endif %}>取下済</option>
+          <option value="cancelled" {% if event.status=='cancelled' %}selected{% endif %}>中止</option>
+          <option value="postponed" {% if event.status=='postponed' %}selected{% endif %}>延期</option>
+        </select>
+        <button type="submit" class="btn btn-warn btn-sm">変更</button>
+      </form>
+    </details>
+    {# ── 窓口職員：内容編集 ── #}
+    <details>
+      <summary>イベント内容を編集</summary>
+      <form method="POST" action="{{ url_for('machinaka.staff_edit', eid=event.id) }}"
+            class="form-inline">
+        <label>イベント名</label>
+        <input type="text" name="title" value="{{ event.title }}" required
+               style="width:100%;padding:7px 10px;border:1px solid var(--c-border);border-radius:6px;margin-bottom:6px">
+        <label>概要</label>
+        <textarea name="summary" rows="2">{{ event.summary or '' }}</textarea>
+        <label>詳細（Markdown可）</label>
+        <textarea name="detail" rows="4">{{ event.detail or '' }}</textarea>
+        <label>開始日</label>
+        <input type="date" name="event_start_date" value="{{ event.event_start_date | fmtdate_m('%Y-%m-%d') }}" required>
+        <label>終了日</label>
+        <input type="date" name="event_end_date" value="{{ event.event_end_date | fmtdate_m('%Y-%m-%d') }}" required>
+        <label>希望公開日</label>
+        <input type="date" name="applicant_public_date" value="{{ event.applicant_public_date or '' }}">
+        <label>その他備考</label>
+        <textarea name="other_notes" rows="2">{{ event.other_notes or '' }}</textarea>
+        <button type="submit" class="btn btn-primary btn-sm">保存</button>
+      </form>
+    </details>
+
+    {# ── 窓口職員：削除 ── #}
+    <details>
+      <summary style="color:var(--c-ng)">⚠️ イベントを削除</summary>
+      <div class="form-inline">
+        <p style="font-size:.84rem;color:var(--c-ng);margin-bottom:8px">
+          削除すると公演データも含めて完全に消去されます。この操作は元に戻せません。
+        </p>
+        <form method="POST"
+              action="{{ url_for('machinaka.event_delete', eid=event.id) }}"
+              onsubmit="return confirm('「{{ event.title }}」を完全に削除します。よろしいですか？')">
+          <button type="submit" class="btn btn-danger btn-sm">完全に削除する</button>
+        </form>
+      </div>
+    </details>
+
+  </div>
+  {% endif %}
+</div>
+</body>
+</html>

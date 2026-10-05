@@ -1,0 +1,225 @@
+{#
+  開示記事の作成・編集
+  * Markdown エディタ（プレビュー、画像）
+  * scope（group/internal/public）＋ 許可 user_group（複数可）
+  * 下書き保存 / 公開 の2アクション
+  context: mode, disclosure, prefill{title,body}, source_report_id,
+           scope_meta, all_groups, allow_groups(set)
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% if mode=='new' %}開示記事作成{% else %}開示記事編集{% endif %} — STL報告書</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<style>
+:root{
+  --c-primary:#4338ca; --c-primary-d:#3730a3; --c-surface:#eef2ff;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-warn:#f59e0b; --c-info:#0ea5e9; --c-ng:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:1000px;margin:0 auto}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:1000px;margin:0 auto;padding:14px}
+.flashes{max-width:1000px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.form-card{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:14px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:.82rem;font-weight:700;margin-bottom:6px}
+.field label .req{color:var(--c-ng);margin-left:3px}
+.field input[type=text]{width:100%;padding:9px 11px;border:1px solid var(--c-border);border-radius:8px;font-size:.92rem;font-family:inherit;background:#fff}
+.field .hint{font-size:.72rem;color:var(--c-muted);margin-top:4px}
+
+.scope-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media(max-width:560px){.scope-grid{grid-template-columns:1fr}}
+.scope-opt{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border:1.5px solid var(--c-border);border-radius:10px;cursor:pointer}
+.scope-opt input{margin-top:3px}
+.scope-opt.on{border-color:var(--c-primary);background:var(--c-surface)}
+.scope-opt .s-name{font-size:.9rem;font-weight:700;color:var(--c-primary-d)}
+.scope-opt .s-desc{font-size:.72rem;color:var(--c-muted);margin-top:2px}
+
+.group-box{margin-top:10px;padding:10px 12px;background:var(--c-surface);border-radius:8px;border:1px dashed var(--c-border)}
+.group-box-title{font-size:.8rem;color:var(--c-muted);margin-bottom:6px}
+.group-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px}
+.group-chip{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#fff;border:1px solid var(--c-border);border-radius:8px;cursor:pointer;font-size:.84rem}
+.group-chip input{width:16px;height:16px}
+
+.md-editor-wrap{border:1px solid var(--c-border);border-radius:8px;overflow:hidden;margin-top:6px}
+.md-toolbar{display:flex;gap:4px;flex-wrap:wrap;padding:6px 10px;background:#f8fafc;border-bottom:1px solid var(--c-border)}
+.md-toolbar button{padding:4px 9px;border:1px solid #cbd5e0;background:#fff;border-radius:4px;cursor:pointer;font-size:.78rem;font-family:inherit;color:var(--c-text)}
+.md-toolbar button:hover{background:#e2e8f0}
+.md-toolbar .sep{width:1px;background:#d1d5db;margin:2px 2px}
+.md-panes{display:flex;height:340px}
+.md-pane{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.md-pane + .md-pane{border-left:1px solid var(--c-border)}
+.md-pane-hd{font-size:.72rem;font-weight:700;color:var(--c-muted);padding:4px 10px;background:#f8fafc;border-bottom:1px solid var(--c-border);text-transform:uppercase}
+.md-textarea{flex:1;width:100%;resize:none;border:none;outline:none;padding:12px;font-family:'Courier New',monospace;font-size:.88rem;line-height:1.7;background:#fff}
+.md-preview{flex:1;overflow-y:auto;padding:12px;font-size:.9rem;line-height:1.75;background:#fff}
+.md-preview h1,.md-preview h2,.md-preview h3{color:var(--c-primary-d);margin:1em 0 .4em;font-weight:700}
+.md-preview img{max-width:100%;height:auto}
+.md-preview .placeholder{color:#aaa;font-style:italic}
+@media(max-width:640px){.md-panes{flex-direction:column;height:500px}.md-pane + .md-pane{border-left:none;border-top:1px solid var(--c-border)}}
+
+.btn-row{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+.btn{padding:10px 20px;border:none;border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-pub{background:var(--c-ok);color:#fff}
+.btn-warn{background:#fff;color:var(--c-warn);border:1px solid var(--c-warn)}
+.btn-cancel{background:#fff;color:var(--c-muted);border:1px solid var(--c-border)}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">📰 {% if mode=='new' %}開示記事作成{% else %}開示記事編集{% endif %}</div>
+    <a href="{{ url_for('stl.manage_disclosures') }}" class="back">一覧へ</a>
+    {% include 'stl_manager/_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <form method="POST"
+        action="{% if mode=='new' %}{{ url_for('stl.disclosure_new') }}{% else %}{{ url_for('stl.disclosure_edit', did=disclosure.id) }}{% endif %}">
+    {% if source_report_id %}<input type="hidden" name="source_report_id" value="{{ source_report_id }}">{% endif %}
+
+    <div class="form-card">
+      <div class="field">
+        <label>タイトル <span class="req">*</span></label>
+        <input type="text" name="title" required value="{{ prefill.title }}">
+      </div>
+
+      <div class="field">
+        <label>公開範囲</label>
+        <div class="hint" style="margin-bottom:8px">基本範囲を選び、必要なら下で特定グループを追加できます。</div>
+        <div class="scope-grid">
+          {% set cur_scope = disclosure.scope if disclosure else 'group' %}
+          {% set scope_desc = {
+            'group':    'STL関係者（いずれかの団体メンバー）のみ閲覧可。',
+            'internal': '学内メンバー（学内アカウント）全員が閲覧可。',
+            'public':   'ログインなしでも誰でも閲覧可。一般公開。'
+          } %}
+          {% for key, meta in scope_meta.items() %}
+          <label class="scope-opt{% if cur_scope==key %} on{% endif %}" data-scope="{{ key }}">
+            <input type="radio" name="scope" value="{{ key }}" {% if cur_scope==key %}checked{% endif %}>
+            <div>
+              <div class="s-name">{{ meta[0] }}</div>
+              <div class="s-desc">{{ scope_desc[key] }}</div>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+
+        <div class="group-box">
+          <div class="group-box-title">追加で閲覧を許可する user_group（任意・複数可）:</div>
+          <div class="group-grid">
+            {% for g in all_groups %}
+            <label class="group-chip">
+              <input type="checkbox" name="allow_groups" value="{{ g.name }}"
+                     {% if g.name in allow_groups %}checked{% endif %}>
+              <span>{{ g.name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>本文</label>
+        <div class="hint" style="margin-bottom:8px">元レポートからコピーした内容を編集できます。Markdown 可。</div>
+        <div class="md-editor-wrap">
+          <div class="md-toolbar">
+            <button type="button" onclick="mdInsert('# ','')">H1</button>
+            <button type="button" onclick="mdInsert('## ','')">H2</button>
+            <button type="button" onclick="mdInsert('### ','')">H3</button>
+            <div class="sep"></div>
+            <button type="button" onclick="mdInsert('**','**')"><b>B</b></button>
+            <button type="button" onclick="mdInsert('*','*')"><i>I</i></button>
+            <div class="sep"></div>
+            <button type="button" onclick="mdInsert('- ','')">リスト</button>
+            <button type="button" onclick="mdInsert('> ','')">引用</button>
+            <button type="button" onclick="mdInsert('[','](URL)')">リンク</button>
+            <div class="sep"></div>
+            <button type="button" onclick="document.getElementById('mdImageUpload').click()">🖼 画像</button>
+            <input type="file" id="mdImageUpload" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none" onchange="uploadMdImage(this)">
+          </div>
+          <div class="md-panes">
+            <div class="md-pane">
+              <div class="md-pane-hd">✏️ エディタ</div>
+              <textarea id="bodyEditor" name="body" class="md-textarea" oninput="debouncePreview()">{{ prefill.body }}</textarea>
+            </div>
+            <div class="md-pane">
+              <div class="md-pane-hd">👁 プレビュー</div>
+              <div id="mdPreview" class="md-preview"><span class="placeholder">← 入力するとプレビュー表示</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <a href="{{ url_for('stl.manage_disclosures') }}" class="btn btn-cancel">キャンセル</a>
+        <button type="submit" name="action" value="save" class="btn btn-primary">下書き保存</button>
+        {% if mode=='edit' and disclosure and disclosure.is_published %}
+        <button type="submit" name="action" value="unpublish" class="btn btn-warn">非公開に戻す</button>
+        <button type="submit" name="action" value="publish" class="btn btn-pub">公開を維持して保存</button>
+        {% else %}
+        <button type="submit" name="action" value="publish" class="btn btn-pub">公開する</button>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script>
+// scope ラジオの装飾
+document.querySelectorAll('.scope-opt').forEach(function(o){
+  o.querySelector('input').addEventListener('change', function(){
+    document.querySelectorAll('.scope-opt').forEach(function(x){
+      x.classList.toggle('on', x.getAttribute('data-scope')===o.getAttribute('data-scope'));
+    });
+  });
+});
+
+const editor=document.getElementById('bodyEditor');
+const preview=document.getElementById('mdPreview');
+const PREVIEW_URL="{{ url_for('my_md_notes.preview_markdown') }}";
+const UPLOAD_URL ="{{ url_for('stl.report_upload_image') }}";
+let dt;
+function debouncePreview(){clearTimeout(dt);dt=setTimeout(updatePreview,400);}
+function updatePreview(){
+  const md=editor.value.trim();
+  if(!md){preview.innerHTML='<span class="placeholder">← 入力するとプレビュー表示</span>';return;}
+  fetch(PREVIEW_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({markdown:md})})
+    .then(r=>r.json()).then(d=>{preview.innerHTML=d.html||'';
+      if(typeof renderMathInElement!=='undefined'){renderMathInElement(preview,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}})
+    .catch(()=>{preview.innerHTML='<span style="color:#aaa;font-size:.8rem">プレビュー取得失敗</span>';});
+}
+function uploadMdImage(input){
+  const f=input.files[0];if(!f)return;const fd=new FormData();fd.append('file',f);input.disabled=true;
+  fetch(UPLOAD_URL,{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
+    if(d.success){mdInsert(`<img src="${d.url}" style="width:70%;height:auto;display:block;margin:0 auto">`,'');}
+    else{alert('アップロード失敗: '+d.error);}
+  }).catch(()=>alert('アップロード失敗')).finally(()=>{input.value='';input.disabled=false;});
+}
+function mdInsert(b,a){
+  const s=editor.selectionStart,e=editor.selectionEnd,sel=editor.value.substring(s,e);
+  editor.value=editor.value.substring(0,s)+b+sel+a+editor.value.substring(e);
+  editor.focus();const c=s+b.length;editor.setSelectionRange(c,c+sel.length);debouncePreview();
+}
+if(editor.value.trim())updatePreview();
+</script>
+</body>
+</html>

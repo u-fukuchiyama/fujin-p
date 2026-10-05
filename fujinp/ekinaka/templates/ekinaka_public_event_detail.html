@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>{{ event.title }} – えきなかキャンパス</title>
+<style>
+:root{
+  --c-primary:#0ea5e9;--c-surface:#f0f9ff;
+  --c-card:#fff;--c-text:#1e293b;--c-muted:#64748b;--c-border:#e2e8f0;
+  --c-ok:#10b981;--c-cancel:#dc2626;--c-postpone:#7c3aed;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);padding-bottom:60px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;gap:10px;max-width:640px;margin:0 auto}
+.back{color:#fff;text-decoration:none;font-size:1.2rem;padding:2px 4px}
+.htitle{font-size:.95rem;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.content{max-width:640px;margin:0 auto;padding:14px}
+.status-banner{border-radius:10px;padding:10px 14px;margin-bottom:12px;font-weight:700;font-size:.95rem;display:flex;align-items:center;gap:8px}
+.status-banner.approved{background:#d1fae5;color:#065f46}
+.status-banner.cancelled{background:#fee2e2;color:#991b1b}
+.status-banner.postponed{background:#ede9fe;color:#5b21b6}
+.sec{background:var(--c-card);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.sec-title{font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;border-bottom:1px solid var(--c-border);padding-bottom:6px}
+.field-row{display:flex;gap:8px;margin-bottom:8px;align-items:flex-start}
+.field-label{font-size:.78rem;color:var(--c-muted);min-width:80px;flex-shrink:0;padding-top:1px}
+.field-val{font-size:.88rem;flex:1;line-height:1.5}
+.perf-item{background:var(--c-surface);border-radius:8px;padding:9px 11px;margin-bottom:7px}
+.perf-time{font-size:.85rem;font-weight:600;line-height:1.4}
+.perf-note{font-size:.78rem;color:var(--c-muted);margin-top:2px}
+.cancel-msg{margin-bottom:9px;font-size:.78rem;background:#fef2f2;border-radius:6px;padding:5px 9px;color:var(--c-cancel)}
+.postpone-msg{margin-bottom:9px;font-size:.78rem;background:#f5f3ff;border-radius:6px;padding:5px 9px;color:var(--c-postpone)}
+.md-content{line-height:1.7;font-size:.88rem}
+.md-content p{margin-bottom:.6em}
+.md-content h1,.md-content h2,.md-content h3{font-weight:700;margin:.8em 0 .4em}
+.md-content ul,.md-content ol{padding-left:1.4em;margin-bottom:.6em}
+.md-content code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:.85em}
+.md-content table{border-collapse:collapse;width:100%;font-size:.82rem;margin-bottom:.6em}
+.md-content th,.md-content td{border:1px solid var(--c-border);padding:4px 8px}
+.md-content th{background:var(--c-surface)}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <a class="back" href="{{ url_for('ekinaka.public_view') }}">←</a>
+    <span class="htitle">{{ event.title }}</span>
+    {% include 'ekinaka_std_nav.html' %}
+  </div>
+</header>
+
+<div class="content">
+
+  {% if event.status == 'cancelled' %}
+  <div class="cancel-msg">🚫 中止{% if event.cancel_note %}：{{ event.cancel_note }}{% endif %}</div>
+  {% endif %}
+  {% if event.status == 'postponed' %}
+  <div class="postpone-msg">⏸ 延期{% if event.cancel_note %}：{{ event.cancel_note }}{% endif %}</div>
+  {% endif %}
+
+  <!-- イベント情報 -->
+  <div class="sec">
+    <div class="sec-title">イベント情報</div>
+    <div class="field-row">
+      <span class="field-label">期間</span>
+      <span class="field-val">{{ event.event_start_date | fmtdate }}{% if event.event_start_date != event.event_end_date %} 〜 {{ event.event_end_date | fmtdate }}{% endif %}</span>
+    </div>
+    {% if summary_html %}
+    <div class="field-row">
+      <span class="field-label">概要</span>
+      <div class="field-val md-content">{{ summary_html | safe }}</div>
+    </div>
+    {% endif %}
+    {% if other_notes_html %}
+    <div class="field-row">
+      <span class="field-label">その他</span>
+      <div class="field-val md-content">{{ other_notes_html | safe }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 公演スケジュール -->
+  {% if performances %}
+  <div class="sec">
+    <div class="sec-title">公演スケジュール</div>
+    {% for p in performances %}
+    <div class="perf-item">
+      <div class="perf-time">{{ p.start_datetime | fmtdatetime }} 〜 {{ p.end_datetime | fmtdatetime('%H:%M') }}</div>
+      {% if p.note_html %}<div class="perf-note md-content">{{ p.note_html | safe }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- 来場者へのメッセージ -->
+  {% if detail_html %}
+  <div class="sec">
+    <div class="sec-title">来場者へのメッセージ</div>
+    <div class="md-content">{{ detail_html | safe }}</div>
+  </div>
+  {% endif %}
+
+</div>
+</body>
+</html>

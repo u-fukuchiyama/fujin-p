@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>審査委員会パネル - 研究倫理審査</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh;
+            padding: 15px;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .header {
+            background: white; padding: 14px 22px; border-radius: 10px;
+            margin-bottom: 12px; display: flex; align-items: center;
+            gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { flex: 1; font-size: 1.15rem; color: #4a3a7a; min-width: 200px; }
+        .nav-btn {
+            padding: 7px 13px; background: #6d5fb8; color: white; border: none;
+            border-radius: 6px; cursor: pointer; text-decoration: none;
+            font-size: 0.82rem; white-space: nowrap;
+        }
+        .nav-btn.secondary { background: #94a3b8; }
+        .nav-btn:hover { opacity: 0.9; }
+
+        .card {
+            background: white; border-radius: 10px; padding: 16px 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 12px;
+        }
+        .card h2 {
+            font-size: 0.95rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px;
+        }
+
+        .case-meta { font-size: 0.85rem; line-height: 1.8; }
+        .case-meta .meta-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .case-meta .meta-label { color: #6b7280; min-width: 90px; font-weight: 600; }
+
+        .status-badge {
+            display: inline-block; padding: 2px 9px; border-radius: 10px;
+            font-size: 0.72rem; font-weight: 700;
+        }
+        .status-channel_open, .status-documents_uploading { background: #e0e7ff; color: #3730a3; }
+        .status-submitted, .status-reviewer_pending { background: #ddd6fe; color: #5b21b6; }
+        .status-reviewing { background: #fef3c7; color: #92400e; }
+        .status-conditional_approval { background: #fed7aa; color: #9a3412; }
+        .status-review_continuation { background: #cffafe; color: #155e75; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+        .status-rejected { background: #fee2e2; color: #991b1b; }
+        .status-not_applicable { background: #ccfbf1; color: #134e4a; }
+        .status-withdrawn, .status-terminated { background: #f3f4f6; color: #6b7280; }
+
+        .doc-item {
+            display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px;
+            background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px;
+            margin-bottom: 6px; font-size: 0.85rem;
+        }
+        .doc-item .doc-title { font-weight: 600; color: #4a3a7a; }
+        .doc-item a { color: #6d5fb8; text-decoration: none; white-space: nowrap; }
+        .doc-item a:hover { text-decoration: underline; }
+        .doc-date { color: #9ca3af; font-size: 0.76rem; margin-top: 3px; }
+
+        .reviewer-chip {
+            display: inline-block; padding: 3px 9px; background: #ddd6fe;
+            color: #5b21b6; border-radius: 10px; font-size: 0.78rem; margin: 2px;
+        }
+        .reviewer-chip.pending { background: #fef3c7; color: #92400e; }
+        .reviewer-chip.declined, .reviewer-chip.replaced {
+            background: #f3f4f6; color: #9ca3af; text-decoration: line-through;
+        }
+
+        .msg-track {
+            max-height: 420px; overflow-y: auto; padding: 4px;
+            background: #f8fafc; border-radius: 8px;
+        }
+        .msg {
+            background: white; border-radius: 8px; padding: 9px 12px;
+            margin-bottom: 8px; border-left: 3px solid #6d5fb8;
+        }
+        .msg.memo { border-left-color: #f59e0b; background: #fffbeb; }
+        .msg.alert { border-left-color: #ef4444; background: #fef2f2; }
+        .msg.alert .msg-body::before {
+            content: "⚠ アラート発言　";
+            font-weight: 700; color: #991b1b;
+        }
+        .msg .msg-head {
+            display: flex; justify-content: space-between; gap: 8px;
+            font-size: 0.75rem; color: #6b7280; margin-bottom: 3px;
+        }
+        .msg .msg-author { font-weight: 700; color: #4a3a7a; }
+        .msg .msg-body { font-size: 0.88rem; color: #374151; white-space: pre-wrap; word-break: break-word; }
+
+        .compose {
+            display: flex; gap: 8px; margin-top: 10px;
+        }
+        .compose textarea {
+            flex: 1; padding: 8px 10px; border: 1px solid #d1d5db;
+            border-radius: 6px; font-size: 0.88rem; font-family: inherit;
+            resize: vertical; min-height: 48px;
+        }
+        .compose-extra {
+            display: flex; align-items: center; gap: 8px;
+            margin-top: 6px; font-size: 0.82rem; color: #6b7280; flex-wrap: wrap;
+        }
+        .compose-extra input[type="file"] { font-size: 0.8rem; max-width: 100%; }
+        .compose-extra .file-clear {
+            cursor: pointer; color: #ef4444; font-size: 0.78rem;
+            text-decoration: underline; display: none;
+        }
+        .msg-attach {
+            margin-top: 5px; font-size: 0.82rem;
+            background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 5px;
+            padding: 5px 9px; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .msg-attach a { color: #6d5fb8; text-decoration: none; word-break: break-all; }
+        .msg-attach a:hover { text-decoration: underline; }
+        .doc-src-badge {
+            display: inline-block; font-size: 0.66rem; padding: 1px 6px;
+            border-radius: 4px; margin-left: 6px; vertical-align: middle;
+        }
+        .doc-src-badge.application { background: #e0e7ff; color: #3730a3; }
+        .doc-src-badge.attachment  { background: #fef3c7; color: #92400e; }
+
+        .action-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+        .nav-btn.success { background: #10b981; }
+        .nav-btn.warn { background: #f59e0b; }
+        .nav-btn.danger { background: #ef4444; }
+
+        .empty-msg { text-align: center; color: #9ca3af; padding: 18px; font-size: 0.88rem; }
+
+        .modal-overlay {
+            position: fixed; top:0; left:0; right:0; bottom:0;
+            background: rgba(0,0,0,0.5); display: none;
+            align-items: center; justify-content: center; z-index: 1000;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: white; border-radius: 10px; padding: 22px;
+            max-width: 480px; width: 92%; max-height: 88vh; overflow-y: auto;
+        }
+        .modal h3 {
+            font-size: 1.05rem; color: #4a3a7a; margin-bottom: 14px;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;
+        }
+        .modal label {
+            display: block; font-size: 0.85rem; font-weight: 600;
+            color: #475569; margin: 10px 0 4px;
+        }
+        .modal textarea, .modal select {
+            width: 100%; padding: 7px 9px; border: 1px solid #d1d5db;
+            border-radius: 5px; font-size: 0.88rem; font-family: inherit;
+        }
+        .modal textarea { resize: vertical; min-height: 60px; }
+        .modal .modal-actions {
+            display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px;
+        }
+
+        #toast {
+            position: fixed; bottom: 22px; right: 22px; padding: 13px 20px;
+            border-radius: 8px; font-size: 0.88rem; font-weight: 600;
+            z-index: 9999; display: none; max-width: 340px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        #toast.success { background: #d1fae5; color: #065f46; }
+        #toast.error { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <h1>⚖️ 審査委員会パネル</h1>
+        <a href="{{ url_for('ethics_review.index') }}" class="nav-btn secondary">← トップへ</a>
+        {% if is_secretariat or can_assign %}
+        <a href="{{ url_for('ethics_review.secretariat_panel') }}" class="nav-btn secondary">体制運営パネル</a>
+        {% endif %}
+        <a id="link-applicant" href="#" class="nav-btn secondary">申請者チャンネル</a>
+    </div>
+
+    <div class="card">
+        <h2>案件情報</h2>
+        <div id="case-meta" class="case-meta">
+            <div class="empty-msg">読み込み中…</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>審査体制</h2>
+        <div id="committee-area">
+            <div class="empty-msg">読み込み中…</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>申請書類</h2>
+        <div id="docs-area">
+            <div class="empty-msg">読み込み中…</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>審査トラック（委員間の議論・議事録）</h2>
+        <div class="msg-track" id="msg-track">
+            <div class="empty-msg">読み込み中…</div>
+        </div>
+        <div id="compose-area" style="display:none">
+            <div class="compose">
+                <textarea id="msg-input" placeholder="審査コメント・議事メモを入力…"></textarea>
+                <button class="nav-btn" id="btn-post-msg">投稿</button>
+            </div>
+            <div class="compose-extra">
+                <span>📎 添付:</span>
+                <input type="file" id="msg-file">
+                <span class="file-clear" id="msg-file-clear">選択を解除</span>
+                <span style="color:#9ca3af;font-size:0.76rem">添付ファイルは「申請書類」一覧にも保存されます（1ファイル20MBまで）</span>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:0.82rem;color:#991b1b;cursor:pointer;">
+                <input type="checkbox" id="msg-is-alert" style="width:15px;height:15px;">
+                <span>アラートとして投稿する（委員全員に Slack 通知が飛びます。重要な発言のときだけ使用）</span>
+            </label>
+        </div>
+    </div>
+
+    <div class="card" id="decision-card" style="display:none">
+        <h2 id="decision-title">担当委員長による判断</h2>
+        <div class="action-row" id="decision-buttons-full">
+            <button class="nav-btn success" onclick="openDecideModal('approve')">承認</button>
+            <button class="nav-btn warn" onclick="openDecideModal('conditional')">条件付き承認</button>
+            <button class="nav-btn warn" onclick="openDecideModal('continue')">審査継続</button>
+            <button class="nav-btn danger" onclick="openDecideModal('reject')">不承認</button>
+            <button class="nav-btn secondary" onclick="openDecideModal('not_applicable')">非該当（審査不要）</button>
+        </div>
+        <div class="action-row" id="decision-buttons-na" style="display:none">
+            <button class="nav-btn secondary" onclick="openDecideModal('not_applicable')">非該当（審査不要）として終了</button>
+        </div>
+        <div style="font-size:0.78rem;color:#9ca3af;margin-top:8px;line-height:1.6" id="decision-note-full">
+            ※「承認」「不承認」「非該当」は、この操作では申請者には通知されません。<br>
+            　事務局が確認後、体制運営パネルの「申請者にも通知」で通知します。<br>
+            　（「条件付き承認」「審査継続」は、再提出のご案内のため申請者へ通知されます）
+        </div>
+        <div style="font-size:0.78rem;color:#9ca3af;margin-top:8px;line-height:1.6;display:none" id="decision-note-na">
+            ※受理段階の判定です。提出書類から「人を対象とする研究倫理審査を要しない」と判断したときに使います。<br>
+            　所見欄に委員長のコメント（必要なら英文の回答文）を書いてください。<br>
+            　申請者への通知は、事務局が確認後、体制運営パネルの「申請者にも通知」で行います。
+        </div>
+    </div>
+
+    <div class="card" id="reviewer-response-card" style="display:none">
+        <h2>あなた宛の指名</h2>
+        <p style="font-size:0.85rem;color:#6b7280;margin-bottom:8px">
+            この案件の担当委員に指名されています。応諾または辞退を選んでください。
+        </p>
+        <div class="action-row">
+            <button class="nav-btn success" id="btn-accept">応諾する</button>
+            <button class="nav-btn danger" id="btn-decline">辞退する</button>
+        </div>
+    </div>
+</div>
+
+<!-- 判断モーダル -->
+<div class="modal-overlay" id="modal-decide">
+    <div class="modal">
+        <h3 id="decide-title">判断</h3>
+        <label>所見・理由</label>
+        <textarea id="decide-note" rows="4" placeholder="判断の理由や条件などを記入"></textarea>
+        <div class="modal-actions">
+            <button class="nav-btn secondary" onclick="closeModal('modal-decide')">キャンセル</button>
+            <button class="nav-btn" id="btn-decide-submit">確定する</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const CASE_ID = {{ case_id }};
+const STATUS_LABELS = {{ status_labels | tojson }};
+const TERMINAL_STATUSES = {{ terminal_statuses | tojson }};
+const URL_BASE = '{{ url_for("ethics_review.index") }}';
+
+let caseDetail = null;
+let decideAction = null;
+
+function toast(msg, isErr) {
+    const $t = $('#toast');
+    $t.text(msg).removeClass('success error').addClass(isErr ? 'error' : 'success').fadeIn();
+    setTimeout(() => $t.fadeOut(), 4000);
+}
+function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function openModal(id)  { $('#' + id).addClass('active'); }
+function closeModal(id) { $('#' + id).removeClass('active'); }
+function ajaxErr(xhr, fallback) {
+    let msg = fallback || '通信エラー';
+    try { const r = JSON.parse(xhr.responseText); if (r && r.error) msg = r.error; } catch(e) {}
+    return msg;
+}
+
+$('#link-applicant').attr('href', URL_BASE + 'case/' + CASE_ID + '/applicant');
+
+function loadDetail() {
+    $.get(URL_BASE + 'api/case/' + CASE_ID, function(resp) {
+        if (!resp.success) {
+            $('#case-meta').html('<div class="empty-msg" style="color:#ef4444">' + esc(resp.error || '読み込み失敗') + '</div>');
+            return;
+        }
+        caseDetail = resp;
+        renderMeta();
+        renderCommittee();
+        renderDocs();
+        renderActions();
+    }).fail(function(xhr) {
+        $('#case-meta').html('<div class="empty-msg" style="color:#ef4444">' + esc(ajaxErr(xhr)) + '</div>');
+    });
+    loadMessages();
+}
+
+function renderMeta() {
+    const c = caseDetail.case;
+    let html = '';
+    html += `<div class="meta-row"><span class="meta-label">案件ID</span><span><b>${esc(c.case_display_id)}</b> <span class="status-badge status-${c.status}">${esc(c.status_label || STATUS_LABELS[c.status])}</span></span></div>`;
+    html += `<div class="meta-row"><span class="meta-label">研究課題</span><span>${esc(c.title) || '—'}</span></div>`;
+    html += `<div class="meta-row"><span class="meta-label">申請者</span><span>${esc(c.applicant_name)}${c.applicant_affiliation ? '（' + esc(c.applicant_affiliation) + '）' : ''}</span></div>`;
+    html += `<div class="meta-row"><span class="meta-label">受付日</span><span>${c.received_date || '—'}</span></div>`;
+    if (c.research_period_start || c.research_period_end) {
+        html += `<div class="meta-row"><span class="meta-label">研究期間</span><span>${c.research_period_start || '—'} 〜 ${c.research_period_end || '—'}</span></div>`;
+    }
+    if (c.final_date)    html += `<div class="meta-row"><span class="meta-label">最終日</span><span>${c.final_date}</span></div>`;
+    if (c.decision_note) html += `<div class="meta-row"><span class="meta-label">所見</span><span style="white-space:pre-wrap">${esc(c.decision_note)}</span></div>`;
+    $('#case-meta').html(html);
+}
+
+function renderCommittee() {
+    const c = caseDetail.case;
+    const reviewers = caseDetail.reviewers || [];
+    let html = '';
+
+    if (c.chair_name) {
+        html += `<div style="margin-bottom:8px"><span class="meta-label" style="color:#6b7280;font-weight:600;font-size:0.85rem">担当委員長：</span> <b>${esc(c.chair_name)}</b>`;
+        if (c.original_chair_name) {
+            html += ` <span style="font-size:0.78rem;color:#9ca3af">（元：${esc(c.original_chair_name)}、${esc(c.chair_change_reason)}）</span>`;
+        }
+        html += '</div>';
+    } else {
+        html += '<div style="margin-bottom:8px;color:#991b1b;font-size:0.85rem">担当委員長：未指名</div>';
+    }
+
+    if (reviewers.length) {
+        html += '<div style="font-size:0.85rem;color:#6b7280;font-weight:600;margin-bottom:4px">担当委員：</div><div>';
+        reviewers.forEach(r => {
+            let cls = '', label = '';
+            if (r.assignment_status === 'accepted') { cls = ''; label = '応諾済'; }
+            else if (r.assignment_status === 'pending') { cls = 'pending'; label = '応諾待ち'; }
+            else if (r.assignment_status === 'declined') { cls = 'declined'; label = '辞退'; }
+            else if (r.assignment_status === 'replaced') { cls = 'replaced'; label = '交代'; }
+            html += `<span class="reviewer-chip ${cls}">${esc(r.user_name)}（${label}）</span>`;
+        });
+        html += '</div>';
+
+        // 手動承認ボタン：委員長・事務局・admin で、応諾待ちの委員がいて、終局前のとき
+        const role = caseDetail.viewer_role || {};
+        const hasPending = reviewers.some(r => r.assignment_status === 'pending');
+        const isTerminal = TERMINAL_STATUSES.indexOf(c.status) !== -1;
+        if (role.can_assign && hasPending && !isTerminal) {
+            html += '<div style="margin-top:8px">'
+                  + '<button class="nav-btn warn" id="btn-mark-accepted">'
+                  + '応諾待ちの委員をまとめて承認済みにする</button>'
+                  + '<div style="font-size:0.75rem;color:#9ca3af;margin-top:4px">'
+                  + '委員会チャンネル等で内諾済みの場合に使用します。'
+                  + '全員が承認済みになると審査開始となります。</div></div>';
+        }
+    } else {
+        html += '<div style="font-size:0.85rem;color:#9ca3af">担当委員：未指名</div>';
+    }
+
+    // COI（事務局・admin のみ返ってくる）
+    const cois = caseDetail.cois || [];
+    if (cois.length) {
+        html += '<div style="margin-top:8px;font-size:0.8rem;color:#475569;background:#fef2f2;border-radius:5px;padding:6px 9px"><b>COI設定：</b> ';
+        cois.forEach((coi, i) => {
+            if (i > 0) html += '、';
+            const roleJp = coi.excluded_roles === 'committee' ? '審査参加不可' : '担当委員長就任不可';
+            html += `${esc(coi.user_name)}（${roleJp}）`;
+        });
+        html += '</div>';
+    }
+
+    $('#committee-area').html(html);
+}
+
+function renderDocs() {
+    // 全書類を提出日時の新しい順（降順）で一覧表示する
+    const allDocs = (caseDetail.documents || []).slice();
+    if (!allDocs.length) {
+        $('#docs-area').html('<div class="empty-msg">申請書類はまだありません</div>');
+        return;
+    }
+
+    // 提出日時の降順に並べ替え（uploaded_at が同じ場合は id 降順）
+    allDocs.sort((a, b) => {
+        const ta = a.uploaded_at || '';
+        const tb = b.uploaded_at || '';
+        if (ta < tb) return 1;
+        if (ta > tb) return -1;
+        return (b.id || 0) - (a.id || 0);
+    });
+
+    let html = '';
+    allDocs.forEach(d => {
+        const fn = d.original_filename
+            ? `<a href="${esc(d.download_url || '#')}" target="_blank">📎 ${esc(d.original_filename)}</a>`
+            : (d.download_url ? `<a href="${esc(d.download_url)}" target="_blank">📎 ダウンロード</a>` : '');
+        const srcBadge = d.source === 'attachment'
+            ? '<span class="doc-src-badge attachment">やり取り添付</span>'
+            : '<span class="doc-src-badge application">申請書類</span>';
+        const dateLabel = d.uploaded_at
+            ? `<span class="doc-date">提出日：${esc(d.uploaded_at)}</span>`
+            : '';
+        html += `
+        <div class="doc-item">
+            <div style="flex:1">
+                <span class="doc-title">${esc(d.title)}</span>${srcBadge}
+                ${d.note ? `<span style="color:#9ca3af;font-size:0.78rem"> ${esc(d.note)}</span>` : ''}
+                ${dateLabel ? `<div>${dateLabel}</div>` : ''}
+            </div>
+            <div>${fn}</div>
+        </div>`;
+    });
+    $('#docs-area').html(html);
+}
+
+function loadMessages() {
+    $.get(URL_BASE + 'api/case/' + CASE_ID + '/review_messages', function(resp) {
+        if (!resp.success) {
+            $('#msg-track').html('<div class="empty-msg" style="color:#ef4444">' + esc(resp.error || '読み込み失敗') + '</div>');
+            return;
+        }
+        const msgs = resp.messages || [];
+        if (!msgs.length) {
+            $('#msg-track').html('<div class="empty-msg">まだ議論はありません</div>');
+            return;
+        }
+        let html = '';
+        msgs.forEach(m => {
+            const isMemo = (m.body || '').startsWith('【審査体制】') || (m.body || '').startsWith('【組み換え理由】');
+            const isAlert = (m.message_kind === 'alert');
+            let cls = '';
+            if (isAlert) cls = 'alert';
+            else if (isMemo) cls = 'memo';
+            const att = m.attachment;
+            const attHtml = att && att.download_url
+                ? `<div class="msg-attach">📎 <a href="${esc(att.download_url)}" target="_blank" rel="noopener">`
+                  + `${esc(att.original_filename || att.title || 'ファイル')}</a></div>`
+                : '';
+            html += `
+            <div class="msg ${cls}">
+                <div class="msg-head">
+                    <span class="msg-author">${esc(m.user_name)}</span>
+                    <span>${m.created_at}</span>
+                </div>
+                ${m.body ? `<div class="msg-body">${esc(m.body)}</div>` : ''}
+                ${attHtml}
+            </div>`;
+        });
+        $('#msg-track').html(html);
+        const track = document.getElementById('msg-track');
+        track.scrollTop = track.scrollHeight;
+    }).fail(function(xhr) {
+        $('#msg-track').html('<div class="empty-msg" style="color:#ef4444">' + esc(ajaxErr(xhr)) + '</div>');
+    });
+}
+
+function renderActions() {
+    const role = caseDetail.viewer_role || {};
+    const c = caseDetail.case;
+    const isTerminal = TERMINAL_STATUSES.indexOf(c.status) !== -1;
+
+    // 審査トラックへの投稿（アクセス権がある人は誰でも）
+    if (role.can_access_review) {
+        $('#compose-area').show();
+    }
+
+    // 担当委員長の判断（reviewing 状態かつ can_decide）
+    // 受理段階（submitted / reviewer_pending）では「非該当」だけを出す
+    // （担当委員長のほか、委員長プール所属者も宣言できる）
+    const isReception = (c.status === 'submitted' || c.status === 'reviewer_pending');
+    if (role.can_decide && c.status === 'reviewing') {
+        $('#decision-title').text('担当委員長による判断');
+        $('#decision-buttons-full, #decision-note-full').show();
+        $('#decision-buttons-na, #decision-note-na').hide();
+        $('#decision-card').show();
+    } else if (role.can_declare_na && isReception) {
+        $('#decision-title').text('受理段階の判定（非該当）');
+        $('#decision-buttons-full, #decision-note-full').hide();
+        $('#decision-buttons-na, #decision-note-na').show();
+        $('#decision-card').show();
+    } else {
+        $('#decision-card').hide();
+    }
+
+    // 担当委員としての応諾・辞退（自分が pending の場合）
+    if (role.is_reviewer) {
+        const me = (caseDetail.reviewers || []).find(r =>
+            r.user_id === window.MY_USER_ID);
+        // MY_USER_ID は持っていないので、pending な指名が自分宛かを別判定
+    }
+    // pending な指名が自分にあるかは /api/my_assignments で確認するのが正確だが、
+    // ここでは reviewer 一覧から pending を探して、応諾/辞退カードを出す
+    checkMyAssignment();
+}
+
+function checkMyAssignment() {
+    // 自分宛の指名一覧から、この案件で pending のものがあるか確認
+    $.get(URL_BASE + 'api/my_assignments', function(resp) {
+        if (!resp.success) return;
+        const mine = (resp.assignments || []).find(a =>
+            a.case_id === CASE_ID && a.assignment_status === 'pending');
+        if (mine) {
+            $('#reviewer-response-card').show();
+        } else {
+            $('#reviewer-response-card').hide();
+        }
+    });
+}
+
+// ── 審査トラック投稿
+// ── 応諾待ちの委員をまとめて承認済みにする（手動承認）
+$(document).on('click', '#btn-mark-accepted', function() {
+    if (!confirm('応諾待ちの担当委員を、まとめて承認済みにします。\n'
+               + '全員が承認済みになると審査開始となります。よろしいですか？')) {
+        return;
+    }
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/reviewer/mark_accepted',
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({})
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '承認失敗', true); return; }
+        toast('承認済みにしました');
+        loadDetail();
+    }).fail(function(xhr) { toast(ajaxErr(xhr), true); });
+});
+
+// ── 添付ファイル選択のクリア
+$('#msg-file').on('change', function() {
+    $('#msg-file-clear').css('display', this.files.length ? 'inline' : 'none');
+});
+$('#msg-file-clear').on('click', function() {
+    document.getElementById('msg-file').value = '';
+    $(this).hide();
+});
+
+// ── 審査トラック投稿
+$('#btn-post-msg').on('click', function() {
+    const body = $('#msg-input').val().trim();
+    const fileInput = document.getElementById('msg-file');
+    const file = fileInput && fileInput.files && fileInput.files[0];
+    if (!body && !file) {
+        toast('本文を入力するか、ファイルを添付してください', true);
+        return;
+    }
+    if (file && file.size > 20 * 1024 * 1024) {
+        toast('ファイルサイズは20MB以下にしてください', true);
+        return;
+    }
+    if (file && file.size === 0) { toast('ファイルが空です', true); return; }
+
+    const isAlert = $('#msg-is-alert').is(':checked');
+    if (isAlert &&
+        !confirm('アラートとして投稿します。委員全員に Slack 通知が飛びます。よろしいですか？')) {
+        return;
+    }
+
+    const fd = new FormData();
+    fd.append('body', body);
+    fd.append('message_kind', isAlert ? 'alert' : 'normal');
+    if (file) fd.append('file', file);
+
+    const $btn = $('#btn-post-msg');
+    $btn.prop('disabled', true);
+
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/review_messages',
+        method: 'POST',
+        data: fd,
+        contentType: false,
+        processData: false
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '投稿失敗', true); return; }
+        $('#msg-input').val('');
+        $('#msg-is-alert').prop('checked', false);
+        fileInput.value = '';
+        $('#msg-file-clear').hide();
+        if (isAlert) toast('アラートとして投稿しました');
+        loadMessages();
+        if (file) loadDetail();   // 添付は書類一覧にも反映
+    }).fail(function(xhr) {
+        toast(ajaxErr(xhr), true);
+    }).always(function() {
+        $btn.prop('disabled', false);
+    });
+});
+
+// ── 判断
+function openDecideModal(action) {
+    decideAction = action;
+    const titles = { approve: '承認', conditional: '条件付き承認', continue: '審査継続',
+                     reject: '不承認', not_applicable: '非該当（審査不要）' };
+    $('#decide-title').text(titles[action] + 'の確定');
+    $('#decide-note').val('');
+    if (action === 'not_applicable') {
+        $('#decide-note').attr('rows', 8).attr('placeholder',
+            '委員長のコメント（審査を要しないと判断した理由など）。\n'
+          + '申請者が英文の回答を必要とする場合は、ここに英文を書き添えてください。');
+    } else {
+        $('#decide-note').attr('rows', 4).attr('placeholder', '判断の理由や条件などを記入');
+    }
+    openModal('modal-decide');
+}
+
+$('#btn-decide-submit').on('click', function() {
+    if (!decideAction) return;
+    const note = $('#decide-note').val().trim();
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/decide',
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({ action: decideAction, note: note })
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '失敗', true); return; }
+        toast('判断を確定しました');
+        closeModal('modal-decide');
+        loadDetail();
+    }).fail(function(xhr) { toast(ajaxErr(xhr), true); });
+});
+
+// ── 応諾・辞退
+$('#btn-accept').on('click', function() {
+    if (!confirm('この案件の担当委員として応諾します。よろしいですか？')) return;
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/reviewer/response',
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({ action: 'accept' })
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '失敗', true); return; }
+        toast('応諾しました');
+        loadDetail();
+    }).fail(function(xhr) { toast(ajaxErr(xhr), true); });
+});
+
+$('#btn-decline').on('click', function() {
+    const reason = prompt('辞退理由（任意）：') || '';
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/reviewer/response',
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({ action: 'decline', decline_reason: reason })
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '失敗', true); return; }
+        toast('辞退しました');
+        loadDetail();
+    }).fail(function(xhr) { toast(ajaxErr(xhr), true); });
+});
+
+$(document).ready(loadDetail);
+</script>
+</body>
+</html>

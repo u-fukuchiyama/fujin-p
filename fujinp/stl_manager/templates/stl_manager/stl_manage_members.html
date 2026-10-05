@@ -1,0 +1,133 @@
+{#
+  事務局：団体メンバー名簿管理（editor/viewer）
+  context: team, members, candidates, manager_ok
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ team.name }} メンバー — STL報告書</title>
+<style>
+:root{
+  --c-primary:#4338ca; --c-primary-d:#3730a3; --c-surface:#eef2ff;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-warn:#f59e0b; --c-ng:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px;line-height:1.6}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:760px;margin:0 auto;gap:6px;flex-wrap:wrap}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:760px;margin:0 auto;padding:14px}
+.flashes{max-width:760px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.card{background:#fff;border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+h1{font-size:1.15rem;font-weight:800;color:var(--c-primary-d)}
+.team-meta{font-size:.8rem;color:var(--c-muted);margin-bottom:10px}
+.sec-title{font-size:.95rem;font-weight:700;color:var(--c-primary-d);margin:14px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--c-surface)}
+.info-box{background:#eff6ff;border-left:4px solid #0ea5e9;padding:10px 12px;border-radius:6px;font-size:.82rem;color:#1e3a8a;margin-bottom:14px;line-height:1.5}
+
+.mem-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px dashed var(--c-border);flex-wrap:wrap}
+.mem-row:last-child{border-bottom:none}
+.mem-name{font-weight:700;font-size:.92rem;flex:1;min-width:140px}
+.mem-name .sub{display:block;font-weight:400;color:var(--c-muted);font-size:.76rem}
+.role-badge{display:inline-block;padding:2px 9px;border-radius:11px;font-size:.72rem;font-weight:700}
+.role-badge.editor{background:#e0e7ff;color:var(--c-primary-d)}
+.role-badge.viewer{background:#f1f5f9;color:var(--c-muted)}
+.mem-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.mem-actions select{padding:5px 8px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.78rem}
+
+.btn{display:inline-block;padding:5px 12px;border-radius:7px;font-size:.78rem;font-weight:700;border:none;cursor:pointer;text-decoration:none}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-outline{background:#fff;color:var(--c-primary);border:1px solid var(--c-primary)}
+.btn-danger{background:var(--c-ng);color:#fff}
+
+.add-form{padding:12px;background:var(--c-surface);border-radius:8px;margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.add-form select{flex:1;min-width:180px;padding:7px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem;background:#fff}
+.add-form select.role-sel{flex:0 0 120px;min-width:0}
+.empty{color:var(--c-muted);font-size:.85rem;padding:18px 0;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🚀 STL報告書</div>
+    <a href="{{ url_for('stl.manage_teams', fy=team.fiscal_year) }}" class="back">‹ 団体管理</a>
+    {% include 'stl_manager/_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <div class="card">
+    <h1>👥 メンバー名簿</h1>
+    <div class="team-meta">{{ team.name }}（{{ team.fiscal_year }}年度）</div>
+
+    <div class="info-box">
+      <b>編集者(editor)</b>：レポートの作成・編集・提出ができます。<br>
+      <b>閲覧者(viewer)</b>：この団体のレポートを閲覧できますが、執筆はできません。
+    </div>
+
+    <div class="sec-title">登録済メンバー</div>
+    {% if members %}
+      {% for m in members %}
+      <div class="mem-row">
+        <div class="mem-name">
+          {{ m.full_name or '(不明)' }}
+          <span class="sub">{{ m.email or '' }}</span>
+        </div>
+        <span class="role-badge {{ m.role }}">{{ '編集者' if m.role=='editor' else '閲覧者' }}</span>
+        <div class="mem-actions">
+          <form method="POST" action="{{ url_for('stl.manage_members', team_id=team.id) }}" style="display:flex;gap:5px;align-items:center">
+            <input type="hidden" name="action" value="set_role">
+            <input type="hidden" name="user_id" value="{{ m.user_id }}">
+            <select name="role" onchange="this.form.submit()">
+              <option value="editor" {% if m.role=='editor' %}selected{% endif %}>編集者</option>
+              <option value="viewer" {% if m.role=='viewer' %}selected{% endif %}>閲覧者</option>
+            </select>
+            <noscript><button type="submit" class="btn btn-outline">変更</button></noscript>
+          </form>
+          <form method="POST" action="{{ url_for('stl.manage_members', team_id=team.id) }}"
+                onsubmit="return confirm('このメンバーを名簿から外しますか？')" style="display:inline">
+            <input type="hidden" name="action" value="remove">
+            <input type="hidden" name="user_id" value="{{ m.user_id }}">
+            <button type="submit" class="btn btn-danger">外す</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">まだメンバーがいません。下から追加してください。</div>
+    {% endif %}
+
+    <div class="sec-title">メンバーを追加</div>
+    {% if candidates %}
+    <form method="POST" action="{{ url_for('stl.manage_members', team_id=team.id) }}" class="add-form">
+      <input type="hidden" name="action" value="add">
+      <select name="user_id" required>
+        <option value="">-- 追加するユーザを選択 --</option>
+        {% for c in candidates %}
+        <option value="{{ c.id }}">{{ c.full_name }} ({{ c.email or '-' }})</option>
+        {% endfor %}
+      </select>
+      <select name="role" class="role-sel">
+        <option value="editor">編集者</option>
+        <option value="viewer">閲覧者</option>
+      </select>
+      <button type="submit" class="btn btn-primary">追加</button>
+    </form>
+    {% else %}
+    <div class="empty">追加可能な候補者がいません。</div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

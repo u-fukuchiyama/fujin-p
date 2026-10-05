@@ -1,0 +1,182 @@
+{#
+  STL レポート詳細
+  * 本文表示（Markdown→HTML）
+  * 事務局(staff): 受理 / 受理取消 / 指示事項 / 開示記事化リンク
+  * editor: 編集・削除リンク
+  context: report, body_html, can_edit, staff_ok, is_author
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ report.title }} — STL報告書</title>
+<style>
+:root{
+  --c-primary:#4338ca; --c-primary-d:#3730a3; --c-surface:#eef2ff;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-ng:#ef4444; --c-warn:#f59e0b; --c-info:#0ea5e9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px;line-height:1.6}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:760px;margin:0 auto;gap:6px}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:760px;margin:0 auto;padding:14px}
+.flashes{max-width:760px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.card{background:#fff;border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.head-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+h1{font-size:1.15rem;font-weight:800}
+.status-badge{display:inline-block;padding:3px 11px;border-radius:13px;color:#fff;font-size:.76rem;font-weight:700}
+.type-tag{display:inline-block;padding:3px 11px;border-radius:13px;background:var(--c-surface);color:var(--c-primary-d);font-size:.74rem;font-weight:700}
+.recv-badge{display:inline-block;padding:3px 11px;border-radius:13px;font-size:.76rem;font-weight:700}
+.recv-badge.ok{background:#d1fae5;color:#065f46}
+.recv-badge.pending{background:#fef3c7;color:#92400e}
+
+.meta-table{width:100%;font-size:.86rem}
+.meta-table tr{border-bottom:1px solid var(--c-border)}
+.meta-table tr:last-child{border-bottom:none}
+.meta-table th{text-align:left;padding:9px 0;color:var(--c-muted);font-weight:600;width:120px;vertical-align:top}
+.meta-table td{padding:9px 0;vertical-align:top}
+
+.sec-title{font-size:.9rem;font-weight:700;color:var(--c-primary-d);margin:16px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--c-surface)}
+.body-html{font-size:.92rem;line-height:1.8;padding:8px 0}
+.body-html h1,.body-html h2,.body-html h3{margin:14px 0 6px;font-weight:700;color:var(--c-primary-d)}
+.body-html p{margin-bottom:10px}
+.body-html ul,.body-html ol{padding-left:1.4em;margin-bottom:10px}
+.body-html img{max-width:100%;height:auto;border-radius:6px}
+.body-html table{border-collapse:collapse;width:100%;margin-bottom:10px;font-size:.85rem}
+.body-html th,.body-html td{border:1px solid var(--c-border);padding:5px 8px}
+.body-html code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:.85em}
+.body-html blockquote{border-left:3px solid var(--c-primary);padding-left:10px;color:var(--c-muted);margin:0 0 10px}
+
+.btn-row{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.84rem;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;text-align:center}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-outline{background:#fff;color:var(--c-primary);border:1px solid var(--c-primary)}
+.btn-warn{background:#fff;color:var(--c-warn);border:1px solid var(--c-warn)}
+.btn-danger{background:#fff;color:var(--c-ng);border:1px solid var(--c-ng)}
+.btn-ok{background:var(--c-ok);color:#fff}
+.inline-form{display:inline-block}
+
+.recv-box{background:#f0fdf4;border:1px solid var(--c-ok);border-radius:10px;padding:14px;margin-top:10px}
+.recv-box .rb-head{display:flex;align-items:center;gap:8px;font-weight:700;color:#065f46;margin-bottom:6px}
+.recv-box .rb-note{font-size:.86rem;line-height:1.6;white-space:pre-wrap;color:#064e3b}
+.recv-box .rb-meta{font-size:.75rem;color:var(--c-muted);margin-top:6px}
+
+.instr-form{margin-top:14px;padding:14px;background:#fff7ed;border:1px dashed var(--c-warn);border-radius:10px}
+.instr-form h4{font-size:.86rem;color:#92400e;margin-bottom:8px;font-weight:700}
+.instr-form textarea{width:100%;padding:8px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem;min-height:64px;resize:vertical}
+.instr-form .inline-btn{margin-top:8px;padding:8px 20px;background:var(--c-warn);color:#fff;border:none;border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">📄 レポート詳細</div>
+    <a href="{{ url_for('stl.team_reports', team_id=report.team_id) }}" class="back">‹ {{ report.team_name }}</a>
+    {% include 'stl_manager/_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <div class="card">
+    <div class="head-row">
+      <span class="status-badge" style="background:{{ report.status_color }}">{{ report.status_label }}</span>
+      {% if report.type_name %}<span class="type-tag">{{ report.type_name }}</span>{% endif %}
+      {% if report.status=='submitted' %}
+        {% if report.is_received %}<span class="recv-badge ok">✓ 受理済</span>
+        {% else %}<span class="recv-badge pending">受理待ち</span>{% endif %}
+      {% endif %}
+    </div>
+    <h1>{{ report.title }}</h1>
+
+    <table class="meta-table" style="margin-top:10px">
+      <tr><th>団体</th><td>{{ report.team_name }}（{{ report.fiscal_year }}年度）</td></tr>
+      <tr><th>作成者</th><td>{{ report.author_name or '(不明)' }}</td></tr>
+      {% if report.submitted_at %}<tr><th>提出日時</th><td>{{ report.submitted_at | fmtdatetime_s }}</td></tr>{% endif %}
+      <tr><th>作成日時</th><td>{{ report.created_at | fmtdatetime_s }}</td></tr>
+      {% if report.updated_at and report.updated_at != report.created_at %}
+      <tr><th>更新日時</th><td>{{ report.updated_at | fmtdatetime_s }}</td></tr>
+      {% endif %}
+    </table>
+
+    {% if body_html %}
+    <div class="sec-title">本文</div>
+    <div class="body-html">{{ body_html | safe }}</div>
+    {% else %}
+    <div class="sec-title">本文</div>
+    <p style="color:var(--c-muted);font-size:.85rem">本文はありません</p>
+    {% endif %}
+
+    {% if can_edit %}
+    <div class="btn-row">
+      <a href="{{ url_for('stl.report_edit', rid=report.id) }}" class="btn btn-outline">編集</a>
+      <form class="inline-form" method="POST" action="{{ url_for('stl.report_delete', rid=report.id) }}"
+            onsubmit="return confirm('このレポートを削除しますか？取り消せません。')">
+        <button type="submit" class="btn btn-danger">削除</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  {# 事務局：受理・指示 #}
+  {% if staff_ok %}
+  <div class="card">
+    <div class="sec-title" style="margin-top:0">🏛️ 事務局</div>
+
+    {% if report.is_received %}
+      <div class="recv-box">
+        <div class="rb-head">✓ {{ report.receiver_name }} により受理済み</div>
+        {% if report.instruction_note %}<div class="rb-note">{{ report.instruction_note }}</div>{% endif %}
+        <div class="rb-meta">受理日時: {{ report.received_at | fmtdatetime_s }}</div>
+      </div>
+      <div class="btn-row">
+        <form class="inline-form" method="POST" action="{{ url_for('stl.report_unreceive', rid=report.id) }}"
+              onsubmit="return confirm('受理を取り消しますか？')">
+          <button type="submit" class="btn btn-warn">受理取消</button>
+        </form>
+      </div>
+      <form method="POST" action="{{ url_for('stl.report_instruction', rid=report.id) }}" style="margin-top:12px">
+        <div style="font-size:.82rem;color:var(--c-muted);margin-bottom:6px">指示事項・コメントの編集</div>
+        <textarea name="instruction_note" style="width:100%;padding:8px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem;min-height:64px;resize:vertical">{{ report.instruction_note or '' }}</textarea>
+        <div style="text-align:right;margin-top:6px">
+          <button type="submit" class="btn btn-outline">コメント保存</button>
+        </div>
+      </form>
+    {% elif report.status=='submitted' %}
+      <form class="instr-form" method="POST" action="{{ url_for('stl.report_receive', rid=report.id) }}">
+        <h4>このレポートを受理する</h4>
+        <textarea name="instruction_note" placeholder="指示事項やコメントがあれば記入（任意）">{{ report.instruction_note or '' }}</textarea>
+        <button type="submit" class="inline-btn">✓ 受理する</button>
+      </form>
+    {% else %}
+      <div style="color:var(--c-muted);font-size:.84rem;padding:8px 0">
+        このレポートはまだ提出（submitted）されていません。提出後に受理できます。
+      </div>
+      <form method="POST" action="{{ url_for('stl.report_instruction', rid=report.id) }}">
+        <div style="font-size:.82rem;color:var(--c-muted);margin-bottom:6px">指示事項（先行記入可）</div>
+        <textarea name="instruction_note" style="width:100%;padding:8px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem;min-height:64px;resize:vertical">{{ report.instruction_note or '' }}</textarea>
+        <div style="text-align:right;margin-top:6px">
+          <button type="submit" class="btn btn-outline">コメント保存</button>
+        </div>
+      </form>
+    {% endif %}
+
+    <div class="btn-row" style="margin-top:14px">
+      <a href="{{ url_for('stl.disclosure_new', from_report=report.id) }}" class="btn btn-ok">📰 この内容で開示記事を作成</a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+</body>
+</html>

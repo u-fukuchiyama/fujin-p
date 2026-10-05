@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>管理画面 – えきなかキャンパス</title>
+<style>
+:root{--c-primary:#0ea5e9;--c-surface:#f0f9ff;--c-card:#fff;--c-text:#1e293b;--c-muted:#64748b;--c-border:#e2e8f0;--c-ok:#10b981;--c-ng:#ef4444;--c-warn:#f59e0b;--c-cancel:#dc2626;--c-postpone:#7c3aed;--c-grey:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);padding-bottom:60px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;gap:10px;max-width:640px;margin:0 auto}
+.back{color:#fff;text-decoration:none;font-size:1.2rem;padding:2px 4px}
+.htitle{font-size:.95rem;font-weight:700;flex:1}
+.hright a{color:#fff;text-decoration:none;font-size:.76rem;background:rgba(255,255,255,.2);padding:3px 9px;border-radius:16px}
+
+.content{max-width:640px;margin:0 auto;padding:12px 14px}
+.flashes{max-width:640px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+/* フィルタタブ */
+.filter-tabs{display:flex;gap:4px;margin-bottom:12px;overflow-x:auto}
+.filter-tab{padding:6px 14px;border-radius:20px;text-decoration:none;font-size:.8rem;color:var(--c-muted);background:var(--c-card);border:1px solid var(--c-border);white-space:nowrap}
+.filter-tab.on{background:var(--c-primary);color:#fff;border-color:var(--c-primary);font-weight:700}
+
+/* カード */
+.card{background:var(--c-card);border-radius:12px;margin-bottom:10px;border-left:4px solid var(--c-ok);box-shadow:0 1px 4px rgba(0,0,0,.07);overflow:hidden}
+.card.pending{border-left-color:var(--c-warn)}
+.card.rejected,.card.withdrawn{border-left-color:var(--c-grey)}
+.card.cancelled{border-left-color:var(--c-cancel)}
+.card.postponed{border-left-color:var(--c-postpone)}
+.card-head{padding:11px 13px 6px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.card-title{font-size:.95rem;font-weight:700;flex:1}
+.badge{font-size:.68rem;padding:2px 7px;border-radius:10px;color:#fff;font-weight:700;white-space:nowrap}
+.card-meta{padding:0 13px 8px;font-size:.77rem;color:var(--c-muted);display:flex;flex-wrap:wrap;gap:7px}
+.card-link{color:var(--c-primary);font-size:.78rem;padding:0 13px 10px;display:block;text-decoration:none}
+
+/* 承認クイックフォーム（pending のみ） */
+.quick-approve{padding:10px 13px 12px;border-top:1px solid var(--c-border);background:var(--c-surface)}
+.qa-label{font-size:.74rem;color:var(--c-muted);margin-bottom:5px}
+.qa-row{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.qa-row input[type=date]{padding:5px 7px;border:1.5px solid var(--c-border);border-radius:7px;font-size:.78rem;background:#fff}
+.qa-row input[type=text]{padding:5px 7px;border:1.5px solid var(--c-border);border-radius:7px;font-size:.78rem;background:#fff;flex:1;min-width:100px}
+.btn-approve{padding:7px 14px;background:var(--c-ok);color:#fff;border:none;border-radius:8px;font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-reject{padding:7px 14px;background:var(--c-ng);color:#fff;border:none;border-radius:8px;font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap}
+
+.empty{text-align:center;color:var(--c-muted);padding:32px 0;font-size:.9rem}
+.sec-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--c-muted);margin:14px 0 6px;display:flex;align-items:center;gap:8px}
+.sec-label::after{content:'';flex:1;height:1px;background:var(--c-border)}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <a class="back" href="{{ url_for('ekinaka.index') }}">←</a>
+    <span class="htitle">⚙️ 管理画面</span>
+    {% include 'ekinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+
+  <div class="filter-tabs">
+    <a href="?filter=active"   class="filter-tab {% if filter_st=='active' %}on{% endif %}">進行中</a>
+    <a href="?filter=pending"  class="filter-tab {% if filter_st=='pending' %}on{% endif %}">申請中のみ</a>
+    <a href="?filter=closed"   class="filter-tab {% if filter_st=='closed' %}on{% endif %}">終了済</a>
+    <a href="?filter=all"      class="filter-tab {% if filter_st=='all' %}on{% endif %}">全件</a>
+  </div>
+
+  {% set pending_events  = events | selectattr('status','eq','pending')  | list %}
+  {% set other_events    = events | rejectattr('status','eq','pending')  | list %}
+
+  {% if pending_events %}
+  <div class="sec-label">承認待ち（{{ pending_events|length }}件）</div>
+  {% for ev in pending_events %}
+  <div class="card {{ ev.status }}">
+    <div class="card-head">
+      <div class="card-title">{{ ev.title }}</div>
+      <span class="badge" style="background:{{ ev.status_color }}">{{ ev.status_label }}</span>
+    </div>
+    <div class="card-meta">
+      <span>📅 {{ ev.event_start_date | fmtdate }}{% if ev.event_start_date != ev.event_end_date %}〜{{ ev.event_end_date | fmtdate('%m/%d') }}{% endif %}</span>
+      <span>🏢 {{ ev.location_label }}</span>
+      <span>👤 {{ ev.applicant_name or '不明' }}</span>
+      <span>申請 {{ ev.apply_datetime | fmtdatetime('%m/%d %H:%M') }}</span>
+    </div>
+    <a class="card-link" href="{{ url_for('ekinaka.event_detail', eid=ev.id) }}">詳細・操作 →</a>
+    <!-- クイック承認 -->
+    <div class="quick-approve">
+      <div class="qa-label">クイック操作（詳細ページでより細かい設定が可能）</div>
+      <div class="qa-row">
+        <form method="post" action="{{ url_for('ekinaka.do_approve', eid=ev.id) }}" style="display:flex;gap:4px;flex-wrap:wrap;flex:1">
+          <input type="date" name="approver_public_date" placeholder="公開日">
+          <input type="text" name="approver_notes" placeholder="備考">
+          <button class="btn-approve" type="submit">✅ 承認</button>
+        </form>
+        <form method="post" action="{{ url_for('ekinaka.do_reject', eid=ev.id) }}">
+          <button class="btn-reject" type="submit" onclick="return confirm('不承認にしますか？')">❌ 不承認</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if other_events %}
+  <div class="sec-label">その他のイベント（{{ other_events|length }}件）</div>
+  {% for ev in other_events %}
+  <div class="card {{ ev.status }}">
+    <div class="card-head">
+      <div class="card-title">{{ ev.title }}</div>
+      <span class="badge" style="background:{{ ev.status_color }}">{{ ev.status_label }}</span>
+    </div>
+    <div class="card-meta">
+      <span>📅 {{ ev.event_start_date | fmtdate }}{% if ev.event_start_date != ev.event_end_date %}〜{{ ev.event_end_date | fmtdate('%m/%d') }}{% endif %}</span>
+      <span>👤 {{ ev.applicant_name or '不明' }}</span>
+      {% if ev.eff_public_date %}<span>🌐 {{ ev.eff_public_date | fmtdate }}</span>{% endif %}
+    </div>
+    <a class="card-link" href="{{ url_for('ekinaka.event_detail', eid=ev.id) }}">詳細・操作 →</a>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if not events %}
+  <div class="empty">該当するイベントはありません</div>
+  {% endif %}
+
+</div>
+</body>
+</html>

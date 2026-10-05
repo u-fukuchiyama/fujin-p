@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新規申請 - 研究倫理審査</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh;
+            padding: 15px;
+        }
+        .container { max-width: 880px; margin: 0 auto; }
+        .header {
+            background: white;
+            padding: 14px 22px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { flex: 1; font-size: 1.2rem; color: #4a3a7a; }
+        .back-btn {
+            padding: 7px 14px; background: #94a3b8;
+            color: white; text-decoration: none;
+            border-radius: 6px; font-size: 0.85rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 22px 26px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            margin-bottom: 12px;
+        }
+        .card h2 {
+            font-size: 1rem; color: #4a3a7a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 8px; margin-bottom: 14px;
+        }
+        .card .desc { font-size: 0.85rem; color: #6b7280; margin-bottom: 14px; line-height: 1.6; }
+
+        .step-indicator {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .step {
+            flex: 1;
+            min-width: 140px;
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.82rem;
+            color: #9ca3af;
+            background: #f9fafb;
+        }
+        .step.active { border-color: #6d5fb8; color: #4a3a7a; background: white; font-weight: 600; }
+        .step.done   { border-color: #10b981; color: #065f46; background: #d1fae5; }
+
+        label { display: block; font-size: 0.85rem; font-weight: 600; color: #374151; margin-bottom: 4px; margin-top: 12px; }
+        input[type="text"], input[type="date"], input[type="url"], textarea {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 5px;
+            font-size: 0.88rem;
+            font-family: inherit;
+        }
+        input[type="file"] {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            background: #f9fafb;
+        }
+        textarea { min-height: 60px; resize: vertical; }
+        .row { display: flex; gap: 12px; flex-wrap: wrap; }
+        .row > div { flex: 1; min-width: 200px; }
+
+        .btn {
+            padding: 9px 18px;
+            border: none; border-radius: 6px;
+            font-size: 0.9rem; font-weight: 600;
+            cursor: pointer;
+            margin-top: 14px;
+        }
+        .btn-primary { background: #6d5fb8; color: white; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-danger  { background: #ef4444; color: white; }
+        .btn-secondary { background: #94a3b8; color: white; }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .doc-list {
+            margin-top: 12px;
+        }
+        .doc-item {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            padding: 10px 12px;
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+        .doc-item .doc-body { flex: 1; min-width: 0; }
+        .doc-item .doc-title { font-weight: 600; font-size: 0.88rem; color: #4a3a7a; }
+        .doc-item .doc-filename {
+            font-size: 0.78rem; color: #6b7280; word-break: break-all;
+        }
+        .doc-item .doc-filename a {
+            color: #6d5fb8; text-decoration: none;
+        }
+        .doc-item .doc-filename a:hover { text-decoration: underline; }
+        .doc-item .doc-size { font-size: 0.72rem; color: #9ca3af; margin-left: 6px; }
+        .doc-item .doc-remove {
+            padding: 4px 10px; background: #ef4444; color: white;
+            border: none; border-radius: 4px; font-size: 0.78rem; cursor: pointer;
+        }
+
+        .submit-area {
+            text-align: center;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 8px;
+            margin-top: 16px;
+        }
+        .submit-area .warn { color: #92400e; font-size: 0.85rem; margin-bottom: 12px; }
+
+        .upload-progress {
+            display: none;
+            margin-top: 10px;
+            font-size: 0.82rem;
+            color: #6b7280;
+        }
+        .upload-progress.active { display: block; }
+
+        #toast {
+            position: fixed; bottom: 22px; right: 22px;
+            padding: 13px 20px; border-radius: 8px;
+            font-size: 0.88rem; font-weight: 600; z-index: 9999;
+            display: none; max-width: 340px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        #toast.success { background: #d1fae5; color: #065f46; }
+        #toast.error   { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <h1>📝 新規申請</h1>
+        <a href="{{ url_for('ethics_review.my_cases') }}" class="back-btn">マイ申請へ</a>
+    </div>
+
+    <div class="card">
+        <div class="step-indicator">
+            <div class="step active" id="step-1">① チャンネル立ち上げ</div>
+            <div class="step"        id="step-2">② 書類アップロード</div>
+            <div class="step"        id="step-3">③ 申請</div>
+        </div>
+        <div class="desc">
+            最大 {{ max_documents }} 件のファイル（1ファイル20MBまで、形式は問いません）を添付できます。<br>
+            申請ボタンを押すと、担当委員長による担当委員の指名が始まります。
+        </div>
+    </div>
+
+    <!-- ステップ1：チャンネル立ち上げ -->
+    <div class="card" id="card-step1">
+        <h2>① 研究情報の入力</h2>
+        <label>研究タイトル <span style="color:#ef4444">*</span></label>
+        <input type="text" id="in-title" placeholder="例：地域住民の生活習慣と健康意識に関する調査">
+
+        <div class="row">
+            <div>
+                <label>申請者氏名</label>
+                <input type="text" id="in-applicant-name" placeholder="（空欄ならログインユーザー名を使用）">
+            </div>
+            <div>
+                <label>所属</label>
+                <input type="text" id="in-applicant-aff" placeholder="例：情報学部・教授">
+            </div>
+        </div>
+
+        <div class="row">
+            <div>
+                <label>研究期間(開始)</label>
+                <input type="date" id="in-period-start">
+            </div>
+            <div>
+                <label>研究期間(終了)</label>
+                <input type="date" id="in-period-end">
+            </div>
+        </div>
+
+        <button class="btn btn-primary" id="btn-create-channel">チャンネルを立ち上げる</button>
+    </div>
+
+    <!-- ステップ2・3：チャンネル立ち上げ後 -->
+    <div class="card" id="card-step2" style="display:none">
+        <h2>② 申請書類（ファイル添付）</h2>
+        <div class="desc">
+            申請書類のファイル（PDF・Word・Excelなど任意の形式）を1件ずつ追加してください。<br>
+            1ファイルあたり最大 20MB、合計最大 {{ max_documents }} 件まで。
+        </div>
+        <label>書類タイトル <span style="color:#ef4444">*</span></label>
+        <input type="text" id="in-doc-title" placeholder="例：研究計画書">
+
+        <label>ファイル <span style="color:#ef4444">*</span></label>
+        <input type="file" id="in-doc-file">
+
+        <label>備考（任意）</label>
+        <input type="text" id="in-doc-note" placeholder="（差し替え版など）">
+        <button class="btn btn-primary" id="btn-add-doc">書類を追加</button>
+        <div class="upload-progress" id="upload-progress">アップロード中…</div>
+
+        <div class="doc-list" id="doc-list"></div>
+    </div>
+
+    <div class="card" id="card-step3" style="display:none">
+        <h2>③ 申請</h2>
+        <div class="submit-area">
+            <div class="warn">⚠ 申請ボタンを押すと、担当委員長による担当委員の指名が始まります。<br>
+                押下後は書類の削除・追加ができなくなります。</div>
+            <button class="btn btn-success" id="btn-submit">申請する</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let CURRENT_CASE_ID = null;
+let CURRENT_VERSION = 1;
+const MAX_DOCS = {{ max_documents }};
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+function toast(msg, isErr) {
+    const $t = $('#toast');
+    $t.text(msg).removeClass('success error').addClass(isErr ? 'error' : 'success').fadeIn();
+    setTimeout(() => $t.fadeOut(), 4000);
+}
+function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function fmtSize(bytes) {
+    if (!bytes && bytes !== 0) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+function setStep(n) {
+    $('.step').removeClass('active done');
+    for (let i = 1; i <= 3; i++) {
+        if (i < n) $('#step-' + i).addClass('done');
+        else if (i === n) $('#step-' + i).addClass('active');
+    }
+}
+
+$('#btn-create-channel').on('click', function() {
+    const title = $('#in-title').val().trim();
+    if (!title) { toast('研究タイトルは必須です', true); return; }
+    $.ajax({
+        url: '{{ url_for("ethics_review.api_create_case") }}',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            title: title,
+            applicant_name:        $('#in-applicant-name').val().trim(),
+            applicant_affiliation: $('#in-applicant-aff').val().trim(),
+            research_period_start: $('#in-period-start').val() || null,
+            research_period_end:   $('#in-period-end').val() || null,
+        })
+    }).done(function(resp) {
+        if (!resp.success) { toast(resp.error || '失敗', true); return; }
+        CURRENT_CASE_ID = resp.case_id;
+        toast('チャンネル ' + resp.case_display_id + ' を立ち上げました');
+        $('#card-step1').hide();
+        $('#card-step2').show();
+        $('#card-step3').show();
+        setStep(2);
+        loadDocs();
+    }).fail(() => toast('通信エラー', true));
+});
+
+function loadDocs() {
+    if (!CURRENT_CASE_ID) return;
+    $.get(`{{ url_for('ethics_review.index') }}api/case/${CURRENT_CASE_ID}`, function(resp) {
+        if (!resp.success) return;
+        CURRENT_VERSION = resp.case.current_version;
+        const docs = (resp.documents || []).filter(d => d.is_current);
+        if (!docs.length) {
+            $('#doc-list').html('<div style="color:#9ca3af;text-align:center;padding:12px;font-size:0.85rem">まだ書類がありません</div>');
+            return;
+        }
+        let html = '';
+        docs.forEach(d => {
+            const sizeStr = d.file_size ? `<span class="doc-size">${fmtSize(d.file_size)}</span>` : '';
+            let fnPart = '';
+            if (d.original_filename) {
+                fnPart = `<div class="doc-filename">📎 <a href="${esc(d.download_url || '#')}" target="_blank">${esc(d.original_filename)}</a>${sizeStr}</div>`;
+            } else if (d.download_url) {
+                fnPart = `<div class="doc-filename">📎 <a href="${esc(d.download_url)}" target="_blank">ファイルをダウンロード</a></div>`;
+            }
+            html += `
+            <div class="doc-item">
+                <div class="doc-body">
+                    <div class="doc-title">${esc(d.title)}</div>
+                    ${fnPart}
+                    ${d.note ? `<div style="font-size:0.78rem;color:#6b7280;margin-top:2px">${esc(d.note)}</div>` : ''}
+                </div>
+                <button class="doc-remove" data-id="${d.id}">削除</button>
+            </div>`;
+        });
+        $('#doc-list').html(html);
+    });
+}
+
+$('#btn-add-doc').on('click', function() {
+    if (!CURRENT_CASE_ID) return;
+    const title    = $('#in-doc-title').val().trim();
+    const note     = $('#in-doc-note').val().trim();
+    const fileInput = document.getElementById('in-doc-file');
+    const file     = fileInput.files && fileInput.files[0];
+
+    if (!title) { toast('書類タイトルは必須です', true); return; }
+    if (!file)  { toast('ファイルを選択してください', true); return; }
+    if (file.size > MAX_FILE_SIZE) {
+        toast('ファイルサイズは20MB以下にしてください（現在 ' + fmtSize(file.size) + '）', true);
+        return;
+    }
+    if (file.size === 0) {
+        toast('ファイルが空です', true);
+        return;
+    }
+
+    const fd = new FormData();
+    fd.append('title', title);
+    fd.append('note',  note);
+    fd.append('file',  file);
+
+    const $btn = $('#btn-add-doc');
+    $btn.prop('disabled', true);
+    $('#upload-progress').addClass('active').text('アップロード中…');
+
+    $.ajax({
+        url: `{{ url_for('ethics_review.index') }}api/case/${CURRENT_CASE_ID}/document`,
+        method: 'POST',
+        data: fd,
+        contentType: false,
+        processData: false,
+    }).done(function(resp) {
+        if (!resp.success) { toast(resp.error || '失敗', true); return; }
+        toast('書類を追加しました');
+        $('#in-doc-title, #in-doc-note').val('');
+        fileInput.value = '';
+        loadDocs();
+    }).fail(function(xhr) {
+        let msg = '通信エラー';
+        try {
+            const r = JSON.parse(xhr.responseText);
+            if (r && r.error) msg = r.error;
+        } catch(e) {}
+        toast(msg, true);
+    }).always(function() {
+        $btn.prop('disabled', false);
+        $('#upload-progress').removeClass('active');
+    });
+});
+
+$(document).on('click', '.doc-remove', function() {
+    if (!CURRENT_CASE_ID) return;
+    if (!confirm('この書類を削除しますか？')) return;
+    const docId = $(this).data('id');
+    $.ajax({
+        url: `{{ url_for('ethics_review.index') }}api/case/${CURRENT_CASE_ID}/document/${docId}`,
+        method: 'DELETE'
+    }).done(function(resp) {
+        if (!resp.success) { toast(resp.error || '失敗', true); return; }
+        toast('書類を削除しました');
+        loadDocs();
+    });
+});
+
+$('#btn-submit').on('click', function() {
+    if (!CURRENT_CASE_ID) return;
+    if (!confirm('申請します。書類が揃っていることを確認してください。よろしいですか？')) return;
+    $.ajax({
+        url: `{{ url_for('ethics_review.index') }}api/case/${CURRENT_CASE_ID}/submit`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({})
+    }).done(function(resp) {
+        if (!resp.success) { toast(resp.error || '失敗', true); return; }
+        toast('申請しました。担当委員長による担当委員の指名をお待ちください。');
+        setStep(3);
+        setTimeout(() => { window.location.href = '{{ url_for("ethics_review.my_cases") }}'; }, 1500);
+    }).fail(function(xhr) {
+        let msg = '通信エラー';
+        try {
+            const r = JSON.parse(xhr.responseText);
+            if (r && r.error) msg = r.error;
+        } catch(e) {}
+        toast(msg, true);
+    });
+});
+</script>
+</body>
+</html>

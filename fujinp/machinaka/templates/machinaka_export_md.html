@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日報テキスト出力</title>
+<style>
+:root{--c-primary:#059669;--c-primary-d:#047857;--c-surface:#ecfdf5;--c-border:#d1d5db;--c-muted:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);
+     color:#1f2937;min-height:100vh;padding-bottom:40px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;justify-content:space-between;
+      max-width:860px;margin:0 auto;gap:8px;flex-wrap:wrap}
+.site-name{font-size:1rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;
+      background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:860px;margin:0 auto;padding:16px 14px}
+
+.toolbar{display:flex;align-items:center;justify-content:space-between;
+         margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.info{font-size:.84rem;color:var(--c-muted)}
+.copy-btn{padding:8px 20px;background:var(--c-primary);color:#fff;border:none;
+          border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer;
+          display:flex;align-items:center;gap:6px;font-family:inherit}
+.copy-btn:hover{background:var(--c-primary-d)}
+.copy-btn.copied{background:#0ea5e9}
+
+textarea{
+  width:100%;height:calc(100vh - 180px);min-height:400px;
+  padding:16px;border:1.5px solid var(--c-border);border-radius:10px;
+  font-family:'SF Mono',Consolas,'Courier New',monospace;
+  font-size:.82rem;line-height:1.7;
+  background:#fff;color:#1f2937;
+  resize:vertical;
+}
+textarea:focus{outline:none;border-color:var(--c-primary)}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <span class="site-name">🏘️ まちなかキャンパス</span>
+    <a href="{{ url_for('machinaka.reports_list') }}" class="back">‹ 日報一覧</a>
+    {% include 'machinaka_std_nav.html' %}
+  </div>
+</header>
+
+<div class="content">
+  <div class="toolbar">
+    <span class="info">
+      {{ d_from.strftime('%Y/%m/%d') }} ～ {{ d_to.strftime('%Y/%m/%d') }}
+      &nbsp;／&nbsp; {{ count }}件
+    </span>
+    <button class="copy-btn" onclick="copyText()">
+      📋 クリップボードにコピー
+    </button>
+  </div>
+
+  <textarea id="md-text" readonly>{{ md_text }}</textarea>
+</div>
+
+<script>
+function copyText() {
+  var ta  = document.getElementById('md-text');
+  var btn = document.querySelector('.copy-btn');
+  navigator.clipboard.writeText(ta.value).then(function() {
+    btn.textContent = '✅ コピーしました';
+    btn.classList.add('copied');
+    setTimeout(function() {
+      btn.textContent = '📋 クリップボードにコピー';
+      btn.classList.remove('copied');
+    }, 2000);
+  }).catch(function() {
+    ta.select();
+    document.execCommand('copy');
+    btn.textContent = '✅ コピーしました';
+    setTimeout(function() { btn.textContent = '📋 クリップボードにコピー'; }, 2000);
+  });
+}
+</script>
+</body>
+</html>

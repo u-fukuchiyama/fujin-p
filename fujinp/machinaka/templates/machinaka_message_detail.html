@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ msg.title }} - まちなかキャンパス</title>
+<style>
+:root{
+  --c-primary:#059669; --c-primary-d:#047857; --c-surface:#ecfdf5;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-info:#0ea5e9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);
+     color:var(--c-text);min-height:100vh;padding-bottom:40px;line-height:1.6}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;
+       position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;
+      max-width:720px;margin:0 auto;gap:6px}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;
+      background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:720px;margin:0 auto;padding:14px}
+.card{background:#fff;border-radius:12px;padding:18px;margin-bottom:14px;
+      box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.msg-badge{display:inline-block;padding:3px 11px;border-radius:13px;
+           background:var(--c-info);color:#fff;font-size:.76rem;font-weight:700;
+           margin-bottom:10px}
+h1{font-size:1.15rem;font-weight:800;margin-bottom:6px}
+.meta{font-size:.82rem;color:var(--c-muted);margin-bottom:14px}
+.body-html{font-size:.92rem;line-height:1.75}
+.body-html h1,.body-html h2,.body-html h3{margin:14px 0 6px;font-weight:700}
+.body-html p{margin-bottom:8px}
+.body-html ul,.body-html ol{padding-left:1.4em;margin-bottom:8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🏘️ まちなかキャンパス</div>
+    <a href="javascript:history.back()" class="back">‹ 戻る</a>
+    {% include 'machinaka_std_nav.html' %}
+  </div>
+</header>
+
+<div class="content">
+  <div class="card">
+    <div class="msg-badge">📢 管理者からのメッセージ</div>
+    <h1>{{ msg.title }}</h1>
+    <div class="meta">
+      発行日時: {{ msg.published_at|fmtdatetime_m }}
+      {% if msg.updated_at and msg.updated_at != msg.published_at %}
+        ／ 更新: {{ msg.updated_at|fmtdatetime_m }}
+      {% endif %}
+    </div>
+    {% if body_html %}
+    <div class="body-html">{{ body_html|safe }}</div>
+    {% else %}
+    <p style="color:var(--c-muted);font-size:.85rem">本文はありません</p>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>{% if mode=='new' %}イベント申請{% else %}申請を編集{% endif %} – えきなかキャンパス</title>
+<style>
+:root{--c-primary:#0ea5e9;--c-surface:#f0f9ff;--c-card:#fff;--c-text:#1e293b;--c-muted:#64748b;--c-border:#e2e8f0;--c-ng:#ef4444}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);padding-bottom:40px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;gap:10px;max-width:640px;margin:0 auto}
+.back{color:#fff;text-decoration:none;font-size:1.2rem;padding:2px 4px}
+.htitle{font-size:.95rem;font-weight:700}
+
+.content{max-width:640px;margin:0 auto;padding:14px}
+.flashes{max-width:640px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.sec{background:var(--c-card);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.sec-title{font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;border-bottom:1px solid var(--c-border);padding-bottom:6px}
+
+.field{margin-bottom:14px}
+label{font-size:.8rem;color:var(--c-muted);display:block;margin-bottom:4px}
+label .req{color:var(--c-ng)}
+input[type=text],input[type=date],select,textarea{
+  width:100%;padding:9px 11px;border:1.5px solid var(--c-border);border-radius:9px;
+  font-size:.9rem;font-family:inherit;background:#fff;
+  transition:border-color .15s;color:var(--c-text)
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--c-primary)}
+textarea{height:100px;resize:vertical}
+.hint{font-size:.73rem;color:var(--c-muted);margin-top:3px}
+.date-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+.radio-group{display:flex;gap:8px;flex-wrap:wrap}
+.radio-group label{display:flex;align-items:center;gap:5px;font-size:.88rem;color:var(--c-text);background:var(--c-surface);border:1.5px solid var(--c-border);border-radius:8px;padding:7px 13px;cursor:pointer;margin-bottom:0}
+.radio-group input[type=radio]{accent-color:var(--c-primary)}
+.radio-group label:has(input:checked){border-color:var(--c-primary);background:#e0f2fe;color:var(--c-primary)}
+
+.submit-btn{display:block;width:100%;padding:15px;background:var(--c-primary);color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:800;cursor:pointer;margin-top:6px;font-family:inherit}
+.submit-btn:active{opacity:.88}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <a class="back" href="{% if event %}{{ url_for('ekinaka.event_detail', eid=event.id) }}{% else %}{{ url_for('ekinaka.index') }}{% endif %}">←</a>
+    <span class="htitle">{% if mode=='new' %}🆕 イベント申請{% else %}✏️ 申請を編集{% endif %}</span>
+    {% include 'ekinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <form method="post">
+
+    <div class="sec">
+      <div class="sec-title">基本情報</div>
+
+      <div class="field">
+        <label>イベント名 <span class="req">*</span></label>
+        <input type="text" name="title" value="{{ event.title if event else '' }}" placeholder="例：AIワークショップ" required maxlength="200">
+      </div>
+
+      <div class="field">
+        <label>概要</label>
+        <textarea name="summary" placeholder="一覧画面に表示される短い説明（100字程度）">{{ event.summary if event else '' }}</textarea>
+        <div class="hint">閲覧者が内容を素早く把握できるよう簡潔に</div>
+      </div>
+
+      <div class="field">
+        <label>詳細</label>
+        <textarea name="detail" style="height:140px" placeholder="詳しい内容・プログラム・注意事項など">{{ event.detail if event else '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">開催期間</div>
+      <div class="field">
+        <div class="date-row">
+          <div>
+            <label>開始日 <span class="req">*</span></label>
+            <input type="date" name="event_start_date" value="{{ event.event_start_date | fmtdate('%Y-%m-%d') if event else '' }}" required>
+          </div>
+          <div>
+            <label>終了日 <span class="req">*</span></label>
+            <input type="date" name="event_end_date" value="{{ event.event_end_date | fmtdate('%Y-%m-%d') if event else '' }}" required>
+          </div>
+        </div>
+        <div class="hint">単日の場合は開始日＝終了日。公演は詳細ページで追加できます。</div>
+      </div>
+
+      <div class="field">
+        <label>場所専有</label>
+        <div class="radio-group">
+          <label><input type="radio" name="location_use" value="none" {% if not event or event.location_use=='none' %}checked{% endif %}> なし</label>
+          <label><input type="radio" name="location_use" value="partial" {% if event and event.location_use=='partial' %}checked{% endif %}> 一部専有</label>
+          <label><input type="radio" name="location_use" value="full" {% if event and event.location_use=='full' %}checked{% endif %}> 全部専有</label>
+        </div>
+        <div class="hint">スペース重複がある場合は当事者間・承認者で調整</div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">公開設定</div>
+      <div class="field">
+        <label>希望公開日</label>
+        <input type="date" name="applicant_public_date" value="{{ event.applicant_public_date | fmtdate('%Y-%m-%d') if event and event.applicant_public_date else '' }}">
+        <div class="hint">この日以降に閲覧者全員に公開されます。空欄の場合は承認者が設定します。</div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">公演スケジュール</div>
+      <div class="field">
+        <p style="font-size:.82rem;color:var(--c-muted);line-height:1.6;background:var(--c-surface);padding:10px 12px;border-radius:8px">
+          📋 公演スケジュール（例：11:00〜11:15 オープニングセレモニー）は、<strong>申請後に詳細ページから追加・編集できます。</strong><br>
+          申請時は登録不要です。
+        </p>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">来場者へのメッセージ</div>
+      <div class="field">
+        <label>メッセージ（Markdown可）</label>
+        <textarea name="detail" rows="10" maxlength="32768"
+          placeholder="来場者に向けたメッセージ、アクセス情報、注意事項などをMarkdownで記述できます"
+          style="font-family:monospace;line-height:1.6">{{ event.detail if event else '' }}</textarea>
+        <div class="hint">※ 申請後も詳細ページから編集できます</div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">その他</div>
+      <div class="field">
+        <label>特記事項</label>
+        <textarea name="other_notes" placeholder="機材・設備の要望など">{{ event.other_notes if event else '' }}</textarea>
+      </div>
+    </div>
+
+    <button class="submit-btn" type="submit">
+      {% if mode=='new' %}申請を送信する{% else %}保存する{% endif %}
+    </button>
+  </form>
+</div>
+</body>
+</html>

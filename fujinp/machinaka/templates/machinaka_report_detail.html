@@ -1,0 +1,222 @@
+{#
+  日報詳細
+  * 日報の全フィールドを表示
+  * 点検者（inspect 権限保有者）は「確認しました」ボタン＋コメント欄
+  * 承認者は点検マーク取消／指示事項更新／削除が可能
+  * 作成者本人・承認者は編集リンクあり
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日報 {{ report.report_date | fmtdate_m }} - まちなかキャンパス</title>
+<style>
+:root {
+  --c-primary:#059669; --c-primary-d:#047857; --c-surface:#ecfdf5;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-ng:#ef4444; --c-warn:#f59e0b; --c-info:#0ea5e9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px;line-height:1.6}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:720px;margin:0 auto;gap:6px}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:720px;margin:0 auto;padding:14px}
+.flashes{max-width:720px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.card{background:#fff;border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.head-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+h1{font-size:1.15rem;font-weight:800}
+.status-badge{display:inline-block;padding:3px 11px;border-radius:13px;color:#fff;font-size:.76rem;font-weight:700}
+.insp-badge{display:inline-block;padding:3px 11px;border-radius:13px;font-size:.76rem;font-weight:700;background:#d1fae5;color:#065f46;border:1px solid var(--c-ok)}
+.insp-badge.pending{background:#fef3c7;color:#92400e;border-color:var(--c-warn)}
+
+.meta-table{width:100%;font-size:.86rem}
+.meta-table tr{border-bottom:1px solid var(--c-border)}
+.meta-table tr:last-child{border-bottom:none}
+.meta-table th{text-align:left;padding:9px 0;color:var(--c-muted);font-weight:600;width:120px;vertical-align:top}
+.meta-table td{padding:9px 0;vertical-align:top}
+
+.body-content{font-size:.92rem;line-height:1.75;white-space:pre-wrap;padding:12px 0;color:var(--c-text)}
+.body-content h1,.body-content h2,.body-content h3{margin:14px 0 6px;font-weight:700}
+.body-content p{margin-bottom:8px}
+
+.sec-title{font-size:.9rem;font-weight:700;color:var(--c-primary-d);margin:16px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--c-surface)}
+
+.inspect-box{background:#f0fdf4;border:1px solid var(--c-ok);border-radius:10px;padding:14px;margin-top:10px}
+.inspect-box .ins-head{display:flex;align-items:center;gap:8px;font-weight:700;color:#065f46;margin-bottom:6px}
+.inspect-box .ins-note{font-size:.86rem;line-height:1.6;white-space:pre-wrap;color:#064e3b}
+.inspect-box .ins-meta{font-size:.75rem;color:var(--c-muted);margin-top:6px}
+
+.inspect-form{margin-top:14px;padding:14px;background:#fff7ed;border:1px dashed var(--c-warn);border-radius:10px}
+.inspect-form h4{font-size:.86rem;color:#92400e;margin-bottom:8px;font-weight:700}
+.inspect-form textarea{width:100%;padding:8px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem;min-height:64px;resize:vertical}
+.inspect-form .inline-btn{margin-top:8px;padding:8px 20px;background:var(--c-warn);color:#fff;border:none;border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer}
+.inspect-form .inline-btn:hover{filter:brightness(1.06)}
+
+.btn-row{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.84rem;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;text-align:center}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-secondary{background:#fff;color:var(--c-primary);border:1px solid var(--c-primary)}
+.btn-warn{background:#fff;color:var(--c-warn);border:1px solid var(--c-warn)}
+.btn-danger{background:#fff;color:var(--c-ng);border:1px solid var(--c-ng)}
+
+.inline-form{display:inline-block}
+
+.status-chip{display:inline-block;padding:3px 10px;border-radius:11px;color:#fff;font-size:.76rem;font-weight:700}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">📝 日報詳細</div>
+    <a href="{{ url_for('machinaka.reports_list') }}" class="back">← 一覧</a>
+    {% include 'machinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+
+  <div class="card">
+    <div class="head-row">
+      <h1>{{ report.report_date | fmtdate_m('%Y年%m月%d日（%a）') }}</h1>
+      <span class="status-chip" style="background:{{ report.open_status_color }}">{{ report.open_status_label }}</span>
+      {% if report.is_inspected %}
+        <span class="insp-badge">✓ 点検済</span>
+      {% else %}
+        <span class="insp-badge pending">未点検</span>
+      {% endif %}
+    </div>
+
+    <table class="meta-table">
+      <tr><th>記入者</th><td>{{ report.staff_name }}</td></tr>
+      {% if report.open_status != 'closed' %}
+      <tr>
+        <th>開館時間</th>
+        <td>
+          {% if report.open_time %}{{ report.open_time | fmttime_m }} 〜 {{ report.close_time | fmttime_m }}
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endif %}
+      {% if report.closure_note %}
+      <tr><th>休館メモ</th><td>{{ report.closure_note }}</td></tr>
+      {% endif %}
+      <tr><th>訪問者数</th><td><b style="font-size:1.1rem">{{ report.visitor_count }}</b> 名</td></tr>
+      <tr><th>作成日時</th><td>{{ report.created_at | fmtdatetime_m }}</td></tr>
+      {% if report.updated_at and report.updated_at != report.created_at %}
+      <tr><th>更新日時</th><td>{{ report.updated_at | fmtdatetime_m }}</td></tr>
+      {% endif %}
+    </table>
+
+    {% if report.main_tasks %}
+    <div class="sec-title">主な業務内容</div>
+    <div class="body-content">{{ report.main_tasks }}</div>
+    {% endif %}
+
+    {% if body_html or report.body %}
+    <div class="sec-title">日報本文</div>
+    <div class="body-content">{{ body_html | safe if body_html else report.body }}</div>
+    {% endif %}
+
+    {# 編集・削除操作 #}
+    {% if is_staff or approve_ok %}
+    <div class="btn-row">
+      <a href="{{ url_for('machinaka.report_edit', rid=report.id) }}" class="btn btn-secondary">編集</a>
+      {% if approve_ok %}
+      <form class="inline-form" method="POST"
+            action="{{ url_for('machinaka.report_delete', rid=report.id) }}"
+            onsubmit="return confirm('この日報を削除しますか？この操作は取り消せません。')">
+        <button type="submit" class="btn btn-danger">削除</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# 点検記録セクション #}
+  <div class="card">
+    <div class="sec-title">🔍 点検記録（地域連携係）</div>
+
+    {% if report.is_inspected %}
+      <div class="inspect-box">
+        <div class="ins-head">✓ {{ report.inspector_name }} により確認済み</div>
+        {% if report.inspector_note %}
+        <div class="ins-note">{{ report.inspector_note }}</div>
+        {% endif %}
+        <div class="ins-meta">点検日時: {{ report.inspected_at | fmtdatetime_m }}</div>
+      </div>
+
+      {% if approve_ok %}
+      <div class="btn-row">
+        {# 指示事項の更新（点検済でも編集可能） #}
+        <form class="inline-form" method="POST"
+              action="{{ url_for('machinaka.report_unmark', rid=report.id) }}"
+              onsubmit="return confirm('点検記録を取り消しますか？')">
+          <button type="submit" class="btn btn-warn">点検取消</button>
+        </form>
+      </div>
+      {% endif %}
+
+      {# 指示事項更新フォーム（承認者向け） #}
+      {% if approve_ok %}
+      <form method="POST" action="{{ url_for('machinaka.report_instruction', rid=report.id) }}"
+            style="margin-top:12px">
+        <div style="font-size:.82rem;color:var(--c-muted);margin-bottom:6px">指示事項・コメントの編集</div>
+        <textarea name="inspector_note" style="width:100%;padding:8px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem;min-height:64px;resize:vertical">{{ report.inspector_note or '' }}</textarea>
+        <div style="text-align:right;margin-top:6px">
+          <button type="submit" class="btn btn-secondary">コメント保存</button>
+        </div>
+      </form>
+      {% endif %}
+
+    {% elif inspect_ok %}
+      {# 点検者として未点検の場合：確認ボタン #}
+      <form class="inspect-form" method="POST" action="{{ url_for('machinaka.report_inspect', rid=report.id) }}">
+        <h4>確認しました（点検マーク）</h4>
+        <textarea name="inspector_note" placeholder="指示事項やコメントがあれば記入（任意）"></textarea>
+        <button type="submit" class="inline-btn">✓ 確認しました</button>
+      </form>
+    {% elif approve_ok %}
+      {# 承認者だが点検者として未登録の場合 #}
+      <div style="color:var(--c-muted);font-size:.84rem;padding:8px 0">
+        まだ点検されていません。点検担当として登録されている地域連携係員のみが「確認しました」を押せます。
+      </div>
+      <form method="POST" action="{{ url_for('machinaka.report_instruction', rid=report.id) }}">
+        <div style="font-size:.82rem;color:var(--c-muted);margin-bottom:6px">指示事項（先行記入可）</div>
+        <textarea name="inspector_note" style="width:100%;padding:8px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem;min-height:64px;resize:vertical">{{ report.inspector_note or '' }}</textarea>
+        <div style="text-align:right;margin-top:6px">
+          <button type="submit" class="btn btn-secondary">コメント保存</button>
+        </div>
+      </form>
+      {% if report.inspector_note %}
+      <div class="inspect-box" style="background:#fef3c7;border-color:var(--c-warn);margin-top:10px">
+        <div class="ins-head" style="color:#92400e">💬 現在の指示事項</div>
+        <div class="ins-note" style="color:#78350f">{{ report.inspector_note }}</div>
+      </div>
+      {% endif %}
+    {% else %}
+      <div style="color:var(--c-muted);font-size:.84rem;padding:8px 0">
+        まだ点検されていません。
+      </div>
+      {% if report.inspector_note %}
+      <div class="inspect-box" style="background:#fef3c7;border-color:var(--c-warn);margin-top:10px">
+        <div class="ins-head" style="color:#92400e">💬 指示事項</div>
+        <div class="ins-note" style="color:#78350f">{{ report.inspector_note }}</div>
+      </div>
+      {% endif %}
+    {% endif %}
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,342 @@
+{#
+  日報作成・編集フォーム
+  * 開館状況（open/closed/partial）で時刻入力の可否を切り替え
+  * 訪問者数・本文・休館理由（必要時）を入力
+  * 日報本文はMarkdownエディタ（左右分割プレビュー付き）
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% if mode == 'new' %}日報作成{% else %}日報編集{% endif %} - まちなかキャンパス</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<style>
+:root {
+  --c-primary:#059669; --c-primary-d:#047857; --c-surface:#ecfdf5;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-warn:#f59e0b; --c-info:#0ea5e9; --c-ng:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:1100px;margin:0 auto}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:1100px;margin:0 auto;padding:14px}
+.flashes{max-width:1100px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+/* ── フォームカード ── */
+.form-card{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:14px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:.82rem;font-weight:700;margin-bottom:6px;color:var(--c-text)}
+.field label .req{color:var(--c-ng);margin-left:3px}
+.field input[type=text],.field input[type=date],.field input[type=time],.field input[type=number],.field select{
+  width:100%;padding:9px 11px;border:1px solid var(--c-border);border-radius:8px;font-size:.92rem;
+  font-family:inherit;background:#fff}
+.field input:focus,.field select:focus{outline:none;border-color:var(--c-primary);box-shadow:0 0 0 3px rgba(5,150,105,.15)}
+.field .hint{font-size:.72rem;color:var(--c-muted);margin-top:4px;line-height:1.4}
+
+.status-group{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.status-radio{display:block}
+.status-radio input{display:none}
+.status-radio label{display:block;padding:10px;text-align:center;border:2px solid var(--c-border);border-radius:8px;cursor:pointer;font-size:.86rem;font-weight:700;background:#fff;transition:all .12s}
+.status-radio input:checked + label{border-color:var(--c-primary);background:var(--c-surface);color:var(--c-primary-d)}
+
+.time-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.time-row.disabled{opacity:.4;pointer-events:none}
+
+.btn-row{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+.btn{padding:10px 20px;border:none;border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;text-align:center}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-primary:hover{background:var(--c-primary-d)}
+.btn-cancel{background:#fff;color:var(--c-muted);border:1px solid var(--c-border)}
+
+.notice{background:#fef3c7;border-left:4px solid var(--c-warn);padding:10px 14px;border-radius:6px;font-size:.8rem;color:#92400e;margin-bottom:14px;line-height:1.6}
+
+/* ── Markdownエディタ ── */
+.md-editor-wrap{border:1px solid var(--c-border);border-radius:8px;overflow:hidden;margin-top:6px}
+
+/* ツールバー */
+.md-toolbar{display:flex;gap:4px;flex-wrap:wrap;padding:6px 10px;background:#f8fafc;border-bottom:1px solid var(--c-border)}
+.md-toolbar button{padding:4px 9px;border:1px solid #cbd5e0;background:#fff;border-radius:4px;cursor:pointer;font-size:.78rem;font-family:inherit;color:var(--c-text);transition:background .12s}
+.md-toolbar button:hover{background:#e2e8f0}
+.md-toolbar .sep{width:1px;background:#d1d5db;margin:2px 2px}
+
+/* 左右ペイン */
+.md-panes{display:flex;height:320px}
+.md-pane{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.md-pane + .md-pane{border-left:1px solid var(--c-border)}
+.md-pane-hd{font-size:.72rem;font-weight:700;color:var(--c-muted);padding:4px 10px;background:#f8fafc;border-bottom:1px solid var(--c-border);letter-spacing:.04em;text-transform:uppercase}
+.md-textarea{flex:1;width:100%;resize:none;border:none;outline:none;padding:12px;font-family:'Courier New',monospace;font-size:.88rem;line-height:1.7;color:var(--c-text);background:#fff}
+.md-preview{flex:1;overflow-y:auto;padding:12px;font-size:.9rem;line-height:1.75;color:var(--c-text);background:#fff}
+
+/* プレビュー内マークアップ */
+.md-preview h1,.md-preview h2,.md-preview h3{color:#1e3a5f;margin:1em 0 .4em;font-weight:700}
+.md-preview h1{font-size:1.2rem;border-bottom:2px solid #e2e8f0;padding-bottom:.3em}
+.md-preview h2{font-size:1.05rem;border-bottom:1px solid #e2e8f0;padding-bottom:.2em}
+.md-preview h3{font-size:.95rem}
+.md-preview p{margin-bottom:.8em}
+.md-preview ul,.md-preview ol{padding-left:1.4em;margin-bottom:.8em}
+.md-preview li{margin-bottom:.2em}
+.md-preview code{background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:.85em;font-family:'Courier New',monospace}
+.md-preview pre{background:#1e293b;color:#e2e8f0;padding:12px;border-radius:6px;overflow-x:auto;margin-bottom:.8em}
+.md-preview pre code{background:transparent;padding:0;color:inherit}
+.md-preview blockquote{border-left:3px solid var(--c-primary);padding-left:10px;color:var(--c-muted);margin:0 0 .8em}
+.md-preview a{color:var(--c-primary)}
+.md-preview table{border-collapse:collapse;width:100%;margin-bottom:.8em;font-size:.85rem}
+.md-preview th,.md-preview td{border:1px solid var(--c-border);padding:5px 8px}
+.md-preview th{background:#f8fafc;font-weight:700}
+.md-preview img{max-width:100%;height:auto}
+.md-preview hr{border:none;border-top:2px solid var(--c-border);margin:.8em 0}
+.md-preview .placeholder{color:#aaa;font-size:.85rem;font-style:italic;padding-top:8px}
+
+/* レスポンシブ: 狭い画面では縦並び */
+@media(max-width:640px){
+  .md-panes{flex-direction:column;height:480px}
+  .md-pane + .md-pane{border-left:none;border-top:1px solid var(--c-border)}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">📝 {% if mode == 'new' %}日報作成{% else %}日報編集{% endif %}</div>
+    <a href="{{ url_for('machinaka.reports_list') }}" class="back">一覧へ</a>
+    {% include 'machinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+
+  {% if mode == 'edit' and report and report.is_inspected %}
+  <div class="notice">
+    ⚠️ この日報は <b>{{ report.inspector_name }}</b> によって点検済みです。
+    保存すると点検記録はクリアされ、再点検が必要になります。
+  </div>
+  {% endif %}
+
+  <form id="reportForm" method="POST"
+        action="{% if mode == 'new' %}{{ url_for('machinaka.report_new') }}{% else %}{{ url_for('machinaka.report_edit', rid=report.id) }}{% endif %}">
+
+    <div class="form-card">
+
+      <div class="field">
+        <label>対象日 <span class="req">*</span></label>
+        <input type="date" name="report_date" required
+               value="{% if report %}{{ report.report_date.isoformat() }}{% else %}{{ default_date }}{% endif %}">
+        <div class="hint">過去の日付も選択可。1日につき1レコード（重複時は既存を編集）。</div>
+      </div>
+
+      <div class="field">
+        <label>開館状況 <span class="req">*</span></label>
+        <div class="status-group">
+          <div class="status-radio">
+            <input type="radio" id="st_open" name="open_status" value="open"
+                   {% if not report or report.open_status == 'open' %}checked{% endif %}
+                   onchange="toggleTimeInputs()">
+            <label for="st_open">🟢 通常開館</label>
+          </div>
+          <div class="status-radio">
+            <input type="radio" id="st_partial" name="open_status" value="partial"
+                   {% if report and report.open_status == 'partial' %}checked{% endif %}
+                   onchange="toggleTimeInputs()">
+            <label for="st_partial">🟡 部分休館</label>
+          </div>
+          <div class="status-radio">
+            <input type="radio" id="st_closed" name="open_status" value="closed"
+                   {% if report and report.open_status == 'closed' %}checked{% endif %}
+                   onchange="toggleTimeInputs()">
+            <label for="st_closed">⚫ 全日休館</label>
+          </div>
+        </div>
+        <div class="hint">例：午後だけ休館→「部分休館」にして開館時間帯を入力し、休館理由に記載。</div>
+      </div>
+
+      <div class="field" id="time_field">
+        <label>開館時間帯</label>
+        <div class="time-row" id="time_inputs">
+          <input type="time" name="open_time"
+                 value="{% if report and report.open_time %}{{ report.open_time | fmttime_m }}{% else %}10:00{% endif %}">
+          <input type="time" name="close_time"
+                 value="{% if report and report.close_time %}{{ report.close_time | fmttime_m }}{% else %}17:00{% endif %}">
+        </div>
+        <div class="hint">部分休館の場合は、実際に開けていた時間帯を入力してください。</div>
+      </div>
+
+      <div class="field">
+        <label>休館・部分休館の理由</label>
+        <input type="text" name="closure_note" maxlength="500"
+               value="{{ report.closure_note if report and report.closure_note else '' }}"
+               placeholder="例: 終日お盆休館／午後のみ臨時休館（担当者研修）">
+        <div class="hint">開館状況が「部分休館」「全日休館」の場合に記入します。</div>
+      </div>
+
+      <div class="field">
+        <label>訪問者数（人） <span class="req">*</span></label>
+        <input type="number" name="visitor_count" min="0" step="1" required
+               value="{% if report %}{{ report.visitor_count }}{% else %}0{% endif %}"
+               style="max-width:160px">
+        <div class="hint">集計に使用する固定フィールドです。休館日は 0 を入力してください。</div>
+      </div>
+
+      {# ── Markdown エディタ ── #}
+      <div class="field">
+        <label>日報本文</label>
+        <div class="hint" style="margin-bottom:8px">Markdown 記法が使えます。右ペインでリアルタイムプレビューを確認できます。</div>
+
+        <div class="md-editor-wrap">
+
+          {# ツールバー #}
+          <div class="md-toolbar">
+            <button type="button" onclick="mdInsert('# ', '')">H1</button>
+            <button type="button" onclick="mdInsert('## ', '')">H2</button>
+            <button type="button" onclick="mdInsert('### ', '')">H3</button>
+            <div class="sep"></div>
+            <button type="button" onclick="mdInsert('**', '**')"><b>B</b></button>
+            <button type="button" onclick="mdInsert('*', '*')"><i>I</i></button>
+            <button type="button" onclick="mdInsert('~~', '~~')">S</button>
+            <div class="sep"></div>
+            <button type="button" onclick="mdInsert('- ', '')">リスト</button>
+            <button type="button" onclick="mdInsert('1. ', '')">番号</button>
+            <button type="button" onclick="mdInsert('> ', '')">引用</button>
+            <div class="sep"></div>
+            <button type="button" onclick="mdInsert('`', '`')">コード</button>
+            <button type="button" onclick="mdInsert('```\n', '\n```')">ブロック</button>
+            <div class="sep"></div>
+            <button type="button" onclick="mdInsert('[', '](URL)')">リンク</button>
+            <button type="button" onclick="mdInsert('---\n', '')">区切線</button>
+            <div class="sep"></div>
+            <button type="button" onclick="document.getElementById('mdImageUpload').click()">🖼 画像</button>
+            <input type="file" id="mdImageUpload" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none" onchange="uploadMdImage(this)">
+          </div>
+
+          {# 左右ペイン #}
+          <div class="md-panes">
+            <div class="md-pane">
+              <div class="md-pane-hd">✏️ エディタ</div>
+              <textarea id="bodyEditor" name="body" class="md-textarea"
+                        placeholder="当日の活動・来訪者の様子・気付き・残件など&#10;自由に記述してください（Markdown 可）"
+                        oninput="debouncePreview()">{{ report.body if report else '' }}</textarea>
+            </div>
+            <div class="md-pane">
+              <div class="md-pane-hd">👁 プレビュー</div>
+              <div id="mdPreview" class="md-preview">
+                <span class="placeholder">← 左のエディタに入力すると、ここにプレビューが表示されます</span>
+              </div>
+            </div>
+          </div>
+
+        </div>{# /.md-editor-wrap #}
+      </div>
+
+      <div class="btn-row">
+        <a href="{% if report %}{{ url_for('machinaka.report_detail', rid=report.id) }}{% else %}{{ url_for('machinaka.reports_list') }}{% endif %}"
+           class="btn btn-cancel">キャンセル</a>
+        <button type="submit" class="btn btn-primary">{% if mode == 'new' %}作成{% else %}保存{% endif %}</button>
+      </div>
+
+    </div>{# /.form-card #}
+  </form>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script>
+// ── 開館時間切り替え ──────────────────────────────────
+function toggleTimeInputs(){
+  const closed = document.getElementById('st_closed').checked;
+  document.getElementById('time_inputs').classList.toggle('disabled', closed);
+}
+toggleTimeInputs();
+
+// ── Markdownエディタ ──────────────────────────────────
+const editor  = document.getElementById('bodyEditor');
+const preview = document.getElementById('mdPreview');
+const PREVIEW_URL = "{{ url_for('my_md_notes.preview_markdown') }}";
+
+let debounceTimer;
+function debouncePreview(){
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(updatePreview, 400);
+}
+
+function updatePreview(){
+  const md = editor.value.trim();
+  if(!md){
+    preview.innerHTML = '<span class="placeholder">← 左のエディタに入力すると、ここにプレビューが表示されます</span>';
+    return;
+  }
+  fetch(PREVIEW_URL, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({markdown: md})
+  })
+  .then(r => r.json())
+  .then(data => {
+    preview.innerHTML = data.html || '';
+    // KaTeX レンダリング
+    if(typeof renderMathInElement !== 'undefined'){
+      renderMathInElement(preview, {
+        delimiters:[
+          {left:'$$',right:'$$',display:true},
+          {left:'$',right:'$',display:false}
+        ],
+        throwOnError: false
+      });
+    }
+  })
+  .catch(() => {
+    // プレビュー取得失敗時は簡易フォールバック
+    preview.innerHTML = '<span style="color:#aaa;font-size:.8rem">プレビューを取得できませんでした</span>';
+  });
+}
+
+// ── 画像アップロード ──────────────────────────────────
+const UPLOAD_URL = "{{ url_for('machinaka.report_upload_image') }}";
+
+function uploadMdImage(input){
+  const file = input.files[0];
+  if(!file) return;
+  const formData = new FormData();
+  formData.append('file', file);
+  // ボタンを一時的に無効化
+  input.disabled = true;
+  fetch(UPLOAD_URL, {method:'POST', body: formData})
+    .then(r => r.json())
+    .then(data => {
+      if(data.success){
+        mdInsert(`<img src="${data.url}" style="width:70%;height:auto;display:block;margin:0 auto">`, '');
+      } else {
+        alert('アップロード失敗: ' + data.error);
+      }
+    })
+    .catch(() => alert('アップロードに失敗しました'))
+    .finally(() => { input.value = ''; input.disabled = false; });
+}
+
+// ── ツールバー：テキスト挿入 ──────────────────────────
+function mdInsert(before, after){
+  const start = editor.selectionStart;
+  const end   = editor.selectionEnd;
+  const sel   = editor.value.substring(start, end);
+  const rep   = before + sel + after;
+  editor.value = editor.value.substring(0, start) + rep + editor.value.substring(end);
+  editor.focus();
+  const cur = start + before.length;
+  editor.setSelectionRange(cur, cur + sel.length);
+  debouncePreview();
+}
+
+// ── 初期プレビュー ────────────────────────────────────
+if(editor.value.trim()) updatePreview();
+</script>
+</body>
+</html>

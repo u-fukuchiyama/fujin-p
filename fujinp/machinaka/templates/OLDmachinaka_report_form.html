@@ -1,0 +1,168 @@
+{#
+  日報作成・編集フォーム
+  * 開館状況（open/closed/partial）で時刻入力の可否を切り替え
+  * 訪問者数・本文・休館理由（必要時）を入力
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% if mode == 'new' %}日報作成{% else %}日報編集{% endif %} - まちなかキャンパス</title>
+<style>
+:root {
+  --c-primary:#059669; --c-primary-d:#047857; --c-surface:#ecfdf5;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-warn:#f59e0b; --c-info:#0ea5e9; --c-ng:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:640px;margin:0 auto}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:640px;margin:0 auto;padding:14px}
+.flashes{max-width:640px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+form{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:.82rem;font-weight:700;margin-bottom:6px;color:var(--c-text)}
+.field label .req{color:var(--c-ng);margin-left:3px}
+.field input[type=text],.field input[type=date],.field input[type=time],.field input[type=number],.field textarea,.field select{
+  width:100%;padding:9px 11px;border:1px solid var(--c-border);border-radius:8px;font-size:.92rem;
+  font-family:inherit;background:#fff}
+.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--c-primary);box-shadow:0 0 0 3px rgba(5,150,105,.15)}
+.field textarea{min-height:140px;resize:vertical;line-height:1.6}
+.field .hint{font-size:.72rem;color:var(--c-muted);margin-top:4px;line-height:1.4}
+
+.status-group{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.status-radio{display:block}
+.status-radio input{display:none}
+.status-radio label{display:block;padding:10px;text-align:center;border:2px solid var(--c-border);border-radius:8px;cursor:pointer;font-size:.86rem;font-weight:700;background:#fff;transition:all .12s}
+.status-radio input:checked + label{border-color:var(--c-primary);background:var(--c-surface);color:var(--c-primary-d)}
+
+.time-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.time-row.disabled{opacity:.4;pointer-events:none}
+
+.btn-row{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+.btn{padding:10px 20px;border:none;border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;text-align:center}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-primary:hover{background:var(--c-primary-d)}
+.btn-cancel{background:#fff;color:var(--c-muted);border:1px solid var(--c-border)}
+
+.notice{background:#fef3c7;border-left:4px solid var(--c-warn);padding:10px 14px;border-radius:6px;font-size:.8rem;color:#92400e;margin-bottom:14px;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">📝 {% if mode == 'new' %}日報作成{% else %}日報編集{% endif %}</div>
+    <a href="{{ url_for('machinaka.reports_list') }}" class="back">一覧へ</a>
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+
+  {% if mode == 'edit' and report and report.is_inspected %}
+  <div class="notice">
+    ⚠️ この日報は <b>{{ report.inspector_name }}</b> によって点検済みです。
+    保存すると点検記録はクリアされ、再点検が必要になります。
+  </div>
+  {% endif %}
+
+  <form method="POST"
+        action="{% if mode == 'new' %}{{ url_for('machinaka.report_new') }}{% else %}{{ url_for('machinaka.report_edit', rid=report.id) }}{% endif %}">
+
+    <div class="field">
+      <label>対象日 <span class="req">*</span></label>
+      <input type="date" name="report_date" required
+             value="{% if report %}{{ report.report_date.isoformat() }}{% else %}{{ default_date }}{% endif %}">
+      <div class="hint">過去の日付も選択可。1日につき1レコード（重複時は既存を編集）。</div>
+    </div>
+
+    <div class="field">
+      <label>開館状況 <span class="req">*</span></label>
+      <div class="status-group">
+        <div class="status-radio">
+          <input type="radio" id="st_open" name="open_status" value="open"
+                 {% if not report or report.open_status == 'open' %}checked{% endif %}
+                 onchange="toggleTimeInputs()">
+          <label for="st_open">🟢 通常開館</label>
+        </div>
+        <div class="status-radio">
+          <input type="radio" id="st_partial" name="open_status" value="partial"
+                 {% if report and report.open_status == 'partial' %}checked{% endif %}
+                 onchange="toggleTimeInputs()">
+          <label for="st_partial">🟡 部分休館</label>
+        </div>
+        <div class="status-radio">
+          <input type="radio" id="st_closed" name="open_status" value="closed"
+                 {% if report and report.open_status == 'closed' %}checked{% endif %}
+                 onchange="toggleTimeInputs()">
+          <label for="st_closed">⚫ 全日休館</label>
+        </div>
+      </div>
+      <div class="hint">例：午後だけ休館→「部分休館」にして開館時間帯を入力し、休館理由に記載。</div>
+    </div>
+
+    <div class="field" id="time_field">
+      <label>開館時間帯</label>
+      <div class="time-row" id="time_inputs">
+        <input type="time" name="open_time"
+               value="{% if report and report.open_time %}{{ report.open_time | fmttime_m }}{% else %}10:00{% endif %}">
+        <input type="time" name="close_time"
+               value="{% if report and report.close_time %}{{ report.close_time | fmttime_m }}{% else %}17:00{% endif %}">
+      </div>
+      <div class="hint">部分休館の場合は、実際に開けていた時間帯を入力してください。</div>
+    </div>
+
+    <div class="field">
+      <label>休館・部分休館の理由</label>
+      <input type="text" name="closure_note" maxlength="500"
+             value="{{ report.closure_note if report and report.closure_note else '' }}"
+             placeholder="例: 終日お盆休館／午後のみ臨時休館（担当者研修）">
+      <div class="hint">開館状況が「部分休館」「全日休館」の場合に記入します。</div>
+    </div>
+
+    <div class="field">
+      <label>訪問者数（人） <span class="req">*</span></label>
+      <input type="number" name="visitor_count" min="0" step="1" required
+             value="{% if report %}{{ report.visitor_count }}{% else %}0{% endif %}"
+             style="max-width:160px">
+      <div class="hint">集計に使用する固定フィールドです。休館日は 0 を入力してください。</div>
+    </div>
+
+    <div class="field">
+      <label>主な業務内容</label>
+      <textarea name="main_tasks" placeholder="当日の主な業務内容を記入してください。">{{ report.main_tasks if report and report.main_tasks else '' }}</textarea>
+    </div>
+
+    <div class="field">
+      <label>日報本文</label>
+      <textarea name="body" placeholder="当日の活動・来訪者の様子・気付き・残件など、自由に記述してください。Markdown 可。">{{ report.body if report else '' }}</textarea>
+      <div class="hint">書式は特に定めません。引き継ぎ事項や特記事項などを適宜。</div>
+    </div>
+
+    <div class="btn-row">
+      <a href="{% if report %}{{ url_for('machinaka.report_detail', rid=report.id) }}{% else %}{{ url_for('machinaka.reports_list') }}{% endif %}" class="btn btn-cancel">キャンセル</a>
+      <button type="submit" class="btn btn-primary">{% if mode == 'new' %}作成{% else %}保存{% endif %}</button>
+    </div>
+  </form>
+</div>
+
+<script>
+function toggleTimeInputs(){
+  const closed = document.getElementById('st_closed').checked;
+  document.getElementById('time_inputs').classList.toggle('disabled', closed);
+}
+toggleTimeInputs();
+</script>
+</body>
+</html>

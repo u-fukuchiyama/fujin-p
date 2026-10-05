@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>移行データ取り込み - えきなか</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+    background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+    min-height: 100vh; padding: 15px; color: #1f2937;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  .header {
+    background: white; padding: 16px 24px; border-radius: 10px; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .header h1 { flex: 1; font-size: 1.3rem; color: #4a3a7a; min-width: 160px; }
+  .btn {
+    display: inline-block; padding: 9px 16px; background: #94a3b8; color: white; border: none;
+    border-radius: 6px; cursor: pointer; text-decoration: none; font-size: 0.88rem; font-weight: 600;
+  }
+  .btn.red { background: #ef4444; }
+  .card {
+    background: white; border-radius: 10px; padding: 20px 24px; margin-bottom: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  }
+  .card h2 {
+    font-size: 1rem; color: #4a3a7a; font-weight: 700;
+    border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin: 6px 0 14px;
+  }
+  p { font-size: 0.88rem; line-height: 1.7; }
+  .note { color: #6b7280; font-size: 0.84rem; margin: 6px 0 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin: 8px 0 14px; }
+  th, td { border-bottom: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f8fafc; color: #4b5563; font-weight: 600; }
+  td.num, th.num { text-align: right; }
+  .ok { color: #059669; font-weight: 700; }
+  .ng { color: #dc2626; font-weight: 700; }
+  .msg { padding: 10px 14px; border-radius: 6px; margin-bottom: 10px; font-size: 0.88rem; }
+  .msg.err { background: #fef2f2; color: #991b1b; }
+  .msg.wrn { background: #fffbeb; color: #92400e; }
+  .msg.inf { background: #ecfdf5; color: #065f46; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+  .scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>🚉 えきなか　移行データ取り込み</h1>
+    <a class="btn" href="{{ url_for('ekinaka.index') }}">えきなかに戻る</a>
+  </div>
+
+  {% if mode == 'error' %}
+  <div class="card"><div class="msg err">{{ message }}</div></div>
+  {% endif %}
+
+  {% if mode == 'applied' %}
+  <div class="card">
+    <h2>取り込みが完了しました</h2>
+    <p>{{ result.source_host }} で {{ result.generated_at }} に書き出したデータで置き換えました．利用者 {{ result.users_mapped }} 人の番号を付け替え，画像ファイル {{ result.docs_written }} 件を置きました．</p>
+    <table>
+      <tr><th>表</th><th class="num">件数</th></tr>
+      {% for t in table_order %}<tr><td>{{ t }}</td><td class="num">{{ result.counts[t] }}</td></tr>{% endfor %}
+    </table>
+    {% if docs_error %}<div class="msg err">書類ファイルの入れ替えに失敗しました：{{ docs_error }}．表は取り込み済みです．もう一度取り込めば書類も入れ替わります．</div>{% endif %}
+    {% if docs_missing_count %}<div class="msg wrn">書き出し元でファイルが見つからなかった書類が {{ docs_missing_count }} 件あります．</div>{% endif %}
+    <div class="msg wrn">
+      <strong>fujinp での運用に切り替えるときは，次の2点を行ってください．</strong><br>
+      1．ekinaka/migration.py 冒頭の SOURCE_HOST と TARGET_HOST を空文字（''）にして Reload し，移行ボタンを消す．<br>
+      2．ekinaka/static/migration_staging/ に残っている staging.zip（最後に取り込んだ移行データ）を削除する．
+    </div>
+    <div class="row"><a class="btn" href="{{ url_for('ekinaka.index') }}">えきなかで確かめる</a></div>
+  </div>
+  {% endif %}
+
+  {% if mode == 'preview' %}
+  <div class="card">
+    <h2>点検結果：{{ filename }}</h2>
+    {% for e in report.errors %}<div class="msg err">{{ e }}</div>{% endfor %}
+    {% for w in report.warnings %}<div class="msg wrn">{{ w }}</div>{% endfor %}
+
+    {% if report.counts %}
+    <p>{{ report.source_host }} で {{ report.generated_at }} に書き出したデータです．</p>
+    <table>
+      <tr><th>表</th><th class="num">取り込む件数</th><th class="num">このサイトの現在の件数（置き換えで消えます）</th></tr>
+      {% for t in table_order %}
+      <tr><td>{{ t }}</td><td class="num">{{ report.counts[t] }}</td><td class="num">{{ report.local_counts[t] }}</td></tr>
+      {% endfor %}
+      <tr><td>画像ファイル（ekinaka/static/ の ekinaka_imgs・ekinaka_displays）</td><td class="num">{{ report.folder_files }}</td><td class="num">（入れ替え）</td></tr>
+    </table>
+    {% endif %}
+
+    {% if report.mapping_rows %}
+    <h2>利用者番号の対応表</h2>
+    <p class="note">書き出し元の番号を，メールアドレスでこのサイトの番号に対応づけます．参照件数は，その人の番号が4表に現れる回数です．</p>
+    <div class="scroll"><table>
+      <tr><th class="num">旧番号</th><th>メール</th><th>旧サイトの氏名</th><th class="num">参照件数</th><th class="num">新番号</th><th>新サイトの氏名</th><th>状態</th></tr>
+      {% for r in report.mapping_rows %}
+      <tr>
+        <td class="num">{{ r.old_id }}</td><td>{{ r.email or '' }}</td><td>{{ r.old_name or '' }}</td>
+        <td class="num">{{ r.refs or '' }}</td><td class="num">{{ r.new_id or '' }}</td><td>{{ r.new_name or '' }}</td>
+        <td class="{{ 'ok' if r.status == '一致' else 'ng' }}">{{ r.status }}</td>
+      </tr>
+      {% endfor %}
+    </table></div>
+    <div class="row"><a class="btn" href="{{ url_for('ekinaka.migration_mapping_csv') }}">対応表を CSV で保存</a></div>
+    {% endif %}
+
+    {% if report.docs_missing %}
+    <h2>zip に入っていない書類</h2>
+    <div class="scroll"><table>
+      <tr><th class="num">書類ID</th><th class="num">案件ID</th><th>置き場所</th></tr>
+      {% for d in report.docs_missing %}<tr><td class="num">{{ d.id }}</td><td class="num">{{ d.case_id }}</td><td>{{ d.file_path }}</td></tr>{% endfor %}
+    </table></div>
+    {% endif %}
+
+    {% if report.ok %}
+    <form method="post" action="{{ url_for('ekinaka.migration_apply') }}"
+          onsubmit="return confirm('このサイトのえきなかのデータと画像を，この内容で置き換えます．よろしいですか？');">
+      <input type="hidden" name="digest" value="{{ digest }}">
+      <div class="row"><button class="btn red" type="submit">この内容で置き換える</button>
+        <a class="btn" href="{{ url_for('ekinaka.index') }}">やめる</a></div>
+    </form>
+    {% else %}
+    <div class="row"><a class="btn" href="{{ url_for('ekinaka.index') }}">えきなかに戻る</a></div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+</body>
+</html>

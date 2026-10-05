@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カテゴリー管理 - キターレオンライン審議</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh; padding: 15px;
+        }
+        .container { max-width: 760px; margin: 0 auto; }
+        .header {
+            background: white; padding: 16px 24px; border-radius: 10px;
+            margin-bottom: 14px; display: flex; align-items: center;
+            gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { flex: 1; font-size: 1.2rem; color: #4a3a7a; min-width: 200px; }
+        .nav-btn {
+            padding: 9px 16px; background: #94a3b8; color: white; border: none;
+            border-radius: 6px; cursor: pointer; text-decoration: none;
+            font-size: 0.88rem; font-weight: 600; white-space: nowrap;
+        }
+        .nav-btn:hover { opacity: 0.9; }
+        .card {
+            background: white; border-radius: 10px; padding: 20px 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 14px;
+        }
+        .card h2 {
+            font-size: 1rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 14px;
+        }
+        .info-note {
+            font-size: 0.82rem; color: #92400e; background: #fffbeb;
+            border: 1px solid #fde68a; border-radius: 6px;
+            padding: 10px 13px; margin-bottom: 16px; line-height: 1.7;
+        }
+        .add-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .add-row input[type=text] {
+            flex: 1; min-width: 200px; padding: 9px 11px; border: 1px solid #d1d5db;
+            border-radius: 6px; font-size: 0.9rem;
+        }
+        .btn {
+            padding: 9px 16px; border: none; border-radius: 6px; cursor: pointer;
+            font-size: 0.86rem; font-weight: 600; color: white; background: #6d5fb8;
+        }
+        .btn.green { background: #10b981; }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+        th { background: #f8fafc; color: #6b7280; font-weight: 600; font-size: 0.78rem; }
+        .cat-name { font-weight: 600; color: #4a3a7a; }
+        .cat-name.inactive { color: #9ca3af; text-decoration: line-through; }
+        .badge {
+            display: inline-block; padding: 2px 9px; border-radius: 10px;
+            font-size: 0.72rem; font-weight: 700;
+        }
+        .badge.active   { background: #d1fae5; color: #065f46; }
+        .badge.inactive { background: #f3f4f6; color: #6b7280; }
+        .row-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+        .mini {
+            padding: 4px 10px; border: none; border-radius: 5px; cursor: pointer;
+            font-size: 0.76rem; font-weight: 600; color: white;
+        }
+        .mini.rename { background: #6d5fb8; }
+        .mini.toggle { background: #f59e0b; }
+        .mini.toggle.on { background: #10b981; }
+        .mini.up, .mini.down { background: #94a3b8; }
+        .mini.del { background: #ef4444; }
+        .mini:hover { opacity: 0.9; }
+        .empty-msg { text-align: center; color: #9ca3af; padding: 24px; font-size: 0.9rem; }
+        #toast {
+            position: fixed; bottom: 22px; right: 22px; padding: 13px 20px;
+            border-radius: 8px; font-size: 0.88rem; font-weight: 600;
+            z-index: 9999; display: none; max-width: 340px;
+        }
+        #toast.error { background: #fee2e2; color: #991b1b; }
+        #toast.success { background: #d1fae5; color: #065f46; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🏷 カテゴリー管理</h1>
+        <a href="{{ url_for('kitare_deliberation.index') }}" class="nav-btn">← トップへ</a>
+    </div>
+
+    <div class="card">
+        <h2>新しいカテゴリーを追加</h2>
+        <div class="info-note">
+            カテゴリーは業務会議・運営委員長が定義できます。各案件への付与は業務会議が行い、
+            付与結果は運営委員会・業務会議の画面にのみ表示されます（申請者には表示されません）。
+            使用中のカテゴリーは削除できないため、使わなくなったものは「無効化」してください。
+        </div>
+        <div class="add-row">
+            <input type="text" id="new-name" placeholder="例：人を対象とする研究" maxlength="100">
+            <button class="btn green" id="btn-add">追加</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>定義済みカテゴリー</h2>
+        <div style="overflow-x:auto">
+            <table>
+                <thead><tr>
+                    <th style="width:40px">順</th><th>カテゴリー名</th>
+                    <th style="width:70px">状態</th><th style="width:230px">操作</th>
+                </tr></thead>
+                <tbody id="tbody">
+                    <tr><td colspan="4" class="empty-msg">読み込み中…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const URL_BASE = '{{ url_for("kitare_deliberation.index") }}';
+let CATS = [];
+
+function toast(msg, isErr) {
+    const $t = $('#toast');
+    $t.text(msg).removeClass('error success')
+      .addClass(isErr ? 'error' : 'success').fadeIn();
+    setTimeout(() => $t.fadeOut(), 4000);
+}
+function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function ajaxErr(xhr, fb) {
+    let msg = fb || '通信エラー';
+    try { const r = JSON.parse(xhr.responseText); if (r && r.error) msg = r.error; } catch(e) {}
+    return msg;
+}
+
+function loadCats() {
+    $.get(URL_BASE + 'api/categories', function(resp) {
+        if (!resp.success) {
+            $('#tbody').html('<tr><td colspan="4" class="empty-msg" style="color:#ef4444">' + esc(resp.error) + '</td></tr>');
+            return;
+        }
+        CATS = resp.categories || [];
+        render();
+    }).fail(function(xhr) {
+        $('#tbody').html('<tr><td colspan="4" class="empty-msg" style="color:#ef4444">' + esc(ajaxErr(xhr)) + '</td></tr>');
+    });
+}
+
+function render() {
+    if (!CATS.length) {
+        $('#tbody').html('<tr><td colspan="4" class="empty-msg">カテゴリーはまだありません。上で追加してください。</td></tr>');
+        return;
+    }
+    let rows = '';
+    CATS.forEach((c, i) => {
+        const nameCls = c.is_active ? 'cat-name' : 'cat-name inactive';
+        const badge = c.is_active
+            ? '<span class="badge active">有効</span>'
+            : '<span class="badge inactive">無効</span>';
+        const toggleCls = c.is_active ? 'mini toggle on' : 'mini toggle';
+        const toggleLbl = c.is_active ? '無効化' : '有効化';
+        rows += `<tr data-id="${c.id}">
+            <td>
+                <button class="mini up"   data-act="up"   ${i === 0 ? 'disabled style="opacity:.3"' : ''}>▲</button>
+                <button class="mini down" data-act="down" ${i === CATS.length - 1 ? 'disabled style="opacity:.3"' : ''}>▼</button>
+            </td>
+            <td><span class="${nameCls}">${esc(c.name)}</span></td>
+            <td>${badge}</td>
+            <td><div class="row-actions">
+                <button class="mini rename" data-act="rename">改名</button>
+                <button class="${toggleCls}" data-act="toggle">${toggleLbl}</button>
+                <button class="mini del"    data-act="del">削除</button>
+            </div></td>
+        </tr>`;
+    });
+    $('#tbody').html(rows);
+}
+
+// 追加
+$('#btn-add').on('click', function() {
+    const name = $('#new-name').val().trim();
+    if (!name) { toast('カテゴリー名を入力してください', true); return; }
+    $('#btn-add').prop('disabled', true);
+    $.ajax({
+        url: URL_BASE + 'api/categories', method: 'POST',
+        contentType: 'application/json', data: JSON.stringify({ name: name })
+    }).done(function(r) {
+        $('#btn-add').prop('disabled', false);
+        if (!r.success) { toast(r.error || '追加に失敗しました', true); return; }
+        $('#new-name').val('');
+        toast('カテゴリーを追加しました');
+        loadCats();
+    }).fail(function(xhr) {
+        $('#btn-add').prop('disabled', false);
+        toast(ajaxErr(xhr), true);
+    });
+});
+$('#new-name').on('keydown', function(e) {
+    if (e.key === 'Enter') $('#btn-add').click();
+});
+
+// 行操作
+$('#tbody').on('click', '.mini', function() {
+    const $tr = $(this).closest('tr');
+    const id  = $tr.data('id');
+    const act = $(this).data('act');
+    const cat = CATS.find(c => String(c.id) === String(id));
+    if (!cat) return;
+
+    if (act === 'rename') {
+        const nn = prompt('新しいカテゴリー名：', cat.name);
+        if (nn === null) return;
+        const name = nn.trim();
+        if (!name) { toast('カテゴリー名を入力してください', true); return; }
+        putCat(id, { name: name }, 'カテゴリー名を変更しました');
+    } else if (act === 'toggle') {
+        putCat(id, { is_active: !cat.is_active },
+               cat.is_active ? '無効化しました' : '有効化しました');
+    } else if (act === 'del') {
+        if (!confirm(`カテゴリー「${cat.name}」を削除しますか？\n（使用中の場合は削除できません）`)) return;
+        $.ajax({
+            url: URL_BASE + 'api/categories/' + id, method: 'DELETE'
+        }).done(function(r) {
+            if (!r.success) { toast(r.error || '削除に失敗しました', true); return; }
+            toast('削除しました');
+            loadCats();
+        }).fail(function(xhr) { toast(ajaxErr(xhr), true); });
+    } else if (act === 'up' || act === 'down') {
+        const idx = CATS.findIndex(c => String(c.id) === String(id));
+        const swap = act === 'up' ? idx - 1 : idx + 1;
+        if (swap < 0 || swap >= CATS.length) return;
+        // 2件の sort_order を入れ替える（順番に PUT）
+        const a = CATS[idx], b = CATS[swap];
+        const aOrder = a.sort_order, bOrder = b.sort_order;
+        putCat(a.id, { sort_order: bOrder }, null, function() {
+            putCat(b.id, { sort_order: aOrder }, null, function() {
+                loadCats();
+            });
+        });
+    }
+});
+
+function putCat(id, payload, okMsg, cb) {
+    $.ajax({
+        url: URL_BASE + 'api/categories/' + id, method: 'PUT',
+        contentType: 'application/json', data: JSON.stringify(payload)
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '更新に失敗しました', true); return; }
+        if (okMsg) toast(okMsg);
+        if (cb) cb(); else loadCats();
+    }).fail(function(xhr) { toast(ajaxErr(xhr), true); });
+}
+
+$(document).ready(loadCats);
+</script>
+</body>
+</html>

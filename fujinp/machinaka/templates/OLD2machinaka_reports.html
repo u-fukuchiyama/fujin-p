@@ -1,0 +1,413 @@
+{#
+  日報一覧ページ
+  * 期間フィルタ・点検状態フィルタ
+  * 集計サマリ（総訪問者数・開館日数・点検済日数など）
+  * 1行1レポートのリスト
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日報一覧 - まちなかキャンパス</title>
+<style>
+:root {
+  --c-primary:#059669; --c-primary-d:#047857; --c-surface:#ecfdf5;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-ng:#ef4444; --c-warn:#f59e0b; --c-info:#0ea5e9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:100px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:720px;margin:0 auto}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:720px;margin:0 auto;padding:14px}
+.flashes{max-width:720px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.filter-box{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:14px}
+.filter-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.filter-row .fld{flex:1;min-width:130px}
+.filter-row .fld label{display:block;font-size:.72rem;color:var(--c-muted);margin-bottom:3px;font-weight:600}
+.filter-row .fld input,.filter-row .fld select{width:100%;padding:7px 9px;border:1px solid var(--c-border);border-radius:6px;font-size:.88rem;font-family:inherit}
+.filter-row button{padding:8px 18px;background:var(--c-primary);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:.86rem}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:14px}
+.stat-card{background:#fff;border-radius:10px;padding:10px 12px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-info)}
+.stat-card .sv{font-size:1.35rem;font-weight:800;color:var(--c-primary-d);line-height:1}
+.stat-card .sl{font-size:.72rem;color:var(--c-muted);margin-top:3px}
+.stat-card.warn{border-left-color:var(--c-warn)}
+.stat-card.ok{border-left-color:var(--c-ok)}
+
+.report-row{background:#fff;border-radius:10px;padding:10px 14px;margin-bottom:7px;box-shadow:0 1px 3px rgba(0,0,0,.06);display:block;text-decoration:none;color:inherit;border-left:4px solid var(--c-border)}
+.report-row.open{border-left-color:var(--c-ok)}
+.report-row.closed{border-left-color:var(--c-muted)}
+.report-row.partial{border-left-color:var(--c-warn)}
+.rr-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rr-date{font-size:.93rem;font-weight:800;min-width:130px}
+.rr-date small{display:inline-block;margin-left:4px;font-size:.72rem;color:var(--c-muted);font-weight:400}
+.rr-status{font-size:.7rem;padding:2px 8px;border-radius:10px;color:#fff;font-weight:700}
+.rr-visitors{font-size:.82rem;color:var(--c-text)}
+.rr-visitors b{color:var(--c-primary-d);font-size:1rem}
+.rr-insp{font-size:.72rem;padding:2px 8px;border-radius:10px;font-weight:700}
+.rr-insp.ok{background:#d1fae5;color:#065f46}
+.rr-insp.pending{background:#fef3c7;color:#92400e}
+.rr-meta{font-size:.74rem;color:var(--c-muted);margin-top:3px}
+
+.empty{text-align:center;color:var(--c-muted);padding:30px 0;font-size:.88rem;background:#fff;border-radius:10px}
+
+.fab{position:fixed;bottom:22px;right:18px;background:var(--c-primary);color:#fff;border:none;border-radius:50px;padding:13px 18px;font-size:.95rem;cursor:pointer;box-shadow:0 4px 14px rgba(5,150,105,.42);text-decoration:none;display:flex;align-items:center;gap:5px;font-weight:800;z-index:300}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">📋 日報一覧</div>
+    <a href="{{ url_for('machinaka.dashboard') }}" class="back">← ダッシュボード</a>
+
+    <a href="{{ url_for('machinaka.reports_stats') }}"
+       style="display:inline-flex;align-items:center;gap:5px;
+              padding:7px 14px;border-radius:8px;font-size:.82rem;
+              font-weight:700;background:#fff;color:var(--c-primary-d);
+              border:1.5px solid var(--c-primary);text-decoration:none;">
+      📊 統計
+    </a>
+
+    <button onclick="openCalView()"
+       style="display:inline-flex;align-items:center;gap:5px;
+              padding:7px 14px;border-radius:8px;font-size:.82rem;
+              font-weight:700;background:#fff;color:var(--c-primary-d);
+              border:1.5px solid var(--c-primary);cursor:pointer;">
+      📅 一覧表示
+    </button>
+
+    <a href="{{ url_for('machinaka.reports_export_md',
+               **{'from': d_from.isoformat(), 'to': d_to.isoformat(), 'insp': insp_filter}) }}"
+       style="display:inline-flex;align-items:center;gap:5px;
+              padding:7px 14px;border-radius:8px;font-size:.82rem;font-weight:700;
+              background:#fff;color:var(--c-primary-d);
+              border:1.5px solid var(--c-primary);text-decoration:none;">
+      📄 MDテキスト
+    </a>
+
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+
+  {# フィルタ #}
+  <div class="filter-box">
+    <form method="GET" action="{{ url_for('machinaka.reports_list') }}">
+      <div class="filter-row">
+        <div class="fld">
+          <label>From</label>
+          <input type="date" name="from" value="{{ d_from.isoformat() }}">
+        </div>
+        <div class="fld">
+          <label>To</label>
+          <input type="date" name="to" value="{{ d_to.isoformat() }}">
+        </div>
+        <div class="fld">
+          <label>点検状態</label>
+          <select name="insp">
+            <option value="all"       {% if insp_filter=='all' %}selected{% endif %}>すべて</option>
+            <option value="inspected" {% if insp_filter=='inspected' %}selected{% endif %}>点検済</option>
+            <option value="pending"   {% if insp_filter=='pending' %}selected{% endif %}>未点検</option>
+          </select>
+        </div>
+        <div><button type="submit">適用</button></div>
+      </div>
+    </form>
+  </div>
+
+  {# サマリ #}
+  {% if stats and stats.days_total %}
+  <div class="stats">
+    <div class="stat-card"><div class="sv">{{ stats.days_total }}</div><div class="sl">記録日数</div></div>
+    <div class="stat-card ok"><div class="sv">{{ stats.total_visitors or 0 }}</div><div class="sl">延べ訪問者</div></div>
+    <div class="stat-card"><div class="sv">{{ stats.days_open or 0 }}</div><div class="sl">開館日</div></div>
+    <div class="stat-card warn"><div class="sv">{{ (stats.days_closed or 0) + (stats.days_partial or 0) }}</div><div class="sl">休館・部分休館</div></div>
+    <div class="stat-card ok"><div class="sv">{{ stats.days_inspected or 0 }}</div><div class="sl">点検済</div></div>
+  </div>
+  {% endif %}
+
+  {# リスト #}
+  {% if reports %}
+    {% for r in reports %}
+    <a class="report-row {{ r.open_status }}" href="{{ url_for('machinaka.report_detail', rid=r.id) }}">
+      <div class="rr-head">
+        <span class="rr-date">
+          {{ r.report_date | fmtdate_m('%m/%d') }}
+          <small>{{ r.report_date | fmtdate_m('(%a)') }}</small>
+        </span>
+        <span class="rr-status" style="background:{{ r.open_status_color }}">{{ r.open_status_label }}</span>
+        <span class="rr-visitors">訪問 <b>{{ r.visitor_count }}</b>名</span>
+        <span style="flex:1"></span>
+        {% if r.is_inspected %}
+          <span class="rr-insp ok">✓ 点検済</span>
+        {% else %}
+          <span class="rr-insp pending">未点検</span>
+        {% endif %}
+      </div>
+      <div class="rr-meta">
+        記入: {{ r.staff_name or '—' }}
+        {% if r.open_status != 'closed' and r.open_time %}
+          / {{ r.open_time | fmttime_m }}〜{{ r.close_time | fmttime_m }}
+        {% endif %}
+        {% if r.is_inspected %} / 点検: {{ r.inspector_name }}{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  {% else %}
+    <div class="empty">該当する日報はありません</div>
+  {% endif %}
+</div>
+
+{% if approve_ok %}
+<a class="fab" href="{{ url_for('machinaka.report_new') }}?date={{ today.isoformat() }}">＋ 日報作成</a>
+{% endif %}
+
+<div id="calViewModal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.55);overflow-y:auto">
+  <div style="max-width:900px;margin:24px auto;background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;max-height:calc(100vh - 48px)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e2e8f0;flex-shrink:0">
+      <div style="font-weight:800;font-size:1rem;color:#1f2937">&#x1F4C5; 日報一覧（カレンダー目次付き）</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="copyHtml()" id="copyBtn" style="padding:7px 16px;background:#059669;color:#fff;border:none;border-radius:7px;font-size:.84rem;font-weight:700;cursor:pointer">&#x1F4CB; HTMLをコピー</button>
+        <button onclick="closeCalView()" style="padding:7px 14px;background:#f1f5f9;color:#64748b;border:none;border-radius:7px;font-size:.84rem;font-weight:700;cursor:pointer">&#x2715; 閉じる</button>
+      </div>
+    </div>
+    <div style="flex:1;overflow-y:auto">
+      <iframe id="calViewFrame" style="width:100%;height:72vh;border:none;background:#f8fafc"></iframe>
+    </div>
+  </div>
+</div>
+
+<script>
+var REPORT_DATA = [
+  {% for r in reports %}
+  {date:"{{ r.report_date.isoformat() }}",dateLabel:"{{ r.report_date | fmtdate_m('%Y年%m月%d日（%a）') }}",status:"{{ r.open_status }}",statusLabel:"{{ r.open_status_label }}",statusColor:"{{ r.open_status_color }}",visitors:{{ r.visitor_count }},staff:{{ (r.staff_name or '') | tojson }},inspected:{{ 'true' if r.is_inspected else 'false' }},inspector:{{ (r.inspector_name or '') | tojson }},openTime:"{% if r.open_time %}{{ r.open_time | fmttime_m }}{% endif %}",closeTime:"{% if r.close_time %}{{ r.close_time | fmttime_m }}{% endif %}",closureNote:{{ (r.closure_note or '') | tojson }},body:{{ (r.body or '') | tojson }}}{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+var PERIOD_FROM = "{{ d_from | fmtdate_m('%Y年%m月%d日') }}";
+var PERIOD_TO   = "{{ d_to   | fmtdate_m('%Y年%m月%d日') }}";
+
+function allMonthsInRange() {
+  var m1 = PERIOD_FROM.match(/(\d+)年(\d+)月(\d+)日/);
+  var m2 = PERIOD_TO.match(/(\d+)年(\d+)月(\d+)日/);
+  if (!m1 || !m2) return [];
+  var cy = parseInt(m1[1]), cm = parseInt(m1[2]);
+  var ey = parseInt(m2[1]), em = parseInt(m2[2]);
+  var list = [];
+  while (cy < ey || (cy === ey && cm <= em)) {
+    list.push(cy + '-' + String(cm).padStart(2,'0'));
+    cm++; if (cm > 12) { cm = 1; cy++; }
+  }
+  return list.reverse();
+}
+
+function allMonthsFromData(data) {
+  if (!data || data.length === 0) return [];
+  var dates = data.map(function(r){ return r.date; }).sort(); // 昇順
+  var minYm = dates[0].slice(0,7);                // 最古の月
+  var maxYm = dates[dates.length-1].slice(0,7);   // 最新の月
+  // 今月も必ず含める
+  var now = new Date();
+  var nowYm = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  if(nowYm > maxYm) maxYm = nowYm;
+  var list = [];
+  var p = minYm.split('-'), cy=parseInt(p[0]), cm=parseInt(p[1]);
+  var e = maxYm.split('-'), ey=parseInt(e[0]), em=parseInt(e[1]);
+  while(cy<ey||(cy===ey&&cm<=em)){
+    list.push(cy+'-'+String(cm).padStart(2,'0'));
+    cm++; if(cm>12){cm=1;cy++;}
+  }
+  return list.reverse(); // 新しい月が上
+}
+
+function buildHtml(data) {
+  var byMonth = {};
+  data.forEach(function(r) {
+    var ym = r.date.slice(0,7);
+    if (!byMonth[ym]) byMonth[ym] = [];
+    byMonth[ym].push(r);
+  });
+  var months = allMonthsFromData(data);
+  // データの実際の最古・最新日付からタイトル用期間文字列を生成
+  var allDates = data.map(function(r){return r.date;}).sort();
+  var actualFrom = allDates.length ? allDates[0] : "";
+  var actualTo   = allDates.length ? allDates[allDates.length-1] : "";
+  function fmtDateJa(s){
+    if(!s) return "";
+    var d=new Date(s+"T00:00:00");
+    return d.getFullYear()+"年"+(d.getMonth()+1)+"月"+d.getDate()+"日";
+  }
+  var titleFrom = fmtDateJa(actualFrom);
+  var titleTo   = fmtDateJa(actualTo);
+  var DN = ['\u65e5','\u6708','\u706b','\u6c34','\u6728','\u91d1','\u571f'];
+
+  var toc = '';
+  months.forEach(function(ym) {
+    var yp=ym.split('-'), y=yp[0], m=yp[1];
+    var label = parseInt(y)+'\u5e74'+parseInt(m)+'\u6708';
+    var dim = new Date(parseInt(y),parseInt(m),0).getDate();
+    var fd  = new Date(parseInt(y),parseInt(m)-1,1).getDay();
+    var rm = {};
+    (byMonth[ym]||[]).forEach(function(r){rm[r.date]=r;});
+    var calRows = '<tr>'+DN.map(function(d,i){
+      return '<th style="text-align:center;padding:3px 4px;font-size:.68rem;color:'+(i===0?'#dc2626':i===6?'#2563eb':'#64748b')+'">'+d+'</th>';
+    }).join('')+'</tr>';
+    var cells=[];
+    for(var k=0;k<fd;k++) cells.push('<td></td>');
+    for(var d=1;d<=dim;d++){
+      var ds=ym+'-'+String(d).padStart(2,'0');
+      var dow=new Date(parseInt(y),parseInt(m)-1,d).getDay();
+      var r=rm[ds];
+      var dc=dow===0?'#dc2626':dow===6?'#2563eb':'#1f2937';
+      if(r){
+        var dot='<span style="display:block;width:6px;height:6px;border-radius:50%;background:'+r.statusColor+';margin:1px auto 0"></span>';
+        cells.push('<td style="padding:1px;vertical-align:top"><a href="#r-'+r.date+'" style="display:block;padding:2px;text-align:center;border-radius:4px;background:#f0fdf4;border:1px solid #a7f3d0;text-decoration:none"><span style="color:'+dc+';font-size:.75rem;font-weight:700">'+d+'</span>'+dot+'</a></td>');
+      } else {
+        cells.push('<td style="padding:2px 3px;text-align:center;vertical-align:top"><span style="color:'+dc+';font-size:.75rem">'+d+'</span></td>');
+      }
+    }
+    while(cells.length%7!==0) cells.push('<td></td>');
+    var tr=calRows;
+    for(var i=0;i<cells.length;i+=7) tr+='<tr>'+cells.slice(i,i+7).join('')+'</tr>';
+    toc+='<div id="month-'+ym+'" style="margin-bottom:16px"><div style="font-size:.85rem;font-weight:800;color:#047857;margin-bottom:4px;padding-bottom:3px;border-bottom:2px solid #d1fae5">'+label+'</div><table style="border-collapse:collapse;width:100%">'+tr+'</table></div>';
+  });
+
+  var years=[];
+  months.forEach(function(ym){var y=ym.slice(0,4);if(years.indexOf(y)<0)years.push(y);});
+  var yOpts=years.map(function(y){return '<option value="'+y+'">'+y+'\u5e74</option>';}).join('');
+  var yOpts=years.map(function(y){return '<option value="'+y+'">'+y+'\u5e74</option>';}).join('');
+  var mOpts='';
+  for(var mi=1;mi<=12;mi++){var mo=String(mi).padStart(2,'0');mOpts+='<option value="'+mo+'">'+mi+'\u6708</option>';}
+
+  var jumpFn='function doJump(){'
+    +'var y=document.getElementById("jy").value,'
+    +'m=document.getElementById("jm").value,'
+    +'el=document.getElementById("month-"+y+"-"+m);'
+    +'if(el)el.scrollIntoView({behavior:"smooth",block:"start"});'
+    +'else alert(y+"\u5e74"+parseInt(m)+"\u6708\u306f\u3042\u308a\u307e\u305b\u3093");'
+    +'}';
+  var body='';
+  data.forEach(function(r){
+    var ts=(r.openTime&&r.status!=='closed')?r.openTime+'\uff5e'+r.closeTime:'';
+    var esc=function(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+    var hasHtml=/<[a-z]/i.test(r.body||'');
+    var bc=r.body?(hasHtml?r.body:esc(r.body).replace(/\n/g,'<br>')):'';
+    var insp=r.inspected;
+    body+='<div id="r-'+r.date+'" style="margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #e2e8f0">'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
+      +'<h2 style="font-size:1rem;font-weight:800;color:#1f2937;margin:0">'+r.dateLabel+'</h2>'
+      +'<span style="background:'+r.statusColor+';color:#fff;font-size:.72rem;font-weight:700;padding:2px 10px;border-radius:10px">'+r.statusLabel+'</span>'
+      +'<span style="background:'+(insp?'#d1fae5':'#fef3c7')+';color:'+(insp?'#065f46':'#92400e')+';font-size:.72rem;font-weight:700;padding:2px 10px;border-radius:10px;border:1px solid '+(insp?'#10b981':'#f59e0b')+'">'+(insp?'\u2713 \u70b9\u691c\u6e08':'\u672a\u70b9\u691c')+'</span>'
+      +'</div>'
+      +'<table style="font-size:.84rem;color:#374151;border-collapse:collapse;margin-bottom:8px">'
+      +'<tr><td style="color:#64748b;padding-right:16px;padding-bottom:3px">\u8a18\u5165\u8005</td><td>'+r.staff+'</td></tr>'
+      +(ts?'<tr><td style="color:#64748b;padding-right:16px;padding-bottom:3px">\u958b\u9928\u6642\u9593</td><td>'+ts+'</td></tr>':'')
+      +(r.closureNote?'<tr><td style="color:#64748b;padding-right:16px;padding-bottom:3px">\u4f11\u9928\u30e1\u30e2</td><td>'+esc(r.closureNote)+'</td></tr>':'')
+      +'<tr><td style="color:#64748b;padding-right:16px;padding-bottom:3px">\u8a2a\u554f\u8005\u6570</td><td><strong>'+r.visitors+'</strong> \u540d</td></tr>'
+      +(insp?'<tr><td style="color:#64748b;padding-right:16px;padding-bottom:3px">\u70b9\u691c\u8005</td><td>'+r.inspector+'</td></tr>':'')
+      +'</table>'
+      +(bc?'<div style="font-size:.88rem;line-height:1.75;color:#1f2937;background:#f8fafc;padding:10px 14px;border-radius:6px;border-left:3px solid #059669">'+bc+'</div>':'')
+      +'<div style="margin-top:6px"><a href="#top" style="font-size:.72rem;color:#94a3b8;text-decoration:none">\u25b2 \u76ee\u6b21\u3078</a></div>'
+      +'</div>';
+  });
+
+  var css='*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:"Hiragino Sans","Noto Sans JP",sans-serif;background:#f0fdf4;color:#1f2937;padding:20px}'
+    +'.wrap{max-width:980px;margin:0 auto}'
+    +'.ttl{font-size:1.1rem;font-weight:800;color:#047857;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #d1fae5}'
+    +'.layout{display:grid;grid-template-columns:260px 1fr;gap:20px;align-items:start}'
+    +'.sidebar{position:sticky;top:20px;background:#fff;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,.08);display:flex;flex-direction:column;max-height:calc(100vh - 40px)}'
+    +'.sb-head{padding:10px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0}'
+    +'.sb-sel{flex:1;padding:4px 5px;border:1px solid #d1d5db;border-radius:5px;font-size:.78rem;background:#f8fafc;font-family:inherit}'
+    +'.sb-btn{flex-shrink:0;padding:4px 10px;background:#059669;color:#fff;border:none;border-radius:5px;font-size:.78rem;font-weight:700;cursor:pointer}'
+    +'.sb-body{flex:1;overflow-y:auto;padding:12px}'
+    +'.main{background:#fff;border-radius:12px;padding:20px 24px;box-shadow:0 1px 6px rgba(0,0,0,.08)}'
+    +'@media(max-width:640px){.layout{grid-template-columns:1fr}.sidebar{position:static;max-height:none}}';
+
+  var SC='<scr'+'ipt>',SCE='</scr'+'ipt>';
+  var sidebar='<aside class="sidebar">'
+    +'<div class="sb-head"><div style="display:flex;gap:4px;align-items:center">'
+    +'<select id="jy" class="sb-sel">'+yOpts+'</select>'
+    +'<select id="jm" class="sb-sel">'+mOpts+'</select>'
+    +'<button class="sb-btn" onclick="doJump()">&rarr;</button>'
+    +'</div></div>'
+    +'<div class="sb-body">'+toc+'</div>'
+    +'</aside>';
+
+  return '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">'
+    +'<meta name="viewport" content="width=device-width,initial-scale=1.0">'
+    +'<title>\u307e\u3061\u306a\u304b\u30ad\u30e3\u30f3\u30d1\u30b9 \u65e5\u5831\u4e00\u89a7 '+titleFrom+'\uff5e'+titleTo+'</title>'
+    +'<style>'+css+'</style>'+SC+jumpFn+SCE
+    +'</head><body><div class="wrap">'
+    +'<div class="ttl" id="top">&#x1F4CB; \u307e\u3061\u306a\u304b\u30ad\u30e3\u30f3\u30d1\u30b9 \u65e5\u5831\u4e00\u89a7'
+    +'&nbsp;<span style="font-size:.8rem;font-weight:400;color:#64748b">'+titleFrom+'\uff5e'+titleTo+'\uff08'+data.length+'\u4ef6\uff09</span></div>'
+    +'<div class="layout">'+sidebar
+    +'<main class="main">'+(body||'<p style="color:#94a3b8">\u65e5\u5831\u306f\u3042\u308a\u307e\u305b\u3093</p>')+'</main>'
+    +'</div></div></body></html>';
+}
+
+var ALL_DATA_URL = "{{ url_for('machinaka.reports_all_json') }}";
+var ALL_DATA = null;
+
+function openCalView() {
+  var modal = document.getElementById('calViewModal');
+  var frame = document.getElementById('calViewFrame');
+  modal.style.display = 'block';
+  frame.src = 'about:blank';
+  if (ALL_DATA !== null) { renderCalView(ALL_DATA, frame); return; }
+  fetch(ALL_DATA_URL)
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      var jaWd=['日','月','火','水','木','金','土'];
+      data.forEach(function(r){
+        var d=new Date(r.date+'T00:00:00');
+        r.dateLabel=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+jaWd[d.getDay()]+'）';
+      });
+      ALL_DATA = data;
+      renderCalView(ALL_DATA, frame);
+    })
+    .catch(function(e){ alert('データ取得エラー: '+e); });
+}
+
+function renderCalView(data, frame) {
+  var html = buildHtml(data);
+  var blob = new Blob([html], {type: 'text/html; charset=utf-8'});
+  var url  = URL.createObjectURL(blob);
+  frame.onload = function(){ URL.revokeObjectURL(url); frame.onload = null; };
+  frame.src = url;
+}
+
+
+function closeCalView() {
+  document.getElementById('calViewModal').style.display = 'none';
+}
+function copyHtml() {
+  if (ALL_DATA === null) {
+    alert('\u307e\u305a\u300c\u4e00\u89a7\u8868\u793a\u300d\u3092\u958b\u3044\u3066\u304f\u3060\u3055\u3044');
+    return;
+  }
+  navigator.clipboard.writeText(buildHtml(ALL_DATA)).then(function() {
+    var btn = document.getElementById('copyBtn');
+    var orig = btn.textContent;
+    btn.textContent = '\u2705 \u30b3\u30d4\u30fc\u3057\u307e\u3057\u305f\uff01';
+    setTimeout(function() { btn.textContent = orig; }, 2500);
+  }).catch(function() { alert('\u30b3\u30d4\u30fc\u306b\u5931\u6557\u3057\u307e\u3057\u305f'); });
+}
+document.getElementById('calViewModal').addEventListener('click', function(e) {
+  if (e.target === this) closeCalView();
+});
+</script>
+
+</body>
+</html>

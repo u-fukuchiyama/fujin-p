@@ -1,0 +1,525 @@
+{#
+  まちなかキャンパス ダッシュボード
+  ekinaka_dashboard.html を基にしつつ、
+  * 配色をグリーン系に変更（まちなか＝街＝若葉のイメージ）
+  * 今日の日報状態サマリを追加
+  * 月カレンダーにレポート記号（●＝日報あり／✓＝点検済）を表示
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>まちなかキャンパス</title>
+<style>
+:root {
+  --c-primary:#059669; --c-primary-d:#047857; --c-surface:#ecfdf5;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-ng:#ef4444; --c-warn:#f59e0b;
+  --c-cancel:#dc2626; --c-postpone:#7c3aed; --c-grey:#6b7280;
+  --c-info:#0ea5e9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:90px}
+
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:640px;margin:0 auto;gap:6px;flex-wrap:wrap}
+.site-name{font-size:1.05rem;font-weight:800;letter-spacing:.03em}
+.hnav{display:flex;gap:6px;flex-wrap:wrap}
+.hnav a{color:#fff;text-decoration:none;font-size:.78rem;background:rgba(255,255,255,.2);padding:4px 10px;border-radius:20px;white-space:nowrap}
+.hnav a.btn-return{background:#e74c3c;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.hnav a.btn-return:hover{background:#c0392b}
+
+.modebar{background:#fff;border-bottom:1px solid var(--c-border);position:sticky;top:44px;z-index:100}
+.minner{max-width:640px;margin:0 auto;padding:6px 14px 4px;display:flex;flex-direction:column;gap:4px}
+.period-row{display:flex;align-items:center;justify-content:space-between}
+.period-row a.nav{font-size:1.3rem;color:var(--c-primary);padding:2px 6px;text-decoration:none}
+.period-label{font-size:.92rem;font-weight:700;text-align:center;flex:1}
+.tabs-row{display:flex;align-items:center;gap:6px}
+.tabs{display:flex;flex:1;gap:3px}
+.tab{flex:1;text-align:center;padding:5px;border-radius:8px;text-decoration:none;font-size:.82rem;color:var(--c-muted);background:var(--c-surface)}
+.tab.on{background:var(--c-primary);color:#fff;font-weight:700}
+
+.content{max-width:640px;margin:0 auto;padding:10px 14px}
+
+/* 今日の日報ウィジェット */
+.today-widget{background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:14px;border-left:4px solid var(--c-info);box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.today-widget h3{font-size:.88rem;margin-bottom:6px;color:var(--c-text)}
+.today-widget .tw-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.today-widget .tw-meta{font-size:.8rem;color:var(--c-muted);flex:1}
+.today-widget .tw-btn{display:inline-block;background:var(--c-primary);color:#fff;padding:5px 14px;border-radius:20px;text-decoration:none;font-size:.78rem;font-weight:700}
+.today-widget .tw-btn.secondary{background:#fff;color:var(--c-primary);border:1px solid var(--c-primary)}
+.tw-status{display:inline-block;padding:2px 9px;border-radius:11px;color:#fff;font-size:.7rem;font-weight:700;margin-right:6px}
+.tw-insp-ok{color:var(--c-ok);font-weight:700;font-size:.82rem}
+.tw-insp-pending{color:var(--c-warn);font-weight:700;font-size:.82rem}
+
+.sec-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--c-muted);margin:14px 0 6px;display:flex;align-items:center;gap:8px}
+.sec-label::after{content:'';flex:1;height:1px;background:var(--c-border)}
+
+.flashes{max-width:640px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.card{background:var(--c-card);border-radius:12px;margin-bottom:9px;border-left:4px solid var(--c-ok);box-shadow:0 1px 4px rgba(0,0,0,.07);overflow:hidden;text-decoration:none;display:block;color:inherit}
+.card.cancelled{border-left-color:var(--c-cancel)}
+.card.postponed{border-left-color:var(--c-postpone)}
+.card.pending{border-left-color:var(--c-warn);opacity:.88}
+.card.rejected,.card.withdrawn{display:none}
+.card-head{padding:9px 13px 4px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.card-date{font-size:.8rem;color:var(--c-muted);white-space:nowrap;flex-shrink:0}
+.card-title{font-size:.93rem;font-weight:700;flex:1;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-summary{font-size:.82rem;color:var(--c-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.badge{font-size:.68rem;padding:2px 7px;border-radius:10px;color:#fff;font-weight:700;white-space:nowrap;flex-shrink:0}
+.cancel-msg{margin:0 13px 9px;font-size:.78rem;background:#fef2f2;border-radius:6px;padding:5px 9px;color:var(--c-cancel)}
+.postpone-msg{margin:0 13px 9px;font-size:.78rem;background:#f5f3ff;border-radius:6px;padding:5px 9px;color:var(--c-postpone)}
+
+.empty{text-align:center;color:var(--c-muted);padding:28px 0;font-size:.88rem}
+details summary{cursor:pointer;list-style:none;padding:10px 0;color:var(--c-muted);font-size:.83rem;display:flex;align-items:center;gap:6px;user-select:none}
+details summary::marker{display:none}
+details summary::before{content:'▶';font-size:.65rem;transition:transform .2s}
+details[open] summary::before{transform:rotate(90deg)}
+.past-card{opacity:.75}
+
+.card-perfs{padding:2px 13px 8px;display:flex;flex-direction:column;gap:2px}
+.perf-row{display:flex;align-items:baseline;gap:8px;font-size:.8rem}
+.perf-time{color:var(--c-primary);font-weight:700;white-space:nowrap;min-width:95px}
+.perf-name{color:var(--c-text);opacity:.85}
+.md-content{line-height:1.6;font-size:.83rem}
+.md-content p{margin:0}
+.md-content h1,.md-content h2,.md-content h3{font-size:.88rem;font-weight:700;display:inline}
+
+.cal-table{width:100%;border-collapse:collapse;table-layout:fixed}
+.cal-table th{text-align:center;font-size:.72rem;color:var(--c-muted);padding:4px 0;font-weight:600}
+.cal-table th:first-child{color:#ef4444}
+.cal-table th:last-child{color:#3b82f6}
+.cal-cell{border:1px solid var(--c-border);vertical-align:top;padding:4px 5px;height:56px;cursor:pointer;background:var(--c-card);transition:background .12s}
+.cal-cell:hover{background:#d1fae5}
+.cal-cell.empty{background:var(--c-surface);cursor:default}
+.cal-cell.today-cell{background:#fef3c7}
+.cal-day{font-size:.78rem;font-weight:700;color:var(--c-text)}
+.cal-cell:first-child .cal-day{color:#ef4444}
+.cal-cell:last-child .cal-day{color:#3b82f6}
+.cal-stars{font-size:.7rem;color:#f59e0b;line-height:1.1;margin-top:1px}
+.cal-report{font-size:.7rem;line-height:1.1;margin-top:1px}
+.cal-report .rp-on{color:var(--c-info)}
+.cal-report .rp-ok{color:var(--c-ok)}
+
+.badge-ended{font-size:.68rem;padding:2px 7px;border-radius:10px;color:#fff;font-weight:700;white-space:nowrap;flex-shrink:0;background:var(--c-grey)}
+
+.fab{position:fixed;bottom:22px;right:18px;background:var(--c-primary);color:#fff;border:none;border-radius:50px;padding:13px 18px;font-size:.95rem;cursor:pointer;box-shadow:0 4px 14px rgba(5,150,105,.42);text-decoration:none;display:flex;align-items:center;gap:5px;font-weight:800;z-index:300}
+.fab.secondary{right:100px;background:#fff;color:var(--c-primary);border:2px solid var(--c-primary);box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.msg-card { border-left-color: var(--c-info); background: #f0f9ff; }
+.msg-row-wrap { position: relative; }
+.msg-inline-edit {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  font-size: .75rem; z-index: 10;
+}
+.msg-inline-edit > summary {
+  cursor: pointer; list-style: none; color: var(--c-muted);
+  padding: 2px 8px; border-radius: 10px; background: #e5e7eb;
+}
+.msg-inline-edit > summary::before { display: none; }
+.msg-edit-form {
+  position: absolute; right: 0; top: 100%; z-index: 200;
+  background: #fff; border: 1px solid var(--c-border);
+  border-radius: 10px; padding: 12px; width: 300px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.msg-edit-form input, .msg-edit-form textarea {
+  width: 100%; padding: 6px 9px;
+  border: 1px solid var(--c-border); border-radius: 6px;
+  font-family: inherit; font-size: .85rem;
+}
+.btn { display:inline-block;padding:5px 12px;border-radius:7px;border:none;cursor:pointer;font-size:.8rem;font-weight:700 }
+.btn-primary { background:var(--c-primary);color:#fff }
+.btn-danger  { background:var(--c-ng,#ef4444);color:#fff }
+.btn-sm { padding:4px 10px;font-size:.76rem }
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🏘️ まちなかキャンパス</div>
+    <nav class="hnav">
+      {% if approve_ok %}
+        <a href="#msg-new-form" class="nav-btn">📢 メッセージ</a>
+      {% endif %}
+      {% if approve_ok or inspect_ok %}<a href="{{ url_for('machinaka.reports_list') }}">日報</a>{% endif %}
+      {% if apply_ok %}<a href="{{ url_for('machinaka.my_events') }}">マイ申請</a>{% endif %}
+      {% if approve_ok %}<a href="{{ url_for('machinaka.manage') }}">管理</a>{% endif %}
+      {% if manager_ok %}<a href="{{ url_for('machinaka.settings') }}">設定</a>{% endif %}
+      {% if manager_ok %}<a href="{{ url_for('machinaka.access_log') }}">📊 ログ</a>{% endif %}
+      {% if manager_ok %}<button class="nav-btn" id="btn-sync-t0705" style="background:#0891b2;cursor:pointer;">📋 指標更新</button>{% endif %}
+      {% if machinaka_migration_role == 'export' %}<a href="{{ url_for('machinaka.migration_export') }}" style="background:#6d5fb8;color:#fff;">📤 移行データ書き出し</a>{% endif %}
+      {% if machinaka_migration_role == 'import' %}
+      <input type="file" id="mkMigrationFile" accept=".zip" style="display:none">
+      <a href="#" id="mkMigrationBtn" style="background:#6d5fb8;color:#fff;" onclick="document.getElementById('mkMigrationFile').click();return false;">📥 移行データ取り込み</a>
+      <form id="mkMigrationFinish" method="post" action="{{ url_for('machinaka.migration_upload_finish') }}" style="display:none">
+        <input type="hidden" name="filename" id="mkMigrationName">
+      </form>
+      <script>
+      (function(){
+        var CHUNK = 4 * 1024 * 1024;   // 4MB ずつ送る（大きな zip で 413 にならないように）
+        var input = document.getElementById('mkMigrationFile');
+        var btn = document.getElementById('mkMigrationBtn');
+        input.addEventListener('change', async function(){
+          if (!input.files.length) return;
+          var f = input.files[0];
+          var total = Math.max(1, Math.ceil(f.size / CHUNK));
+          try {
+            for (var i = 0; i < total; i++) {
+              btn.textContent = '📥 送信中 ' + Math.round(i * 100 / total) + '%';
+              var fd = new FormData();
+              fd.append('index', i);
+              fd.append('total', total);
+              fd.append('chunk', f.slice(i * CHUNK, (i + 1) * CHUNK), 'chunk');
+              var r = await fetch("{{ url_for('machinaka.migration_upload_chunk') }}", {method: 'POST', body: fd, credentials: 'same-origin'});
+              if (!r.ok) throw new Error('送信に失敗しました（' + r.status + '）');
+            }
+            btn.textContent = '📥 点検中…';
+            document.getElementById('mkMigrationName').value = f.name;
+            document.getElementById('mkMigrationFinish').submit();
+          } catch (e) {
+            alert(e.message);
+            btn.textContent = '📥 移行データ取り込み';
+            input.value = '';
+          }
+        });
+      })();
+      </script>
+      {% endif %}
+      {% set hide_top = True %}{% include 'machinaka_std_nav.html' %}
+    </nav>
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="modebar">
+  <div class="minner">
+    <div class="period-row">
+      <a class="nav" href="?mode={{ mode }}&anchor={{ prev_anchor.isoformat() }}">‹</a>
+      <span class="period-label">{{ period_label }}</span>
+      <a class="nav" href="?mode={{ mode }}&anchor={{ next_anchor.isoformat() }}">›</a>
+    </div>
+    <div class="tabs-row">
+      <div class="tabs">
+        <a href="?mode=week&anchor={{ anchor.isoformat() }}" class="tab {% if mode=='week' %}on{% endif %}">週</a>
+        <a href="?mode=month&anchor={{ anchor.isoformat() }}" class="tab {% if mode=='month' %}on{% endif %}">月</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+  {# ─ 今日の日報ウィジェット ─
+     approve（現場職員）と inspect（地域連携係）にのみ表示。
+     一般教職員（apply のみ）には日報は見えない。 #}
+  {% if approve_ok or inspect_ok %}
+  <div class="today-widget">
+    <h3>📋 今日の日報 <span style="font-size:.75rem;color:var(--c-muted);font-weight:400">{{ today | fmtdate_m }}</span></h3>
+    {% if today_report %}
+      <div class="tw-row">
+        <span class="tw-status" style="background:{{ today_report.open_status_color }}">{{ today_report.open_status_label }}</span>
+        <span class="tw-meta">
+          {% if today_report.open_time %}{{ today_report.open_time | fmttime_m }}〜{{ today_report.close_time | fmttime_m }} / {% endif %}
+          訪問 {{ today_report.visitor_count }}名
+        </span>
+        {% if today_report.is_inspected %}
+        <span class="tw-insp-ok">✓ 点検済</span>
+        {% else %}
+        <span class="tw-insp-pending">未点検</span>
+        {% endif %}
+        <a href="{{ url_for('machinaka.report_detail', rid=today_report.id) }}" class="tw-btn secondary">詳細</a>
+      </div>
+    {% else %}
+      <div class="tw-row">
+        <span class="tw-meta">本日の日報はまだ作成されていません</span>
+        {% if approve_ok %}
+        <a href="{{ url_for('machinaka.report_new') }}?date={{ today.isoformat() }}" class="tw-btn">作成する</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if mode == 'month' and cal_weeks %}
+    <div class="sec-label">{{ period_label }}</div>
+    <table class="cal-table">
+      <thead><tr>
+        <th>日</th><th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th>土</th>
+      </tr></thead>
+      <tbody>
+      {% for week in cal_weeks %}
+      <tr>
+        {% for cell in week %}
+        {% if cell.day %}
+          {% set cell_date = anchor.replace(day=cell.day) %}
+          <td class="cal-cell{% if cell_date == today %} today-cell{% endif %}"
+              onclick="location.href='?mode=day&anchor={{ cell_date.isoformat() }}'">
+            <div class="cal-day">{{ cell.day }}</div>
+            {% if cell.event_count %}
+            <div class="cal-stars">{% for i in range(cell.event_count) %}★{% endfor %}</div>
+            {% endif %}
+            {% if cell.has_report %}
+            <div class="cal-report">
+              {% if cell.inspected %}<span class="rp-ok">●✓</span>
+              {% else %}<span class="rp-on">●</span>{% endif %}
+            </div>
+            {% endif %}
+          </td>
+        {% else %}
+          <td class="cal-cell empty"></td>
+        {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div style="font-size:.72rem;color:var(--c-muted);margin-top:6px;text-align:center">
+      ★＝イベント / ●＝日報提出 / ●✓＝点検済
+    </div>
+
+    {% elif timeline_items %}
+    <div class="sec-label">イベント</div>
+    {% for item in timeline_items %}
+
+      {% if item.type == 'event' %}
+      {% set ev = item.obj %}
+      <a class="card {{ ev.status }}" href="{{ url_for('machinaka.event_detail', eid=ev.id) }}">
+        <div class="card-head">
+          {% if ev.status in ['cancelled','postponed'] %}
+            <span class="badge" style="background:{{ ev.status_color }}">{{ ev.status_label }}</span>
+          {% elif ev.event_end_date < today %}
+            <span class="badge-ended">終了</span>
+          {% endif %}
+          {% if ev.event_start_date != ev.event_end_date %}
+            <span class="card-date">{{ ev.event_start_date | fmtdate_m('%m/%d') }}〜{{ ev.event_end_date | fmtdate_m('%m/%d') }}</span>
+          {% else %}
+            <span class="card-date">{{ ev.event_start_date | fmtdate_m('%m/%d') }}</span>
+          {% endif %}
+          <span class="card-title">{{ ev.title }}</span>
+          {% if ev.summary %}<span class="card-summary">{{ ev.summary[:40] }}{% if ev.summary|length > 40 %}…{% endif %}</span>{% endif %}
+        </div>
+        {% if ev.performances %}
+        <div class="card-perfs">
+          {% for p in ev.performances %}
+          <div class="perf-row">
+            <span class="perf-time">{{ p.start_datetime | fmtdatetime_m('%H:%M') }}〜{{ p.end_datetime | fmtdatetime_m('%H:%M') }}</span>
+            {% if p.note_html %}<span class="perf-name md-content">{{ p.note_html | safe }}</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if ev.status == 'cancelled' %}<div class="cancel-msg">🚫 中止{% if ev.cancel_note %}：{{ ev.cancel_note }}{% endif %}</div>{% endif %}
+        {% if ev.status == 'postponed' %}<div class="postpone-msg">⏸ 延期{% if ev.cancel_note %}：{{ ev.cancel_note }}{% endif %}</div>{% endif %}
+      </a>
+
+      {% elif item.type == 'message' %}
+      {% set m = item.obj %}
+      <div class="msg-row-wrap">
+        <a class="card msg-card" href="{{ url_for('machinaka.message_detail', mid=m.id) }}">
+          <div class="card-head">
+            <span class="card-date">{{ m.published_at | fmtdatetime_m('%m/%d') }}</span>
+            <span class="card-title">📢 {{ m.title }}</span>
+          </div>
+        </a>
+        {% if approve_ok %}
+        <details class="msg-inline-edit">
+          <summary>…</summary>
+          <form method="POST" action="{{ url_for('machinaka.message_save') }}"
+                class="msg-edit-form">
+            <input type="hidden" name="mid"    value="{{ m.id }}">
+            <input type="hidden" name="anchor" value="{{ anchor.isoformat() }}">
+            <input type="hidden" name="mode"   value="{{ mode }}">
+            <input type="text"   name="title"  value="{{ m.title }}" required>
+            <input type="datetime-local" name="published_at"
+                   value="{{ m.published_at.strftime('%Y-%m-%dT%H:%M') }}">
+            <textarea name="body" rows="4">{{ m.body or '' }}</textarea>
+            <div style="display:flex;gap:6px">
+              <button type="submit" class="btn btn-primary btn-sm">保存</button>
+              <button type="submit"
+                      formaction="{{ url_for('machinaka.message_delete', mid=m.id) }}"
+                      formmethod="POST"
+                      onclick="return confirm('削除しますか?')"
+                      class="btn btn-danger btn-sm">削除</button>
+            </div>
+          </form>
+        </details>
+        {% endif %}
+      </div>
+      {% endif %}
+
+    {% endfor %}
+  {% else %}
+    <div class="empty">この期間にイベントはありません</div>
+  {% endif %}
+
+  {% if past %}
+  <details>
+    <summary>過去のイベント記録（{{ past|length }}件）</summary>
+    {% for ev in past %}
+    <a class="card past-card {{ ev.status }}" href="{{ url_for('machinaka.event_detail', eid=ev.id) }}">
+      <div class="card-head">
+        <div class="card-title">{{ ev.title }}</div>
+        <span class="badge" style="background:{{ ev.status_color }}">{{ ev.status_label }}</span>
+      </div>
+      <div style="padding:0 13px 8px;font-size:.77rem;color:var(--c-muted)">
+        📅 {{ ev.event_start_date | fmtdate_m('%Y/%m/%d') }}{% if ev.event_start_date != ev.event_end_date %}〜{{ ev.event_end_date | fmtdate_m('%m/%d') }}{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </details>
+  {% endif %}
+
+  {# ── 新規メッセージフォーム ── #}
+  {% if approve_ok %}
+  <div id="msg-new-form" class="card" style="border-left-color:var(--c-info);margin-top:14px">
+    <div style="padding:10px 13px 4px;font-size:.85rem;font-weight:700;color:var(--c-info)">📢 メッセージを新規発行</div>
+    <form method="POST" action="{{ url_for('machinaka.message_save') }}"
+          style="padding:0 13px 13px;display:flex;flex-direction:column;gap:7px">
+      <input type="hidden" name="mid"    value="">
+      <input type="hidden" name="anchor" value="{{ anchor.isoformat() }}">
+      <input type="hidden" name="mode"   value="{{ mode }}">
+      <input type="text" name="title" placeholder="タイトル" required
+             style="width:100%;padding:7px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem">
+      <input type="datetime-local" name="published_at" value="{{ now_str }}"
+             style="width:100%;padding:7px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem">
+      <textarea name="body" rows="4" placeholder="本文（Markdown可）"
+                style="width:100%;padding:7px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem;resize:vertical"></textarea>
+      <button type="submit"
+              style="align-self:flex-start;background:var(--c-primary);color:#fff;border:none;padding:7px 18px;border-radius:8px;font-size:.85rem;font-weight:700;cursor:pointer">発行</button>
+    </form>
+  </div>
+  {% endif %}
+
+</div>
+
+{% if approve_ok %}
+<a class="fab secondary" href="{{ url_for('machinaka.report_new') }}">📝 日報</a>
+{% endif %}
+
+{% if apply_ok %}
+<a class="fab" href="{{ url_for('machinaka.apply_new') }}">＋ 申請</a>
+{% endif %}
+
+{% if manager_ok %}
+<!-- ─── T_07_05 指標更新モーダル ─── -->
+<div id="modal-t0705" style="
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.55); z-index:2000;
+    align-items:center; justify-content:center;">
+  <div style="
+      background:white; border-radius:12px; padding:26px;
+      width:90%; max-width:620px; max-height:85vh; overflow-y:auto;
+      box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+    <h2 style="color:#1e3a5f;font-size:1.05rem;margin-bottom:14px;
+               border-bottom:2px solid #e5e7eb;padding-bottom:10px;">
+      📋 T_07_05_吹風舎利用状況 更新
+    </h2>
+    <p style="font-size:0.84rem;color:#6b7280;margin-bottom:16px;">
+      machinaka_daily_reports を年度集計して T_07_05 に反映します。<br>
+      既存年度は上書き（UPSERT）されます。
+    </p>
+    <div id="t0705-body" style="margin-bottom:16px;">
+      <div style="text-align:center;padding:20px;color:#9ca3af;">準備完了。「実行」を押してください。</div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button id="btn-t0705-cancel" style="
+          padding:9px 20px;background:#f3f4f6;color:#374151;
+          border:none;border-radius:6px;cursor:pointer;">閉じる</button>
+      <button id="btn-t0705-exec" style="
+          padding:9px 20px;background:#0891b2;color:white;
+          border:none;border-radius:6px;cursor:pointer;font-weight:600;">実行</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+    const modal   = document.getElementById('modal-t0705');
+    const body    = document.getElementById('t0705-body');
+    const btnOpen = document.getElementById('btn-sync-t0705');
+    const btnCancel = document.getElementById('btn-t0705-cancel');
+    const btnExec = document.getElementById('btn-t0705-exec');
+
+    if (!btnOpen) return;
+
+    btnOpen.addEventListener('click', function() {
+        body.innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;">準備完了。「実行」を押してください。</div>';
+        btnExec.disabled = false;
+        btnExec.textContent = '実行';
+        modal.style.display = 'flex';
+    });
+
+    btnCancel.addEventListener('click', () => modal.style.display = 'none');
+    modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+
+    btnExec.addEventListener('click', function() {
+        this.disabled = true;
+        this.textContent = '更新中...';
+        body.innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;">⏳ 集計・更新中...</div>';
+
+        fetch('{{ url_for("machinaka.api_sync_t0705") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        })
+        .then(r => {
+            if (!r.ok) {
+                return r.text().then(t => { throw new Error('HTTP ' + r.status + ': ' + t.slice(0, 200)); });
+            }
+            return r.json();
+        })
+        .then(resp => {
+            if (!resp.success) {
+                body.innerHTML = `<div style="color:#991b1b;padding:12px;background:#fee2e2;border-radius:6px;">⚠ エラー: ${resp.error}</div>`;
+                btnExec.disabled = false;
+                btnExec.textContent = '再実行';
+                return;
+            }
+            // 結果テーブル表示
+            let rows = resp.upserted.map(r => `
+                <tr style="border-bottom:1px solid #f3f4f6;">
+                    <td style="padding:6px 10px;font-weight:600;">${r.year}年度</td>
+                    <td style="padding:6px 10px;text-align:right;">${r.open_days.toLocaleString()} 日</td>
+                    <td style="padding:6px 10px;text-align:right;">${r.visitors.toLocaleString()} 人</td>
+                    <td style="padding:6px 10px;text-align:right;">${r.avg_per_day !== null ? Number(r.avg_per_day).toFixed(1) + ' 人/開館日' : '―'}</td>
+                </tr>`).join('');
+            body.innerHTML = `
+                <div style="color:#065f46;background:#d1fae5;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:0.88rem;">
+                    ✅ ${resp.total} 年度分を T_07_05 に反映しました。
+                </div>
+                <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.84rem;">
+                    <thead>
+                        <tr style="background:#1e3a5f;color:white;">
+                            <th style="padding:7px 10px;text-align:left;">年度</th>
+                            <th style="padding:7px 10px;text-align:right;">開館日数</th>
+                            <th style="padding:7px 10px;text-align:right;">年間訪問者数</th>
+                            <th style="padding:7px 10px;text-align:right;">開館日当たり来訪者数</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                </div>`;
+            btnExec.textContent = '再実行';
+            btnExec.disabled = false;
+        })
+        .catch(err => {
+            body.innerHTML = `<div style="color:#991b1b;padding:12px;background:#fee2e2;border-radius:6px;">⚠ エラー: ${err.message}</div>`;
+            btnExec.disabled = false;
+            btnExec.textContent = '再実行';
+        });
+    });
+})();
+</script>
+{% endif %}
+
+</body>
+</html>

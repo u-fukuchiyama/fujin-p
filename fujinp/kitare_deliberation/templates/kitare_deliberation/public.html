@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>受付状況 - キターレオンライン審議</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh; padding: 15px;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .header {
+            background: white; padding: 16px 24px; border-radius: 10px;
+            margin-bottom: 14px; display: flex; align-items: center;
+            gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { flex: 1; font-size: 1.3rem; color: #4a3a7a; min-width: 160px; }
+        .nav-btn {
+            padding: 9px 16px; background: #94a3b8; color: white; border: none;
+            border-radius: 6px; cursor: pointer; text-decoration: none;
+            font-size: 0.88rem; font-weight: 600;
+        }
+        .nav-btn:hover { opacity: 0.9; }
+        .card {
+            background: white; border-radius: 10px; padding: 20px 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            font-size: 1rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 14px;
+        }
+        .ctrl-bar { margin-bottom: 12px; font-size: 0.86rem; }
+        .ctrl-bar select {
+            padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.86rem;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+        th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+        th { background: #f8fafc; color: #6b7280; font-weight: 600; font-size: 0.78rem; }
+        .case-id { font-family: monospace; font-weight: 600; color: #6d5fb8; }
+        .status-badge {
+            display: inline-block; padding: 2px 9px; border-radius: 10px;
+            font-size: 0.72rem; font-weight: 700;
+        }
+        .status-channel_open, .status-documents_uploading { background: #e0e7ff; color: #3730a3; }
+        .status-submitted { background: #ddd6fe; color: #5b21b6; }
+        .status-accepted_review { background: #fef3c7; color: #92400e; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+        .status-rejected, .status-not_accepted { background: #fee2e2; color: #991b1b; }
+        .status-withdrawn, .status-terminated { background: #f3f4f6; color: #6b7280; }
+        .empty-msg { text-align: center; color: #9ca3af; padding: 28px; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📊 受付状況 — キターレオンライン審議</h1>
+        <a href="{{ url_for('kitare_deliberation.index') }}" class="nav-btn">← トップへ</a>
+        <a href="{{ url_for('kitare_deliberation.public_approved') }}" class="nav-btn">可決案件一覧</a>
+    </div>
+    <div class="card">
+        <h2>申請案件の受付状況</h2>
+        <div style="font-size:0.85rem;color:#6b7280;margin-bottom:10px">審議中および可決の案件を表示しています。</div>
+        <div class="ctrl-bar">
+            年度：
+            <select id="sel-fy">
+                {% for y in range(current_fy, current_fy - 6, -1) %}
+                <option value="{{ y }}" {% if y == current_fy %}selected{% endif %}>{{ y }}年度</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="overflow-x:auto">
+            <table>
+                <thead><tr>
+                    <th>受付番号</th><th>案件名</th><th>受付日</th>
+                    <th>ステータス</th><th>終局日</th>
+                </tr></thead>
+                <tbody id="tbody">
+                    <tr><td colspan="5" class="empty-msg">読み込み中…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+const URL_BASE = '{{ url_for("kitare_deliberation.index") }}';
+function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function loadCases() {
+    const fy = $('#sel-fy').val();
+    $.get(URL_BASE + 'api/public/cases', { fiscal_year: fy }, function(resp) {
+        if (!resp.success) {
+            $('#tbody').html('<tr><td colspan="5" class="empty-msg" style="color:#ef4444">' + esc(resp.error) + '</td></tr>');
+            return;
+        }
+        if (!resp.cases.length) {
+            $('#tbody').html('<tr><td colspan="5" class="empty-msg">該当する案件はありません</td></tr>');
+            return;
+        }
+        let rows = '';
+        resp.cases.forEach(c => {
+            rows += `<tr>
+                <td><span class="case-id">${esc(c.case_display_id)}</span></td>
+                <td>${esc(c.title)}</td>
+                <td>${c.received_date || '—'}</td>
+                <td><span class="status-badge status-${c.status}">${esc(c.status_label)}</span></td>
+                <td>${c.final_date || '—'}</td>
+            </tr>`;
+        });
+        $('#tbody').html(rows);
+    }).fail(() => {
+        $('#tbody').html('<tr><td colspan="5" class="empty-msg" style="color:#ef4444">通信エラー</td></tr>');
+    });
+}
+$('#sel-fy').on('change', loadCases);
+$(document).ready(loadCases);
+</script>
+</body>
+</html>

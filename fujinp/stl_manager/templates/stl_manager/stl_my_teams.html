@@ -1,0 +1,147 @@
+{#
+  学生団体メンバー向け：自分の所属団体一覧
+  当月レポートが提出済みかを目立たせる
+  context: teams (各 team に role, submitted_this_month, closing_date, is_current_fy),
+           today, this_month, staff_ok, manager_ok
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>マイ団体 — STL報告書</title>
+<style>
+:root{
+  --c-primary:#4338ca; --c-primary-d:#3730a3; --c-surface:#eef2ff;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-warn:#f59e0b; --c-ng:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:720px;margin:0 auto;gap:6px;flex-wrap:wrap}
+.site-name{font-size:1.05rem;font-weight:800}
+.hnav{display:flex;gap:6px;flex-wrap:wrap}
+.hnav a{color:#fff;text-decoration:none;font-size:.78rem;background:rgba(255,255,255,.2);padding:4px 10px;border-radius:20px}
+.content{max-width:720px;margin:0 auto;padding:14px}
+.flashes{max-width:720px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+h1{font-size:1.15rem;font-weight:800;color:var(--c-primary-d)}
+.title-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.btn-pub{display:inline-block;padding:8px 16px;border-radius:20px;font-size:.82rem;font-weight:700;text-decoration:none;background:#fff;color:var(--c-primary);border:1.5px solid var(--c-primary);white-space:nowrap}
+.btn-pub:hover{background:var(--c-surface)}
+
+.team-card{background:#fff;border-radius:12px;padding:0;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.07);overflow:hidden;border-left:5px solid var(--c-primary)}
+.team-card.past-fy{border-left-color:var(--c-muted);opacity:.85}
+.tc-head{padding:14px 16px 8px}
+.tc-name{font-size:1.05rem;font-weight:800;color:var(--c-text)}
+.tc-meta{font-size:.78rem;color:var(--c-muted);margin-top:3px}
+.role-badge{display:inline-block;font-size:.68rem;font-weight:700;padding:2px 9px;border-radius:10px;margin-left:6px}
+.role-badge.editor{background:#e0e7ff;color:var(--c-primary-d)}
+.role-badge.viewer{background:#f1f5f9;color:var(--c-muted)}
+
+/* 当月ステータス帯 */
+.status-band{margin:0 16px 12px;border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.status-band.done{background:#d1fae5}
+.status-band.todo{background:#fef3c7}
+.status-band.overdue{background:#fee2e2}
+.sb-icon{font-size:1.6rem;line-height:1}
+.sb-text{flex:1}
+.sb-title{font-size:.98rem;font-weight:800}
+.status-band.done .sb-title{color:#065f46}
+.status-band.todo .sb-title{color:#92400e}
+.status-band.overdue .sb-title{color:#991b1b}
+.sb-sub{font-size:.76rem;color:var(--c-muted);margin-top:2px}
+.sb-action{display:inline-block;padding:8px 16px;border-radius:8px;font-size:.84rem;font-weight:700;text-decoration:none;background:var(--c-primary);color:#fff;white-space:nowrap}
+
+.tc-actions{display:flex;gap:8px;padding:0 16px 14px;flex-wrap:wrap}
+.btn{display:inline-block;padding:7px 14px;border-radius:8px;font-size:.83rem;font-weight:700;text-decoration:none;border:none;cursor:pointer}
+.btn-outline{background:#fff;color:var(--c-primary);border:1px solid var(--c-primary)}
+.btn-primary{background:var(--c-primary);color:#fff}
+
+.empty{text-align:center;color:var(--c-muted);padding:40px 20px;font-size:.9rem}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🚀 STL報告書</div>
+    <nav class="hnav">
+      {% if staff_ok %}<a href="{{ url_for('stl.index') }}">事務局</a>{% endif %}
+      <a href="{{ url_for('stl.disclosures') }}">公開記事</a>
+    </nav>
+    {% include 'stl_manager/_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <div class="title-row">
+    <h1>🏷️ マイ団体</h1>
+    <a href="{{ url_for('stl.disclosures') }}" class="btn-pub">📰 公開記事を見る</a>
+  </div>
+
+  {% if teams %}
+    {% for t in teams %}
+    <div class="team-card {% if not t.is_current_fy %}past-fy{% endif %}">
+      <div class="tc-head">
+        <div class="tc-name">
+          {{ t.name }}
+          <span class="role-badge {{ t.role }}">{{ '編集者' if t.role=='editor' else '閲覧者' }}</span>
+        </div>
+        <div class="tc-meta">{{ t.fiscal_year }}年度{% if not t.active %} ・ 活動終了{% endif %}{% if t.summary %} ・ {{ t.summary }}{% endif %}</div>
+      </div>
+
+      {% if t.is_current_fy and t.active %}
+        {% if t.submitted_this_month %}
+        <div class="status-band done">
+          <span class="sb-icon">✅</span>
+          <div class="sb-text">
+            <div class="sb-title">{{ this_month }}月度レポート：提出済み</div>
+            <div class="sb-sub">今月分の報告書は提出されています</div>
+          </div>
+        </div>
+        {% elif today > t.closing_date %}
+        <div class="status-band overdue">
+          <span class="sb-icon">⚠️</span>
+          <div class="sb-text">
+            <div class="sb-title">{{ this_month }}月度レポート：未提出（締切超過）</div>
+            <div class="sb-sub">締切 {{ t.closing_date | fmtdate_s('%m/%d') }} を過ぎています</div>
+          </div>
+          {% if t.role=='editor' %}<a href="{{ url_for('stl.report_new', team_id=t.id) }}" class="sb-action">今すぐ作成</a>{% endif %}
+        </div>
+        {% else %}
+        <div class="status-band todo">
+          <span class="sb-icon">📝</span>
+          <div class="sb-text">
+            <div class="sb-title">{{ this_month }}月度レポート：未提出</div>
+            <div class="sb-sub">締切は {{ t.closing_date | fmtdate_s('%m/%d') }} です</div>
+          </div>
+          {% if t.role=='editor' %}<a href="{{ url_for('stl.report_new', team_id=t.id) }}" class="sb-action">作成する</a>{% endif %}
+        </div>
+        {% endif %}
+      {% endif %}
+
+      <div class="tc-actions">
+        <a href="{{ url_for('stl.team_reports', team_id=t.id) }}" class="btn btn-outline">レポート一覧</a>
+        {% if t.role=='editor' and t.active %}
+        <a href="{{ url_for('stl.report_new', team_id=t.id) }}" class="btn btn-primary">＋ 新規レポート</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty">
+      所属している団体がありません。<br>
+      <span style="font-size:.8rem">事務局が名簿に登録すると、ここに表示されます。</span>
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>

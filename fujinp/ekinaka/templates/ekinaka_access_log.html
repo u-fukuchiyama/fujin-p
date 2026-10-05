@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>アクセスログ – えきなか</title>
+<style>
+:root{--c-primary:#0ea5e9;--c-surface:#f0f9ff;--c-card:#fff;
+  --c-text:#1e293b;--c-muted:#64748b;--c-border:#e2e8f0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;
+  background:var(--c-surface);color:var(--c-text);padding-bottom:60px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px}
+.hrow{max-width:900px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.hrow a{color:#fff;font-size:.82rem}
+h2{font-size:1rem}
+.content{max-width:900px;margin:16px auto;padding:0 14px}
+
+/* 統計カード */
+.stat-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.stat-box{background:var(--c-card);border-radius:10px;padding:12px 18px;
+  flex:1;min-width:120px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.stat-num{font-size:1.6rem;font-weight:800;color:var(--c-primary)}
+.stat-label{font-size:.72rem;color:var(--c-muted);margin-top:2px}
+
+/* 日別バー */
+.daily-wrap{background:var(--c-card);border-radius:10px;padding:14px 16px;
+  margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.daily-title{font-size:.8rem;font-weight:700;color:var(--c-muted);margin-bottom:10px}
+.bar-row{display:flex;align-items:flex-end;gap:4px;height:80px}
+.bar-col{display:flex;flex-direction:column;align-items:center;flex:1}
+.bar{background:var(--c-primary);border-radius:4px 4px 0 0;width:100%;min-height:2px;transition:height .3s}
+.bar-day{font-size:.62rem;color:var(--c-muted);margin-top:3px;white-space:nowrap}
+.bar-cnt{font-size:.65rem;color:var(--c-primary);font-weight:700;margin-bottom:2px}
+
+/* エンドポイント別 */
+.ep-wrap{background:var(--c-card);border-radius:10px;padding:14px 16px;
+  margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.ep-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:.82rem}
+.ep-name{width:180px;color:var(--c-text);font-weight:600}
+.ep-bar-bg{flex:1;background:var(--c-surface);border-radius:4px;height:12px;overflow:hidden}
+.ep-bar-fill{background:var(--c-primary);height:100%;border-radius:4px}
+.ep-cnt{width:40px;text-align:right;font-weight:700;color:var(--c-primary)}
+
+/* フィルタ */
+.filter-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.filter-row select,.filter-row a{
+  font-size:.8rem;border:1px solid var(--c-border);border-radius:6px;
+  padding:5px 10px;background:#fff;color:var(--c-text);text-decoration:none}
+.filter-row a.active{background:var(--c-primary);color:#fff;border-color:var(--c-primary)}
+
+/* テーブル */
+table{width:100%;border-collapse:collapse;font-size:.78rem;background:var(--c-card);
+  border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+th{background:var(--c-surface);padding:7px 10px;text-align:left;
+  font-size:.72rem;color:var(--c-muted);border-bottom:1px solid var(--c-border)}
+td{padding:6px 10px;border-bottom:1px solid var(--c-border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+.anon{color:var(--c-muted);font-style:italic}
+.ep-badge{display:inline-block;font-size:.65rem;padding:1px 6px;border-radius:8px;
+  background:var(--c-surface);color:var(--c-primary);font-weight:700;white-space:nowrap}
+
+/* ページング */
+.pager{display:flex;gap:6px;margin-top:14px;justify-content:center;flex-wrap:wrap}
+.pager a,.pager span{padding:5px 12px;border-radius:6px;font-size:.8rem;
+  border:1px solid var(--c-border);text-decoration:none;color:var(--c-primary)}
+.pager .cur{background:var(--c-primary);color:#fff;border-color:var(--c-primary)}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <a href="{{ url_for('ekinaka.index') }}">← ダッシュボード</a>
+    <h2>📊 アクセスログ</h2>
+    {% include 'ekinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div style="max-width:900px;margin:8px auto;padding:0 14px">
+  {% for cat,msg in messages %}<div style="padding:8px 12px;border-radius:6px;font-size:.83rem;
+    background:{% if cat=='error' %}#fee2e2{% else %}#d1fae5{% endif %}">{{ msg }}</div>{% endfor %}
+</div>{% endif %}{% endwith %}
+
+<div class="content">
+
+  <!-- 統計サマリー -->
+  <div class="stat-row">
+    <div class="stat-box">
+      <div class="stat-num">{{ stats.total or 0 }}</div>
+      <div class="stat-label">総アクセス</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num">{{ stats.login_count or 0 }}</div>
+      <div class="stat-label">ログイン済み</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num">{{ stats.anon_count or 0 }}</div>
+      <div class="stat-label">匿名（未ログイン）</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num">{{ stats.unique_users or 0 }}</div>
+      <div class="stat-label">ユニークユーザ数</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num">{{ stats.active_days or 0 }}</div>
+      <div class="stat-label">アクティブ日数</div>
+    </div>
+  </div>
+
+  <!-- 直近7日バーチャート -->
+  {% if daily %}
+  <div class="daily-wrap">
+    <div class="daily-title">📅 直近7日のアクセス数</div>
+    {% set max_cnt = daily | map(attribute='cnt') | max %}
+    <div class="bar-row">
+      {% for row in daily %}
+      {% set pct = (row.cnt / max_cnt * 100) | int %}
+      <div class="bar-col">
+        <div class="bar-cnt">{{ row.cnt }}</div>
+        <div class="bar" style="height:{{ pct }}%"></div>
+        <div class="bar-day">{{ row.day.strftime('%m/%d') }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- エンドポイント別 -->
+  {% if by_endpoint %}
+  <div class="ep-wrap">
+    <div class="daily-title">🔍 エンドポイント別アクセス数</div>
+    {% set ep_max = by_endpoint | map(attribute='cnt') | max %}
+    {% for ep in by_endpoint %}
+    <div class="ep-row">
+      <span class="ep-name">{{ ep.endpoint }}</span>
+      <div class="ep-bar-bg">
+        <div class="ep-bar-fill" style="width:{{ (ep.cnt / ep_max * 100) | int }}%"></div>
+      </div>
+      <span class="ep-cnt">{{ ep.cnt }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- フィルタ -->
+  <div class="filter-row">
+    <span style="font-size:.8rem;color:var(--c-muted)">絞込：</span>
+    <a href="?page=1" class="{% if not ep_filter %}active{% endif %}">すべて</a>
+    {% for ep in endpoints %}
+    <a href="?endpoint={{ ep }}&page=1"
+       class="{% if ep_filter == ep %}active{% endif %}">{{ ep }}</a>
+    {% endfor %}
+  </div>
+
+  <!-- ログ一覧テーブル -->
+  <table>
+    <thead>
+      <tr>
+        <th>日時（JST）</th>
+        <th>エンドポイント</th>
+        <th>ユーザ</th>
+        <th>イベントID</th>
+        <th>IPアドレス</th>
+        <th>UA（抜粋）</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for log in logs %}
+    <tr>
+      <td style="white-space:nowrap">{{ log.accessed_at.strftime('%Y/%m/%d %H:%M:%S') }}</td>
+      <td><span class="ep-badge">{{ log.endpoint }}</span></td>
+      <td>
+        {% if log.user_name %}{{ log.user_name }}
+          <span style="color:var(--c-muted);font-size:.7rem">（#{{ log.user_id }}）</span>
+        {% else %}<span class="anon">匿名</span>{% endif %}
+      </td>
+      <td>{% if log.ref_event_id %}#{{ log.ref_event_id }}{% endif %}</td>
+      <td style="font-size:.72rem;color:var(--c-muted)">{{ log.ip_address or '' }}</td>
+      <td style="font-size:.68rem;color:var(--c-muted);max-width:200px;overflow:hidden;
+                 white-space:nowrap;text-overflow:ellipsis" title="{{ log.user_agent or '' }}">
+        {{ (log.user_agent or '')[:60] }}{% if (log.user_agent or '')|length > 60 %}…{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    {% if not logs %}
+    <tr><td colspan="6" style="text-align:center;color:var(--c-muted);padding:24px">
+      ログがありません</td></tr>
+    {% endif %}
+    </tbody>
+  </table>
+
+  <!-- ページング -->
+  {% if total_pages > 1 %}
+  <div class="pager">
+    {% if page > 1 %}
+    <a href="?endpoint={{ ep_filter }}&page={{ page - 1 }}">‹ 前</a>
+    {% endif %}
+    {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
+    <{% if p == page %}span class="cur"{% else %}a href="?endpoint={{ ep_filter }}&page={{ p }}"{% endif %}>
+      {{ p }}
+    </{% if p == page %}span{% else %}a{% endif %}>
+    {% endfor %}
+    {% if page < total_pages %}
+    <a href="?endpoint={{ ep_filter }}&page={{ page + 1 }}">次 ›</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+</body>
+</html>

@@ -1,0 +1,99 @@
+{#
+  事務局：開示記事の管理一覧
+  context: disclosures (enrich済: scope_label/scope_color/is_published), manager_ok
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>開示記事 — STL報告書</title>
+<style>
+:root{
+  --c-primary:#4338ca; --c-primary-d:#3730a3; --c-surface:#eef2ff;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-warn:#f59e0b; --c-ng:#ef4444; --c-info:#0ea5e9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:820px;margin:0 auto;gap:6px;flex-wrap:wrap}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:820px;margin:0 auto;padding:14px}
+.flashes{max-width:820px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+h1{font-size:1.15rem;font-weight:800;color:var(--c-primary-d);margin-bottom:4px}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.sub{font-size:.8rem;color:var(--c-muted)}
+.btn{display:inline-block;padding:8px 16px;border-radius:8px;font-size:.84rem;font-weight:700;text-decoration:none;border:none;cursor:pointer}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-outline{background:#fff;color:var(--c-primary);border:1px solid var(--c-primary)}
+.btn-danger{background:#fff;color:var(--c-ng);border:1px solid var(--c-ng)}
+
+.disc-card{background:#fff;border-radius:10px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.dc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.scope-badge{font-size:.69rem;padding:2px 9px;border-radius:10px;color:#fff;font-weight:700}
+.pub-badge{font-size:.69rem;padding:2px 9px;border-radius:10px;font-weight:700}
+.pub-badge.pub{background:#d1fae5;color:#065f46}
+.pub-badge.draft{background:#f1f5f9;color:var(--c-muted)}
+.dc-title{font-size:1rem;font-weight:700}
+.dc-meta{font-size:.76rem;color:var(--c-muted);margin:4px 0 8px}
+.dc-actions{display:flex;gap:7px;flex-wrap:wrap}
+.empty{text-align:center;color:var(--c-muted);padding:30px;font-size:.9rem}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🚀 STL報告書</div>
+    <a href="{{ url_for('stl.index') }}" class="back">‹ ダッシュボード</a>
+    {% include 'stl_manager/_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <div class="toolbar">
+    <div>
+      <h1>📰 開示記事</h1>
+      <div class="sub">事務局がとりまとめて開示する記事。記事ごとに公開範囲を切り替えます。</div>
+    </div>
+    <a href="{{ url_for('stl.disclosure_new') }}" class="btn btn-primary">＋ 新規記事</a>
+  </div>
+
+  {% if disclosures %}
+    {% for d in disclosures %}
+    <div class="disc-card">
+      <div class="dc-head">
+        <span class="scope-badge" style="background:{{ d.scope_color }}">{{ d.scope_label }}</span>
+        {% if d.is_published %}<span class="pub-badge pub">公開中</span>
+        {% else %}<span class="pub-badge draft">下書き</span>{% endif %}
+      </div>
+      <div class="dc-title">{{ d.title }}</div>
+      <div class="dc-meta">
+        {{ d.author_name or '(不明)' }}
+        {% if d.published_at %} / 公開 {{ d.published_at | fmtdatetime_s }}{% else %} / 作成 {{ d.created_at | fmtdatetime_s }}{% endif %}
+      </div>
+      <div class="dc-actions">
+        {% if d.is_published %}<a href="{{ url_for('stl.disclosure_detail', did=d.id) }}" class="btn btn-outline">表示</a>{% endif %}
+        <a href="{{ url_for('stl.disclosure_edit', did=d.id) }}" class="btn btn-outline">編集</a>
+        <form method="POST" action="{{ url_for('stl.disclosure_delete', did=d.id) }}"
+              onsubmit="return confirm('この開示記事を削除しますか？')" style="display:inline">
+          <button type="submit" class="btn btn-danger">削除</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty">開示記事はまだありません。レポート詳細の「この内容で開示記事を作成」からも作れます。</div>
+  {% endif %}
+</div>
+</body>
+</html>

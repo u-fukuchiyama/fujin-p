@@ -1,0 +1,117 @@
+{#
+  事務局：レポート型マスタ管理
+  context: types (use_count付き), manager_ok
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>レポート型 — STL報告書</title>
+<style>
+:root{
+  --c-primary:#4338ca; --c-primary-d:#3730a3; --c-surface:#eef2ff;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-warn:#f59e0b; --c-ng:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px;line-height:1.6}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:680px;margin:0 auto;gap:6px;flex-wrap:wrap}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:680px;margin:0 auto;padding:14px}
+.flashes{max-width:680px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.card{background:#fff;border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+h1{font-size:1.15rem;font-weight:800;color:var(--c-primary-d);margin-bottom:8px}
+.sec-title{font-size:.95rem;font-weight:700;color:var(--c-primary-d);margin:14px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--c-surface)}
+
+.t-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px dashed var(--c-border);flex-wrap:wrap}
+.t-row:last-child{border-bottom:none}
+.t-row.inactive{opacity:.55}
+.t-name{font-weight:700;font-size:.95rem;flex:1;min-width:120px}
+.t-stat{font-size:.74rem;color:var(--c-muted)}
+.active-badge{display:inline-block;padding:2px 9px;border-radius:11px;font-size:.72rem;font-weight:700}
+.active-badge.on{background:#d1fae5;color:#065f46}
+.active-badge.off{background:#fef3c7;color:#92400e}
+.t-actions{display:flex;gap:6px;flex-wrap:wrap}
+
+.btn{display:inline-block;padding:5px 12px;border-radius:7px;font-size:.78rem;font-weight:700;border:none;cursor:pointer;text-decoration:none}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-outline{background:#fff;color:var(--c-primary);border:1px solid var(--c-primary)}
+.btn-warn{background:var(--c-warn);color:#fff}
+
+.edit-form{display:none;width:100%;margin-top:8px;padding:10px;background:var(--c-surface);border-radius:8px;gap:8px;grid-template-columns:1fr 90px auto;align-items:center}
+.edit-form.open{display:grid}
+.edit-form input{padding:6px 9px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.85rem}
+
+.add-form{padding:12px;background:var(--c-surface);border-radius:8px;margin-top:10px;display:grid;grid-template-columns:1fr 90px auto;gap:8px;align-items:center}
+.add-form input{padding:7px 10px;border:1px solid var(--c-border);border-radius:6px;font-family:inherit;font-size:.88rem}
+@media(max-width:560px){.add-form,.edit-form.open{grid-template-columns:1fr}}
+.empty{color:var(--c-muted);font-size:.85rem;padding:18px 0;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🚀 STL報告書</div>
+    <a href="{{ url_for('stl.index') }}" class="back">‹ ダッシュボード</a>
+    {% include 'stl_manager/_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <div class="card">
+    <h1>🗂️ レポート型</h1>
+    <div style="font-size:.8rem;color:var(--c-muted)">学生がレポート作成時に選ぶ型を管理します。</div>
+
+    <div class="sec-title">登録済の型</div>
+    {% if types %}
+      {% for t in types %}
+      <div class="t-row {% if not t.active %}inactive{% endif %}">
+        <span class="t-name">{{ t.name }}</span>
+        <span class="t-stat">使用 {{ t.use_count }} 件</span>
+        <span class="active-badge {% if t.active %}on{% else %}off{% endif %}">{% if t.active %}● 有効{% else %}○ 無効{% endif %}</span>
+        <div class="t-actions">
+          <button type="button" class="btn btn-outline" onclick="document.getElementById('et-{{ t.id }}').classList.toggle('open')">編集</button>
+          <form method="POST" action="{{ url_for('stl.manage_report_types') }}" style="display:inline">
+            <input type="hidden" name="action" value="toggle">
+            <input type="hidden" name="type_id" value="{{ t.id }}">
+            <button type="submit" class="btn btn-warn">{% if t.active %}無効化{% else %}有効化{% endif %}</button>
+          </form>
+        </div>
+        <form id="et-{{ t.id }}" class="edit-form" method="POST" action="{{ url_for('stl.manage_report_types') }}">
+          <input type="hidden" name="action" value="edit">
+          <input type="hidden" name="type_id" value="{{ t.id }}">
+          <input type="text" name="name" value="{{ t.name }}" required>
+          <input type="number" name="display_order" value="{{ t.display_order }}" title="表示順">
+          <button type="submit" class="btn btn-primary">保存</button>
+        </form>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">型がありません。</div>
+    {% endif %}
+
+    <div class="sec-title">型を追加</div>
+    <form method="POST" action="{{ url_for('stl.manage_report_types') }}" class="add-form">
+      <input type="hidden" name="action" value="add">
+      <input type="text" name="name" placeholder="型名（例: 中間報告）" required>
+      <input type="number" name="display_order" value="50" title="表示順">
+      <button type="submit" class="btn btn-primary">追加</button>
+    </form>
+    <div style="font-size:.74rem;color:var(--c-muted);margin-top:8px">
+      ※ 無効化した型は新規作成時の選択肢から外れますが、既存レポートの型表示は保持されます。
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,519 @@
+{# ── Markdown エディタ（tanzax 仕様・共通マクロ） ── #}
+{% macro md_editor(fid, name, value, placeholder) -%}
+<div class="md-editor-wrap">
+  <div class="md-toolbar">
+    <button type="button" onclick="mdInsert('{{ fid }}','# ','')">H1</button>
+    <button type="button" onclick="mdInsert('{{ fid }}','## ','')">H2</button>
+    <button type="button" onclick="mdInsert('{{ fid }}','### ','')">H3</button>
+    <div class="sep"></div>
+    <button type="button" onclick="mdInsert('{{ fid }}','**','**')"><b>B</b></button>
+    <button type="button" onclick="mdInsert('{{ fid }}','*','*')"><i>I</i></button>
+    <button type="button" onclick="mdInsert('{{ fid }}','~~','~~')">S</button>
+    <div class="sep"></div>
+    <button type="button" onclick="mdInsert('{{ fid }}','- ','')">リスト</button>
+    <button type="button" onclick="mdInsert('{{ fid }}','1. ','')">番号</button>
+    <button type="button" onclick="mdInsert('{{ fid }}','> ','')">引用</button>
+    <div class="sep"></div>
+    <button type="button" onclick="mdInsert('{{ fid }}','`','`')">コード</button>
+    <button type="button" onclick="mdInsert('{{ fid }}','```\n','\n```')">ブロック</button>
+    <div class="sep"></div>
+    <button type="button" onclick="mdInsert('{{ fid }}','[','](URL)')">リンク</button>
+    <button type="button" onclick="mdInsert('{{ fid }}','---\n','')">区切線</button>
+    <div class="sep"></div>
+    <button type="button" onclick="document.getElementById('{{ fid }}_img').click()">🖼 画像</button>
+    <input type="file" id="{{ fid }}_img" accept="image/png,image/jpeg,image/gif,image/webp"
+      style="display:none" onchange="uploadMdImage(this,'{{ fid }}')">
+  </div>
+  <div class="md-panes">
+    <div class="md-pane">
+      <div class="md-pane-hd">✏️ エディタ</div>
+      <textarea id="{{ fid }}" name="{{ name }}" class="md-textarea" maxlength="32768"
+        placeholder="{{ placeholder }}"
+        oninput="debouncePreview('{{ fid }}')">{{ value or '' }}</textarea>
+    </div>
+    <div class="md-pane">
+      <div class="md-pane-hd">👁 プレビュー</div>
+      <div id="{{ fid }}_pv" class="md-preview md-content">
+        <span class="placeholder">← 左に入力するとここにプレビューが出ます</span>
+      </div>
+    </div>
+  </div>
+</div>
+{%- endmacro %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>{{ event.title }} – えきなかキャンパス</title>
+<style>
+:root{
+  --c-primary:#0ea5e9;--c-primary-d:#0284c7;--c-surface:#f0f9ff;
+  --c-card:#fff;--c-text:#1e293b;--c-muted:#64748b;--c-border:#e2e8f0;
+  --c-ok:#10b981;--c-ng:#ef4444;--c-warn:#f59e0b;
+  --c-cancel:#dc2626;--c-postpone:#7c3aed;--c-grey:#6b7280;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);padding-bottom:60px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;gap:10px;max-width:640px;margin:0 auto}
+.back{color:#fff;text-decoration:none;font-size:1.2rem;padding:2px 4px}
+.htitle{font-size:.95rem;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hnav{display:flex;gap:6px}
+.hnav a{color:#fff;text-decoration:none;font-size:.76rem;background:rgba(255,255,255,.2);padding:3px 9px;border-radius:16px;white-space:nowrap}
+
+.content{max-width:640px;margin:0 auto;padding:14px}
+.flashes{max-width:640px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+/* ─ ステータスバナー ─ */
+.status-banner{border-radius:10px;padding:10px 14px;margin-bottom:12px;font-weight:700;font-size:.95rem;display:flex;align-items:center;gap:8px}
+.status-banner.approved{background:#d1fae5;color:#065f46}
+.status-banner.pending{background:#fef3c7;color:#92400e}
+.status-banner.rejected{background:#fee2e2;color:#991b1b}
+.status-banner.withdrawn{background:#f1f5f9;color:#475569}
+.status-banner.cancelled{background:#fee2e2;color:#991b1b}
+.status-banner.postponed{background:#ede9fe;color:#5b21b6}
+
+/* ─ セクション ─ */
+.sec{background:var(--c-card);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.sec-title{font-size:.8rem;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;border-bottom:1px solid var(--c-border);padding-bottom:6px}
+.field-row{display:flex;gap:8px;margin-bottom:8px;align-items:flex-start}
+.field-label{font-size:.78rem;color:var(--c-muted);min-width:80px;flex-shrink:0;padding-top:1px}
+.field-val{font-size:.88rem;flex:1;line-height:1.5;white-space:pre-wrap}
+
+/* ─ 公演リスト ─ */
+.perf-item{background:var(--c-surface);border-radius:8px;padding:9px 11px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.perf-time{font-size:.85rem;font-weight:600;line-height:1.4}
+.perf-note{font-size:.78rem;color:var(--c-muted);margin-top:2px}
+.perf-actions{display:flex;gap:4px;flex-shrink:0}
+.btn-sm{font-size:.72rem;padding:3px 8px;border-radius:6px;border:1px solid;cursor:pointer;background:#fff}
+.btn-danger{border-color:var(--c-cancel);color:var(--c-cancel)}
+.btn-secondary{border-color:var(--c-muted);color:var(--c-muted)}
+
+/* ─ アクションボタン ─ */
+.actions{display:flex;flex-direction:column;gap:8px}
+.btn{display:block;width:100%;padding:13px;border-radius:10px;border:none;cursor:pointer;font-size:.92rem;font-weight:700;text-align:center;text-decoration:none}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-outline{background:#fff;color:var(--c-primary);border:2px solid var(--c-primary)}
+.btn-warn{background:var(--c-warn);color:#fff}
+.btn-cancel{background:var(--c-cancel);color:#fff}
+.btn-postpone{background:var(--c-postpone);color:#fff}
+.btn-grey{background:#e2e8f0;color:var(--c-muted)}
+
+/* ─ 公演追加フォーム ─ */
+.add-perf{background:var(--c-surface);border-radius:8px;padding:12px;margin-top:8px}
+.add-perf label{font-size:.78rem;color:var(--c-muted);display:block;margin-bottom:3px}
+.add-perf input{width:100%;padding:7px 9px;border:1px solid var(--c-border);border-radius:7px;font-size:.85rem;margin-bottom:8px;background:#fff}
+.add-perf button{background:var(--c-primary);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:.85rem;font-weight:700;cursor:pointer;width:100%}
+
+/* ─ 承認者フォーム ─ */
+.approver-form label{font-size:.78rem;color:var(--c-muted);display:block;margin-bottom:3px;margin-top:10px}
+.approver-form input,.approver-form textarea,.approver-form select{width:100%;padding:7px 9px;border:1px solid var(--c-border);border-radius:7px;font-size:.85rem;background:#fff}
+.approver-form textarea{height:70px;resize:vertical}
+.approver-form .save-btn{margin-top:10px;background:var(--c-primary);color:#fff;border:none;border-radius:8px;padding:10px;font-size:.88rem;font-weight:700;cursor:pointer;width:100%}
+
+/* ─ 中止・延期フォーム（モーダル風） ─ */
+.action-form{margin-top:8px;background:var(--c-surface);border-radius:8px;padding:10px}
+.action-form textarea{width:100%;padding:7px 9px;border:1px solid var(--c-border);border-radius:7px;font-size:.83rem;background:#fff;height:60px;resize:vertical}
+.action-form .submit-row{display:flex;gap:6px;margin-top:7px}
+.action-form button{flex:1;padding:9px;border:none;border-radius:8px;font-size:.83rem;font-weight:700;cursor:pointer}
+.action-form .cancel-btn{background:#e2e8f0;color:var(--c-text)}
+.action-form .ok-btn-cancel{background:var(--c-cancel);color:#fff}
+.action-form .ok-btn-postpone{background:var(--c-postpone);color:#fff}
+.action-form .ok-btn-withdraw{background:var(--c-grey);color:#fff}
+
+/* 折りたたみ */
+.collapsible{display:none}
+.collapsible.open{display:block}
+
+/* Markdown レンダリング領域 */
+.md-content{line-height:1.7;font-size:.88rem}
+.md-content p{margin-bottom:.6em}
+.md-content h1,.md-content h2,.md-content h3{font-weight:700;margin:.8em 0 .4em}
+.md-content ul,.md-content ol{padding-left:1.4em;margin-bottom:.6em}
+.md-content code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:.85em}
+.md-content table{border-collapse:collapse;width:100%;font-size:.82rem;margin-bottom:.6em}
+.md-content th,.md-content td{border:1px solid var(--c-border);padding:4px 8px}
+.md-content th{background:var(--c-surface)}
+
+/* ─ Markdown エディタ（tanzax 仕様） ─ */
+.md-editor-wrap{border:1px solid var(--c-border);border-radius:8px;overflow:hidden;background:#fff;margin-bottom:8px}
+.md-toolbar{display:flex;gap:4px;flex-wrap:wrap;padding:6px 8px;background:var(--c-surface);border-bottom:1px solid var(--c-border)}
+.md-toolbar button{font-family:inherit;padding:3px 8px;border:1px solid var(--c-border);background:#fff;border-radius:5px;cursor:pointer;font-size:.76rem;color:var(--c-text)}
+.md-toolbar button:hover{background:var(--c-surface)}
+.md-toolbar .sep{width:1px;background:var(--c-border);margin:2px}
+.md-panes{display:flex;height:320px}
+.md-pane{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.md-pane + .md-pane{border-left:1px solid var(--c-border)}
+.md-pane-hd{font-size:.68rem;font-weight:700;color:var(--c-muted);padding:4px 10px;background:var(--c-surface);border-bottom:1px solid var(--c-border);letter-spacing:.04em}
+.md-textarea{flex:1;width:100%;resize:none;border:none;outline:none;padding:12px;font-family:'SF Mono',Consolas,monospace;font-size:.84rem;line-height:1.7;color:var(--c-text);background:#fff}
+.md-preview{flex:1;overflow-y:auto;padding:12px}
+.md-preview .placeholder{color:var(--c-muted);font-size:.82rem;font-style:italic}
+.md-preview img{max-width:100%;height:auto}
+@media(max-width:700px){.md-panes{flex-direction:column;height:480px}
+  .md-pane + .md-pane{border-left:none;border-top:1px solid var(--c-border)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <a class="back" href="{{ url_for('ekinaka.index') }}">←</a>
+    <span class="htitle">{{ event.title }}</span>
+    <nav class="hnav">
+      {% if approve_ok %}<a href="{{ url_for('ekinaka.manage') }}">管理</a>{% endif %}
+    </nav>
+    {% include 'ekinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+
+  <!-- ステータスバナー -->
+  <div class="status-banner {{ event.status }}">
+    <span>{{ event.status_label }}</span>
+    {% if event.status == 'cancelled' and event.cancel_note %}<span style="font-weight:400;font-size:.85rem">{{ event.cancel_note }}</span>{% endif %}
+    {% if event.status == 'postponed' and event.cancel_note %}<span style="font-weight:400;font-size:.85rem">{{ event.cancel_note }}</span>{% endif %}
+    {% if event.is_public_anonymous %}<span style="margin-left:auto;font-size:.75rem;font-weight:400">🌐 公開中</span>{% endif %}
+  </div>
+
+  <!-- イベント基本情報 -->
+  <div class="sec">
+    {% if is_ekinaka_admin %}
+    <div style="margin-bottom:10px">
+      <button class="btn-sm btn-secondary"
+              onclick="toggleEl('title-edit-form')"
+              style="width:100%;padding:7px">✏️ タイトルを編集</button>
+      <div class="collapsible" id="title-edit-form" style="margin-top:6px">
+        <form method="post" action="{{ url_for('ekinaka.update_title', eid=event.id) }}"
+              style="display:flex;gap:6px;align-items:center">
+          <input type="text" name="title" value="{{ event.title }}"
+                 required maxlength="200"
+                 style="flex:1;padding:7px 9px;border:1px solid var(--c-border);
+                        border-radius:7px;font-size:.88rem;background:#fff">
+          <button type="submit"
+                  style="white-space:nowrap;padding:7px 14px;background:var(--c-primary);
+                         color:#fff;border:none;border-radius:7px;font-size:.83rem;
+                         font-weight:700;cursor:pointer">更新</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+    <div class="sec-title">イベント情報</div>
+    <div class="field-row"><span class="field-label">期間</span>
+      <span class="field-val">{{ event.event_start_date | fmtdate }}{% if event.event_start_date != event.event_end_date %} 〜 {{ event.event_end_date | fmtdate }}{% endif %}</span></div>
+    {% if is_applicant or is_approver %}
+    <div class="field-row"><span class="field-label">場所専有</span><span class="field-val">{{ event.location_label }}</span></div>
+    {% endif %}
+    {% if summary_html %}<div class="field-row"><span class="field-label">概要</span><div class="field-val md-content" style="white-space:normal">{{ summary_html | safe }}</div></div>{% endif %}
+    {% if other_notes_html %}<div class="field-row"><span class="field-label">その他</span><div class="field-val md-content" style="white-space:normal">{{ other_notes_html | safe }}</div></div>{% endif %}
+
+    {% if is_applicant or is_approver %}
+    <button class="btn-sm btn-secondary"
+            onclick="toggleEl('info-edit-form')"
+            style="width:100%;padding:7px;margin-top:4px">✏️ イベント情報を編集</button>
+    <div class="collapsible" id="info-edit-form" style="margin-top:8px">
+      <form method="post" action="{{ url_for('ekinaka.update_info', eid=event.id) }}">
+        <label style="font-size:.78rem;color:var(--c-muted);display:block;margin-bottom:3px">概要（Markdown可）</label>
+        {{ md_editor('f_summary', 'summary', event.summary, '概要をMarkdownで記述できます') }}
+        <label style="font-size:.78rem;color:var(--c-muted);display:block;margin-bottom:3px">その他（設備等・Markdown可）</label>
+        <textarea name="other_notes" rows="3" maxlength="32768"
+          placeholder="例: プロジェクター"
+          style="width:100%;padding:7px 9px;border:1px solid var(--c-border);border-radius:7px;font-size:.85rem;background:#fff;resize:vertical;line-height:1.6;margin-bottom:8px">{{ event.other_notes or '' }}</textarea>
+        <button type="submit"
+          style="width:100%;padding:10px;background:var(--c-primary);color:#fff;border:none;border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer">保存</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 公演一覧 -->
+  <div class="sec">
+    <div class="sec-title">公演スケジュール</div>
+    {% if performances %}
+      {% for p in performances %}
+      <div class="perf-item">
+        <div>
+          <div class="perf-time">{{ p.start_datetime | fmtdatetime }} 〜 {{ p.end_datetime | fmtdatetime('%H:%M') }}</div>
+          {% if p.note %}<div class="perf-note">{{ p.note }}</div>{% endif %}
+        </div>
+        {% if is_applicant or is_approver %}
+        <div class="perf-actions">
+          <button class="btn-sm btn-secondary" onclick="togglePerfEdit({{ p.id }})">編集</button>
+          <form method="post" action="{{ url_for('ekinaka.perf_delete', pid=p.id) }}" onsubmit="return confirm('この公演を削除しますか？')">
+            <button class="btn-sm btn-danger" type="submit">削除</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+      <!-- 公演編集フォーム（折りたたみ） -->
+      {% if is_applicant or is_approver %}
+      <div class="collapsible" id="perf-edit-{{ p.id }}">
+        <form class="add-perf" method="post" action="{{ url_for('ekinaka.perf_edit', pid=p.id) }}">
+          <label>開始日時</label>
+          <input type="datetime-local" name="start_datetime" value="{{ p.start_datetime.strftime('%Y-%m-%dT%H:%M') }}" required>
+          <label>終了日時</label>
+          <input type="datetime-local" name="end_datetime" value="{{ p.end_datetime.strftime('%Y-%m-%dT%H:%M') }}" required>
+          <label>メモ（任意）</label>
+          <textarea name="perf_note" rows="10" maxlength="32768"
+            placeholder="副題・説明など（Markdown可）"
+            style="width:100%;padding:7px 9px;border:1px solid var(--c-border);border-radius:7px;font-size:.85rem;background:#fff;resize:vertical;font-family:monospace;line-height:1.6">{{ p.note or '' }}</textarea>
+          <button type="submit">保存</button>
+        </form>
+      </div>
+      {% endif %}
+      {% endfor %}
+    {% else %}
+      <div style="color:var(--c-muted);font-size:.85rem;padding:6px 0">公演未登録</div>
+    {% endif %}
+
+    <!-- 公演追加フォーム -->
+    {% if (is_applicant or is_approver) and event.status in ['pending', 'approved'] %}
+    <div style="margin-top:10px">
+      <button class="btn-sm btn-secondary" onclick="toggleEl('add-perf-form')" style="width:100%;padding:7px">＋ 公演を追加</button>
+      <div class="collapsible" id="add-perf-form">
+        <form class="add-perf" method="post" action="{{ url_for('ekinaka.perf_add', eid=event.id) }}">
+          <label>開始日時</label>
+          <input type="datetime-local" name="start_datetime" required>
+          <label>終了日時</label>
+          <input type="datetime-local" name="end_datetime" required>
+          <label>メモ（任意）</label>
+          <input type="text" name="perf_note" placeholder="副題など">
+          <button type="submit">追加</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 来場者へのメッセージ -->
+  <div class="sec">
+    <div class="sec-title">来場者へのメッセージ</div>
+    {% if detail_html %}
+      <div class="md-content" style="padding:4px 0 8px">{{ detail_html | safe }}</div>
+    {% else %}
+      <div style="color:var(--c-muted);font-size:.83rem;padding:4px 0 8px">（未設定）</div>
+    {% endif %}
+    {% if is_applicant or is_approver %}
+    <button class="btn-sm btn-secondary"
+            onclick="toggleEl('detail-edit-form')"
+            style="width:100%;padding:7px;margin-top:4px">✏️ メッセージを編集</button>
+    <div class="collapsible" id="detail-edit-form" style="margin-top:8px">
+      <form method="post" action="{{ url_for('ekinaka.update_detail', eid=event.id) }}">
+        {{ md_editor('f_detail', 'detail', event.detail, '来場者に向けたメッセージをMarkdownで記述できます') }}
+        <button type="submit"
+          style="width:100%;padding:10px;background:var(--c-primary);color:#fff;border:none;border-radius:8px;font-size:.88rem;font-weight:700;cursor:pointer">保存</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+
+  <!-- 申請情報：申請者・承認者のみ表示 -->
+  {% if is_applicant or is_approver %}
+  <div class="sec">
+    <div class="sec-title">申請情報</div>
+    <div class="field-row"><span class="field-label">申請者</span><span class="field-val">{{ event.applicant_name or '（不明）' }}</span></div>
+    <div class="field-row"><span class="field-label">申請日時</span><span class="field-val">{{ event.apply_datetime | fmtdatetime }}</span></div>
+    {% if event.applicant_public_date %}<div class="field-row"><span class="field-label">希望公開日</span><span class="field-val">{{ event.applicant_public_date | fmtdate }}</span></div>{% endif %}
+    {% if event.approver_id %}
+    <div class="field-row"><span class="field-label">承認者</span><span class="field-val">{{ event.approver_name or '（不明）' }}</span></div>
+    <div class="field-row"><span class="field-label">承認日時</span><span class="field-val">{{ event.approve_datetime | fmtdatetime }}</span></div>
+    {% endif %}
+    {% if event.approver_public_date %}<div class="field-row"><span class="field-label">公開日（承認者）</span><span class="field-val">{{ event.approver_public_date | fmtdate }}</span></div>{% endif %}
+    {% if event.eff_public_date %}<div class="field-row"><span class="field-label">実効公開日</span><span class="field-val"><strong>{{ event.eff_public_date | fmtdate }}</strong></span></div>{% endif %}
+    {% if event.approver_notes %}<div class="field-row"><span class="field-label">承認者備考</span><span class="field-val">{{ event.approver_notes }}</span></div>{% endif %}
+  </div>
+  {% endif %}
+
+
+  <!-- ─────── 申請者アクション ─────── -->
+  {% if is_applicant and event.status in ['pending','approved','cancelled','postponed','rejected','withdrawn'] %}
+  <div class="sec">
+    <div class="sec-title">申請者操作</div>
+    <div class="actions">
+
+      {% if event.status == 'pending' %}
+        <a class="btn btn-outline" href="{{ url_for('ekinaka.apply_edit', eid=event.id) }}">✏️ 内容を編集</a>
+        <button class="btn btn-grey" onclick="toggleEl('withdraw-form')">取り下げ</button>
+        <div class="collapsible action-form" id="withdraw-form">
+          <p style="font-size:.8rem;margin-bottom:6px;color:var(--c-muted)">取り下げると申請が無効になります（記録は残ります）</p>
+          <form method="post" action="{{ url_for('ekinaka.withdraw', eid=event.id) }}" onsubmit="return confirm('取り下げますか？この操作は取り消せません。')">
+            <div class="submit-row"><button class="cancel-btn" type="button" onclick="toggleEl('withdraw-form')">キャンセル</button><button class="ok-btn-withdraw" type="submit">取り下げる</button></div>
+          </form>
+        </div>
+      {% endif %}
+
+      {% if event.status == 'approved' %}
+        {% if not past_public %}
+          <button class="btn btn-grey" onclick="toggleEl('withdraw-form')">取り下げ（公開前）</button>
+          <div class="collapsible action-form" id="withdraw-form">
+            <p style="font-size:.8rem;margin-bottom:6px;color:var(--c-muted)">公開日前のため非表示での取り下げができます</p>
+            <form method="post" action="{{ url_for('ekinaka.withdraw', eid=event.id) }}" onsubmit="return confirm('取り下げますか？')">
+              <div class="submit-row"><button class="cancel-btn" type="button" onclick="toggleEl('withdraw-form')">キャンセル</button><button class="ok-btn-withdraw" type="submit">取り下げる</button></div>
+            </form>
+          </div>
+        {% else %}
+          <p style="font-size:.78rem;color:var(--c-muted);margin-bottom:4px">公開済みのため、中止または延期として記録に残します</p>
+          <button class="btn btn-cancel" onclick="toggleEl('cancel-form')">🚫 中止にする</button>
+          <div class="collapsible action-form" id="cancel-form">
+            <form method="post" action="{{ url_for('ekinaka.cancel_event', eid=event.id) }}" onsubmit="return confirm('中止にしますか？この操作は申請者には取り消せません。')">
+              <p style="font-size:.78rem;color:var(--c-muted);margin-bottom:5px">理由・メッセージ（閲覧者に表示）</p>
+              <textarea name="cancel_note" placeholder="例：会場設備の都合により中止"></textarea>
+              <div class="submit-row"><button class="cancel-btn" type="button" onclick="toggleEl('cancel-form')">戻る</button><button class="ok-btn-cancel" type="submit">中止にする</button></div>
+            </form>
+          </div>
+          <button class="btn btn-postpone" onclick="toggleEl('postpone-form')">⏸ 延期にする</button>
+          <div class="collapsible action-form" id="postpone-form">
+            <form method="post" action="{{ url_for('ekinaka.postpone_event', eid=event.id) }}" onsubmit="return confirm('延期にしますか？この操作は申請者には取り消せません。')">
+              <p style="font-size:.78rem;color:var(--c-muted);margin-bottom:5px">理由・メッセージ（閲覧者に表示）</p>
+              <textarea name="cancel_note" placeholder="例：日程を調整中です"></textarea>
+              <div class="submit-row"><button class="cancel-btn" type="button" onclick="toggleEl('postpone-form')">戻る</button><button class="ok-btn-postpone" type="submit">延期にする</button></div>
+            </form>
+          </div>
+        {% endif %}
+      {% endif %}
+
+      {% if event.status in ['cancelled','postponed'] %}
+        <p style="font-size:.82rem;color:var(--c-muted)">※ 申請者はこの状態を変更できません。変更が必要な場合は管理者にご連絡ください。</p>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ─────── 承認者アクション ─────── -->
+  {% if is_approver %}
+  <div class="sec">
+    <div class="sec-title">承認者操作</div>
+    <div class="actions">
+
+      {% if event.status == 'pending' %}
+        <button class="btn btn-primary" onclick="toggleEl('approve-form')">✅ 承認する</button>
+        <div class="collapsible action-form" id="approve-form">
+          <form class="approver-form" method="post" action="{{ url_for('ekinaka.do_approve', eid=event.id) }}">
+            <label>公開日（承認者設定）</label>
+            <input type="date" name="approver_public_date" value="{{ event.approver_public_date | fmtdate('%Y-%m-%d') if event.approver_public_date else '' }}">
+            <label>備考</label>
+            <textarea name="approver_notes" placeholder="申請者への連絡事項など">{{ event.approver_notes or '' }}</textarea>
+            <button class="save-btn" type="submit">承認する</button>
+          </form>
+        </div>
+        <button class="btn btn-grey" onclick="toggleEl('reject-form')">❌ 不承認にする</button>
+        <div class="collapsible action-form" id="reject-form">
+          <form class="approver-form" method="post" action="{{ url_for('ekinaka.do_reject', eid=event.id) }}">
+            <label>理由・備考</label>
+            <textarea name="approver_notes" placeholder="不承認の理由">{{ event.approver_notes or '' }}</textarea>
+            <button class="save-btn" type="submit" style="background:var(--c-ng)">不承認にする</button>
+          </form>
+        </div>
+      {% endif %}
+
+      {% if event.status == 'approved' %}
+        <button class="btn btn-cancel" onclick="toggleEl('mgr-cancel-form')">🚫 中止にする</button>
+        <div class="collapsible action-form" id="mgr-cancel-form">
+          <form method="post" action="{{ url_for('ekinaka.set_status', eid=event.id) }}">
+            <input type="hidden" name="new_status" value="cancelled">
+            <textarea name="cancel_note" placeholder="中止の理由"></textarea>
+            <div class="submit-row"><button class="cancel-btn" type="button" onclick="toggleEl('mgr-cancel-form')">戻る</button><button class="ok-btn-cancel" type="submit">中止にする</button></div>
+          </form>
+        </div>
+        <button class="btn btn-postpone" onclick="toggleEl('mgr-postpone-form')">⏸ 延期にする</button>
+        <div class="collapsible action-form" id="mgr-postpone-form">
+          <form method="post" action="{{ url_for('ekinaka.set_status', eid=event.id) }}">
+            <input type="hidden" name="new_status" value="postponed">
+            <textarea name="cancel_note" placeholder="延期の理由"></textarea>
+            <div class="submit-row"><button class="cancel-btn" type="button" onclick="toggleEl('mgr-postpone-form')">戻る</button><button class="ok-btn-postpone" type="submit">延期にする</button></div>
+          </form>
+        </div>
+        <button class="btn btn-grey" onclick="toggleEl('mgr-withdraw-form')">取り下げ（非表示）</button>
+        <div class="collapsible action-form" id="mgr-withdraw-form">
+          <form method="post" action="{{ url_for('ekinaka.set_status', eid=event.id) }}" onsubmit="return confirm('取り下げ（非表示）にしますか？')">
+            <input type="hidden" name="new_status" value="withdrawn">
+            <div class="submit-row"><button class="cancel-btn" type="button" onclick="toggleEl('mgr-withdraw-form')">戻る</button><button class="ok-btn-withdraw" type="submit">取り下げる</button></div>
+          </form>
+        </div>
+      {% endif %}
+
+      {% if event.status in ['cancelled','postponed','withdrawn','rejected'] %}
+        <form method="post" action="{{ url_for('ekinaka.set_status', eid=event.id) }}" onsubmit="return confirm('承認済みに戻しますか？')">
+          <input type="hidden" name="new_status" value="approved">
+          <button class="btn btn-primary" type="submit">↩ 承認済みに戻す</button>
+        </form>
+      {% endif %}
+
+      <!-- 備考・公開日の更新（常に表示） -->
+      <button class="btn btn-outline" style="font-size:.83rem" onclick="toggleEl('notes-form')">📝 備考・公開日を編集</button>
+      <div class="collapsible" id="notes-form">
+        <form class="approver-form" method="post" action="{{ url_for('ekinaka.update_notes', eid=event.id) }}">
+          <label>公開日（承認者設定）</label>
+          <input type="date" name="approver_public_date" value="{{ event.approver_public_date | fmtdate('%Y-%m-%d') if event.approver_public_date else '' }}">
+          <label>備考（閲覧者には表示しない内部メモ）</label>
+          <textarea name="approver_notes">{{ event.approver_notes or '' }}</textarea>
+          <button class="save-btn" type="submit">保存</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+function toggleEl(id){
+  const el = document.getElementById(id);
+  if(el) el.classList.toggle('open');
+  // エディタを開いたとき、既存本文があれば初回プレビューを描画
+  const editorMap = {'detail-edit-form':'f_detail', 'info-edit-form':'f_summary'};
+  if(editorMap[id] && el && el.classList.contains('open')){
+    const ta = document.getElementById(editorMap[id]);
+    if(ta && ta.value.trim()) updatePreview(editorMap[id]);
+  }
+}
+
+// ── Markdown エディタ（tanzax 仕様・複数フィールド対応） ──
+const MD_API = {{ url_for('ekinaka.api_preview_markdown') | tojson }};
+const IMG_API = {{ url_for('ekinaka.api_upload_image') | tojson }};
+let _dbTimers = {};
+function debouncePreview(fid){clearTimeout(_dbTimers[fid]);_dbTimers[fid]=setTimeout(()=>updatePreview(fid),400);}
+function updatePreview(fid){
+  const ta=document.getElementById(fid);const pv=document.getElementById(fid+'_pv');
+  if(!ta||!pv)return;
+  const md=ta.value.trim();
+  if(!md){pv.innerHTML='<span class="placeholder">← 左に入力するとここにプレビューが出ます</span>';return;}
+  fetch(MD_API,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({markdown:md})})
+    .then(r=>r.json()).then(d=>{pv.innerHTML=d.html||'';})
+    .catch(()=>{pv.innerHTML='<span class="placeholder">プレビューを取得できませんでした</span>';});
+}
+function mdInsert(fid,before,after){
+  const ta=document.getElementById(fid);if(!ta)return;
+  const s=ta.selectionStart,e=ta.selectionEnd,sel=ta.value.substring(s,e);
+  const rep=before+sel+after;
+  ta.value=ta.value.substring(0,s)+rep+ta.value.substring(e);
+  ta.focus();const cur=s+before.length;ta.setSelectionRange(cur,cur+sel.length);
+  debouncePreview(fid);
+}
+function uploadMdImage(input,fid){
+  const file=input.files[0];if(!file)return;
+  const fd=new FormData();fd.append('file',file);input.disabled=true;
+  fetch(IMG_API,{method:'POST',body:fd})
+    .then(r=>r.json()).then(d=>{
+      if(d.success){mdInsert(fid,`<img src="${d.url}" style="width:70%;height:auto;display:block;margin:0 auto">`,'');}
+      else{alert('アップロード失敗: '+d.error);}
+    }).catch(()=>alert('アップロードに失敗しました'))
+    .finally(()=>{input.value='';input.disabled=false;});
+}
+function togglePerfEdit(pid){
+  const el = document.getElementById('perf-edit-'+pid);
+  if(el) el.classList.toggle('open');
+}
+</script>
+</body>
+</html>

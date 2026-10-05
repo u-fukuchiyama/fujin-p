@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>マイ申請 - 研究倫理審査</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh; padding: 15px;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .header {
+            background: white; padding: 16px 24px; border-radius: 10px;
+            margin-bottom: 14px; display: flex; align-items: center;
+            gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { flex: 1; font-size: 1.3rem; color: #4a3a7a; min-width: 160px; }
+        .nav-btn {
+            padding: 9px 16px; border: none; border-radius: 6px; cursor: pointer;
+            text-decoration: none; font-size: 0.88rem; font-weight: 600; white-space: nowrap;
+        }
+        .nav-btn.primary { background: #10b981; color: white; }
+        .nav-btn.secondary { background: #94a3b8; color: white; }
+        .nav-btn:hover { opacity: 0.9; }
+
+        .card {
+            background: white; border-radius: 10px; padding: 20px 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            font-size: 1rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 14px;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+        th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+        th { background: #f8fafc; color: #6b7280; font-weight: 600; font-size: 0.78rem; white-space: nowrap; }
+        .case-id { font-family: monospace; font-weight: 600; color: #6d5fb8; }
+        .status-badge {
+            display: inline-block; padding: 2px 9px; border-radius: 10px;
+            font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+        }
+        .status-channel_open, .status-documents_uploading { background: #e0e7ff; color: #3730a3; }
+        .status-submitted, .status-reviewer_pending { background: #ddd6fe; color: #5b21b6; }
+        .status-reviewing { background: #fef3c7; color: #92400e; }
+        .status-conditional_approval { background: #fed7aa; color: #9a3412; }
+        .status-review_continuation { background: #cffafe; color: #155e75; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+        .status-rejected { background: #fee2e2; color: #991b1b; }
+        .status-not_applicable { background: #ccfbf1; color: #134e4a; }
+        .status-result_pending { background: #fef3c7; color: #92400e; }
+        .status-withdrawn, .status-terminated { background: #f3f4f6; color: #6b7280; }
+        .open-btn {
+            padding: 5px 14px; background: #6d5fb8; color: white; border: none;
+            border-radius: 5px; cursor: pointer; text-decoration: none; font-size: 0.8rem;
+        }
+        .open-btn:hover { opacity: 0.9; }
+        .withdraw-btn {
+            padding: 5px 12px; background: #ef4444; color: white; border: none;
+            border-radius: 5px; cursor: pointer; font-size: 0.8rem; margin-left: 6px;
+        }
+        .withdraw-btn:hover { opacity: 0.9; }
+        .empty-msg { text-align: center; color: #9ca3af; padding: 28px; font-size: 0.9rem; }
+        #toast {
+            position: fixed; bottom: 22px; right: 22px; padding: 13px 20px;
+            border-radius: 8px; font-size: 0.88rem; font-weight: 600;
+            z-index: 9999; display: none;
+        }
+        #toast.error { background: #fee2e2; color: #991b1b; }
+        #toast.success { background: #d1fae5; color: #065f46; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📋 マイ申請</h1>
+        <a href="{{ url_for('ethics_review.public_view') }}" class="nav-btn secondary">学内公開</a>
+        <a href="{{ url_for('ethics_review.new_case') }}" class="nav-btn primary">＋ 新規申請</a>
+    </div>
+
+    <div class="card">
+        <h2>自分の申請一覧</h2>
+        <div style="overflow-x:auto">
+            <table>
+                <thead>
+                <tr>
+                    <th>案件ID</th><th>研究課題名</th><th>受付日</th>
+                    <th>承認日</th><th>最終日</th><th>更新</th>
+                    <th>ステータス</th><th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="tbody">
+                <tr><td colspan="8" class="empty-msg">読み込み中…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const STATUS_LABELS = {{ status_labels | tojson }};
+const URL_BASE = '{{ url_for("ethics_review.index") }}';
+// 最終判定の申請者未通知中は、サーバが status をこの表示専用キーに置き換えて返す
+const RESULT_PENDING = '{{ result_pending_status }}';
+STATUS_LABELS[RESULT_PENDING] = {{ result_pending_label | tojson }};
+const TERMINAL_STATUSES = ['approved', 'rejected', 'not_applicable', 'withdrawn', 'terminated', RESULT_PENDING];
+
+function toast(msg, isErr) {
+    const $t = $('#toast');
+    $t.text(msg).removeClass('error success').addClass(isErr === false ? 'success' : 'error').fadeIn();
+    setTimeout(() => $t.fadeOut(), 4000);
+}
+function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function ajaxErr(xhr, fallback) {
+    let msg = fallback || '通信エラー';
+    try { const r = JSON.parse(xhr.responseText); if (r && r.error) msg = r.error; } catch(e) {}
+    return msg;
+}
+
+function loadCases() {
+    $.get(URL_BASE + 'api/my_cases', function(resp) {
+        if (!resp.success) { toast(resp.error || '読み込み失敗'); return; }
+        if (!resp.cases.length) {
+            $('#tbody').html('<tr><td colspan="8" class="empty-msg">申請はまだありません。「＋ 新規申請」から始めてください。</td></tr>');
+            return;
+        }
+        let rows = '';
+        resp.cases.forEach(c => {
+            const isTerminal = TERMINAL_STATUSES.indexOf(c.status) !== -1;
+            let actions = `<a class="open-btn" href="${URL_BASE}case/${c.id}/applicant">開く</a>`;
+            if (!isTerminal) {
+                actions += `<button class="withdraw-btn" data-cid="${c.id}" data-title="${esc(c.title)}">取り下げ</button>`;
+            }
+            rows += `
+            <tr>
+                <td><span class="case-id">${esc(c.case_display_id)}</span></td>
+                <td>${esc(c.title) || '—'}</td>
+                <td>${c.received_date || '—'}</td>
+                <td>${c.approved_date || '—'}</td>
+                <td>${c.final_date || '—'}</td>
+                <td>${c.updated_at || '—'}</td>
+                <td><span class="status-badge status-${c.status}">${esc(STATUS_LABELS[c.status])}</span></td>
+                <td style="white-space:nowrap">${actions}</td>
+            </tr>`;
+        });
+        $('#tbody').html(rows);
+    }).fail(() => toast('通信エラー'));
+}
+
+$(document).on('click', '.withdraw-btn', function() {
+    const cid   = $(this).data('cid');
+    const title = $(this).data('title') || '';
+    if (!confirm(`「${title}」を取り下げます。\nこの操作は取り消せません。よろしいですか？`)) return;
+    const reason = prompt('取り下げ理由（任意）：') || '';
+    $.ajax({
+        url: URL_BASE + 'api/case/' + cid + '/withdraw',
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({ reason: reason })
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '取り下げ失敗'); return; }
+        toast('取り下げました', false);
+        loadCases();
+    }).fail(function(xhr) { toast(ajaxErr(xhr)); });
+});
+
+$(document).ready(loadCases);
+</script>
+</body>
+</html>

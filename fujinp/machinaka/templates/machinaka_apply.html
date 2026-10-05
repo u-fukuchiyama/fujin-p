@@ -1,0 +1,128 @@
+{#
+  まちなかキャンパス 申請フォーム（新規／編集）
+  context: event (None または既存), mode ('new' | 'edit')
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% if mode=='new' %}新規申請{% else %}編集{% endif %} - まちなかキャンパス</title>
+<style>
+:root{
+  --c-primary:#059669; --c-primary-d:#047857; --c-surface:#ecfdf5;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px;line-height:1.6}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:720px;margin:0 auto}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:720px;margin:0 auto;padding:14px}
+.flashes{max-width:720px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.card{background:#fff;border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+h1{font-size:1.15rem;font-weight:800;margin-bottom:14px;color:var(--c-primary-d)}
+
+.fld{margin-bottom:14px}
+.fld label{display:block;font-size:.82rem;font-weight:700;color:var(--c-text);margin-bottom:4px}
+.fld .help{font-size:.74rem;color:var(--c-muted);margin-bottom:4px}
+.fld input[type=text],.fld input[type=date],.fld textarea,.fld select{
+  width:100%;padding:8px 11px;border:1px solid var(--c-border);border-radius:7px;
+  font-family:inherit;font-size:.9rem;background:#fff}
+.fld textarea{min-height:80px;resize:vertical}
+.fld .req{color:#dc2626;font-size:.76rem;margin-left:3px}
+
+.row-2{display:flex;gap:10px;flex-wrap:wrap}
+.row-2 .fld{flex:1;min-width:180px}
+
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.btn{display:inline-block;padding:9px 20px;border-radius:8px;text-decoration:none;font-size:.9rem;font-weight:700;border:none;cursor:pointer}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-outline{background:#fff;color:var(--c-primary);border:1px solid var(--c-primary)}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🏘️ まちなかキャンパス</div>
+    <a href="{{ url_for('machinaka.index') }}" class="back">‹ 戻る</a>
+    {% include 'machinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <div class="card">
+    <h1>{% if mode=='new' %}📝 新規イベント申請{% else %}✏️ イベント編集{% endif %}</h1>
+
+    <form method="POST" action="{% if mode=='new' %}{{ url_for('machinaka.apply_new') }}{% else %}{{ url_for('machinaka.apply_edit', eid=event.id) }}{% endif %}">
+
+      <div class="fld">
+        <label>イベント名<span class="req">必須</span></label>
+        <input type="text" name="title" required value="{{ event.title if event else '' }}">
+      </div>
+
+      <div class="fld">
+        <label>概要</label>
+        <div class="help">一覧に表示される 1〜2 行の説明</div>
+        <textarea name="summary" rows="2">{{ event.summary if event else '' }}</textarea>
+      </div>
+
+      <div class="row-2">
+        <div class="fld">
+          <label>開始日<span class="req">必須</span></label>
+          <input type="date" name="event_start_date" required value="{{ event.event_start_date if event else '' }}">
+        </div>
+        <div class="fld">
+          <label>終了日<span class="req">必須</span></label>
+          <input type="date" name="event_end_date" required value="{{ event.event_end_date if event else '' }}">
+        </div>
+      </div>
+
+      <div class="fld">
+        <label>専有利用</label>
+        <div class="help">施設の占有形態を選択してください</div>
+        <select name="location_use">
+          {% set cur_loc = event.location_use if event else 'none' %}
+          <option value="none"    {% if cur_loc=='none'    %}selected{% endif %}>なし（同時利用可）</option>
+          <option value="partial" {% if cur_loc=='partial' %}selected{% endif %}>一部専有</option>
+          <option value="full"    {% if cur_loc=='full'    %}selected{% endif %}>全部専有</option>
+        </select>
+      </div>
+
+      <div class="fld">
+        <label>希望公開日</label>
+        <div class="help">一般公開してよい日（空欄なら承認者が決定）</div>
+        <input type="date" name="applicant_public_date" value="{{ event.applicant_public_date if event else '' }}">
+      </div>
+
+      <div class="fld">
+        <label>詳細</label>
+        <div class="help">Markdown 記法が使えます</div>
+        <textarea name="detail" rows="8">{{ event.detail if event else '' }}</textarea>
+      </div>
+
+      <div class="fld">
+        <label>その他メモ</label>
+        <textarea name="other_notes" rows="3">{{ event.other_notes if event else '' }}</textarea>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">
+          {% if mode=='new' %}申請する{% else %}保存{% endif %}
+        </button>
+        <a href="{% if mode=='new' %}{{ url_for('machinaka.index') }}{% else %}{{ url_for('machinaka.event_detail', eid=event.id) }}{% endif %}" class="btn btn-outline">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,252 @@
+{#
+  STL アクセス設定（STL管理者専用）
+  context: view_policy, view_groups, valid_view_policies,
+           all_groups, all_users, current_staff_ids,
+           closing_day, manager_group, is_admin
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>設定 — STL報告書</title>
+<style>
+:root{
+  --c-primary:#4338ca; --c-primary-d:#3730a3; --c-surface:#eef2ff;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-info:#0ea5e9; --c-warn:#f59e0b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px;line-height:1.6}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:720px;margin:0 auto;gap:6px;flex-wrap:wrap}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:720px;margin:0 auto;padding:14px}
+.flashes{max-width:720px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.card{background:#fff;border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+h1{font-size:1.15rem;font-weight:800;color:var(--c-primary-d);margin-bottom:10px}
+.manager-box{background:#fffbeb;border-left:4px solid var(--c-warn);padding:10px 12px;border-radius:6px;font-size:.82rem;color:#78350f;margin-bottom:14px;line-height:1.55}
+.manager-box code{background:rgba(120,53,15,.1);padding:1px 6px;border-radius:4px}
+.info-box{background:#eff6ff;border-left:4px solid var(--c-info);padding:10px 12px;border-radius:6px;font-size:.84rem;color:#1e3a8a;margin-bottom:14px;line-height:1.55}
+
+.perm-sec{margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--c-border)}
+.perm-sec:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.perm-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.perm-title{font-size:.98rem;font-weight:700;color:var(--c-primary-d)}
+.perm-desc{font-size:.78rem;color:var(--c-muted)}
+
+.policy-grid{display:grid;grid-template-columns:1fr;gap:8px;margin:8px 0}
+.policy-opt{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1.5px solid var(--c-border);border-radius:10px;cursor:pointer}
+.policy-opt input{margin-top:3px}
+.policy-opt.on{border-color:var(--c-primary);background:var(--c-surface)}
+.policy-opt .p-name{font-size:.92rem;font-weight:700;color:var(--c-primary-d)}
+.policy-opt .p-desc{font-size:.78rem;color:var(--c-muted);margin-top:2px}
+
+.group-box{margin-top:8px;padding:10px 12px;background:var(--c-surface);border-radius:8px;border:1px dashed var(--c-border)}
+.group-box.disabled{opacity:.45;pointer-events:none}
+.group-box-title{font-size:.8rem;color:var(--c-muted);margin-bottom:6px}
+.group-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px}
+.group-chip{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#fff;border:1px solid var(--c-border);border-radius:8px;cursor:pointer;font-size:.84rem}
+
+.selected-members{min-height:38px;display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:8px;margin-bottom:10px}
+.selected-members.empty::before{content:'（まだ選択されていません）';font-size:.8rem;color:var(--c-muted);align-self:center}
+.member-tag{display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;background:#fff;border:1px solid var(--c-primary);border-radius:20px;font-size:.82rem;color:var(--c-primary-d);font-weight:600}
+.member-tag .remove-btn{background:none;border:none;cursor:pointer;color:var(--c-muted);font-size:1rem;line-height:1;padding:0}
+.member-tag .remove-btn:hover{color:#ef4444}
+.user-search-row{margin-bottom:6px}
+.user-search-row input{width:100%;padding:7px 11px;border:1px solid var(--c-border);border-radius:6px;font-size:.88rem;font-family:inherit}
+.user-list{max-height:240px;overflow-y:auto;border:1px solid var(--c-border);border-radius:8px;background:#fff;margin-bottom:8px}
+.user-row{display:flex;align-items:center;gap:8px;padding:7px 11px;border-bottom:1px solid var(--c-border);cursor:pointer;font-size:.86rem}
+.user-row:last-child{border-bottom:none}
+.user-row input{width:16px;height:16px}
+.user-row:hover{background:var(--c-surface)}
+.user-row.already-selected{opacity:.4;pointer-events:none}
+.user-name{font-weight:600;flex:1}
+.user-email{font-size:.76rem;color:var(--c-muted)}
+.user-cat{font-size:.7rem;padding:1px 7px;border-radius:10px;background:var(--c-surface);color:var(--c-primary-d);font-weight:700}
+.user-cat.admin{background:#fef3c7;color:#92400e}
+.add-btn-row{text-align:right}
+.btn-add{padding:7px 18px;border-radius:8px;font-size:.86rem;font-weight:700;border:2px solid var(--c-primary);background:#fff;color:var(--c-primary-d);cursor:pointer}
+.hidden-checks{display:none}
+
+.closing-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.closing-row input{width:90px;padding:8px 11px;border:1px solid var(--c-border);border-radius:8px;font-size:.92rem;font-family:inherit}
+
+.save-row{margin-top:14px;padding-top:14px;border-top:2px solid var(--c-primary);text-align:right}
+.btn{display:inline-block;padding:9px 22px;border-radius:8px;font-size:.92rem;font-weight:700;border:none;cursor:pointer}
+.btn-primary{background:var(--c-primary);color:#fff}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🚀 STL報告書</div>
+    <a href="{{ url_for('stl.index') }}" class="back">‹ ダッシュボード</a>
+    {% include 'stl_manager/_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <div class="card">
+    <h1>🔐 設定</h1>
+    <div class="manager-box">
+      📌 この画面にアクセスできるのは、まいぐるで <code>{{ manager_group }}</code> グループに所属しているユーザと admin のみです。
+    </div>
+    <div class="info-box">
+      ℹ️ 開示記事の閲覧(view)はポリシーを選択します。事務局(staff)はユーザを個別に指定します。締め日は当月レポートの提出判定に使われます。
+    </div>
+
+    <script>
+    var ALL_USERS = [
+      {% for u in all_users %}
+      { id: {{ u.id }}, name: {{ (u.full_name or '名前なし')|tojson }}, email: {{ (u.email or '')|tojson }}, category: {{ (u.category or '')|tojson }} }{% if not loop.last %},{% endif %}
+      {% endfor %}
+    ];
+    var INIT_STAFF_IDS = {{ current_staff_ids | list | tojson }};
+    </script>
+
+    <form method="POST" action="{{ url_for('stl.settings') }}">
+
+      {# ── view ポリシー ── #}
+      <div class="perm-sec">
+        <div class="perm-head">
+          <span class="perm-title">開示記事の閲覧 (view)</span>
+          <span class="perm-desc">scope=group の記事を、追加でどの範囲に見せるか。各記事の scope/許可グループが優先されます</span>
+        </div>
+        {% set vp_meta = {
+          'private':  ('🔒 非公開', 'admin のみ。テスト初期段階。'),
+          'group':    ('👥 グループ', '指定グループ所属者にも開放。'),
+          'domestic': ('🏫 学内', '学内アカウント全員。'),
+          'public':   ('🌐 公開', '誰でも（匿名含む）。')
+        } %}
+        <div class="policy-grid">
+          {% for p in valid_view_policies %}
+          {% set lbl, desc = vp_meta[p] %}
+          <label class="policy-opt{% if view_policy==p %} on{% endif %}" data-view-policy="{{ p }}">
+            <input type="radio" name="view_policy" value="{{ p }}" {% if view_policy==p %}checked{% endif %}>
+            <div><div class="p-name">{{ lbl }}</div><div class="p-desc">{{ desc }}</div></div>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="group-box{% if view_policy!='group' %} disabled{% endif %}" id="view-groups-box">
+          <div class="group-box-title">許可グループ（「グループ」選択時のみ有効）:</div>
+          <div class="group-grid">
+            {% for g in all_groups %}
+            <label class="group-chip">
+              <input type="checkbox" name="view_groups" value="{{ g.name }}" {% if g.name in view_groups %}checked{% endif %}>
+              <span>{{ g.name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      {# ── staff（事務局） ── #}
+      <div class="perm-sec">
+        <div class="perm-head">
+          <span class="perm-title">事務局 (staff)</span>
+          <span class="perm-desc">提出状況の確認・受理・指示、団体/メンバー/型/開示記事の管理ができる</span>
+        </div>
+        <div class="selected-members empty" id="staff-tags"></div>
+        <div class="hidden-checks" id="staff-hidden"></div>
+        <div class="user-search-row"><input type="search" id="staff-search" placeholder="🔍 氏名・メールで絞り込み…"></div>
+        <div class="user-list" id="staff-candidate-list"></div>
+        <div class="add-btn-row">
+          <button type="button" class="btn-add" onclick="addChecked()">✚ チェックしたメンバーを加える</button>
+        </div>
+        <div style="font-size:.76rem;color:var(--c-muted);margin-top:8px">
+          タグの「×」で外すと、保存時に staff 権限が停止されます（過去の受理履歴は残ります）。
+        </div>
+      </div>
+
+      {# ── 締め日 ── #}
+      <div class="perm-sec">
+        <div class="perm-head">
+          <span class="perm-title">締め日</span>
+          <span class="perm-desc">当月レポートの提出判定に使う締切日（1〜31）</span>
+        </div>
+        <div class="closing-row">
+          毎月 <input type="number" name="closing_day" min="1" max="31" value="{{ closing_day }}"> 日
+          <span style="font-size:.76rem;color:var(--c-muted)">※ その月に存在しない日（例: 31日で2月）は月末日として扱います</span>
+        </div>
+      </div>
+
+      <div class="save-row">
+        <button type="submit" class="btn btn-primary">💾 設定を保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+  // view ポリシー装飾
+  var viewOpts=document.querySelectorAll('.policy-opt[data-view-policy]');
+  var vb=document.getElementById('view-groups-box');
+  function syncView(){
+    var c=document.querySelector('input[name="view_policy"]:checked');
+    var v=c?c.value:'private';
+    viewOpts.forEach(function(o){o.classList.toggle('on',o.getAttribute('data-view-policy')===v);});
+    if(vb)vb.classList.toggle('disabled',v!=='group');
+  }
+  viewOpts.forEach(function(o){o.querySelector('input').addEventListener('change',syncView);});
+
+  // staff ユーザ選択
+  var state={};
+  function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function renderTags(){
+    var area=document.getElementById('staff-tags'),hidden=document.getElementById('staff-hidden');
+    area.innerHTML='';hidden.innerHTML='';
+    var ids=Object.keys(state);
+    if(ids.length===0){area.classList.add('empty');return;}
+    area.classList.remove('empty');
+    ids.forEach(function(uid){
+      var u=state[uid];
+      var tag=document.createElement('span');tag.className='member-tag';
+      tag.innerHTML='<span>'+escHtml(u.name)+'</span><button type="button" class="remove-btn" title="外す">×</button>';
+      tag.querySelector('.remove-btn').addEventListener('click',function(){delete state[uid];renderTags();renderList();});
+      area.appendChild(tag);
+      var cb=document.createElement('input');cb.type='checkbox';cb.name='staff_users';cb.value=uid;cb.checked=true;hidden.appendChild(cb);
+    });
+  }
+  function renderList(){
+    var list=document.getElementById('staff-candidate-list');
+    var q=(document.getElementById('staff-search').value||'').trim().toLowerCase();
+    list.innerHTML='';
+    ALL_USERS.forEach(function(u){
+      var isSel=!!state[u.id];
+      var hay=(u.name+' '+u.email).toLowerCase();
+      if(q&&hay.indexOf(q)===-1)return;
+      var row=document.createElement('label');row.className='user-row'+(isSel?' already-selected':'');
+      var cb=document.createElement('input');cb.type='checkbox';cb.value=u.id;cb.disabled=isSel;row.appendChild(cb);
+      var n=document.createElement('span');n.className='user-name';n.textContent=u.name;row.appendChild(n);
+      var e=document.createElement('span');e.className='user-email';e.textContent=u.email;row.appendChild(e);
+      if(u.category){var c=document.createElement('span');c.className='user-cat '+u.category;c.textContent=u.category;row.appendChild(c);}
+      list.appendChild(row);
+    });
+    if(list.children.length===0)list.innerHTML='<div style="padding:12px;font-size:.84rem;color:var(--c-muted)">該当するユーザがいません</div>';
+  }
+  window.addChecked=function(){
+    var list=document.getElementById('staff-candidate-list');
+    list.querySelectorAll('input[type=checkbox]:checked:not(:disabled)').forEach(function(cb){
+      var uid=parseInt(cb.value,10);var u=ALL_USERS.find(function(x){return x.id===uid;});
+      if(u)state[uid]=u;
+    });
+    renderTags();renderList();
+  };
+  document.getElementById('staff-search').addEventListener('input',renderList);
+  INIT_STAFF_IDS.forEach(function(uid){var u=ALL_USERS.find(function(x){return x.id===uid;});if(u)state[uid]=u;});
+  renderTags();renderList();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+{#
+  まちなかキャンパス マイ申請一覧
+  context: events, uid, approve_ok
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>マイ申請 - まちなかキャンパス</title>
+<style>
+:root{
+  --c-primary:#059669; --c-primary-d:#047857; --c-surface:#ecfdf5;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:720px;margin:0 auto;gap:6px;flex-wrap:wrap}
+.site-name{font-size:1.05rem;font-weight:800}
+.hnav{display:flex;gap:6px}
+.hnav a{color:#fff;text-decoration:none;font-size:.78rem;background:rgba(255,255,255,.2);padding:4px 10px;border-radius:20px}
+.content{max-width:720px;margin:0 auto;padding:14px}
+.flashes{max-width:720px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+h1{font-size:1.1rem;font-weight:800;color:var(--c-primary-d);margin-bottom:10px}
+.new-btn{display:inline-block;background:var(--c-primary);color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:.86rem;font-weight:700;margin-bottom:12px}
+
+.card{background:#fff;border-radius:10px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.05);display:block;text-decoration:none;color:inherit}
+.card:hover{box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.c-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.status-badge{display:inline-block;padding:2px 10px;border-radius:12px;color:#fff;font-size:.72rem;font-weight:700}
+.c-title{font-size:.98rem;font-weight:700;color:var(--c-text)}
+.c-dates{font-size:.82rem;color:var(--c-muted)}
+.c-summary{font-size:.84rem;color:var(--c-muted);margin-top:4px}
+
+.empty{text-align:center;padding:40px 20px;color:var(--c-muted);font-size:.9rem}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🏘️ まちなかキャンパス</div>
+    <nav class="hnav">
+      <a href="{{ url_for('machinaka.index') }}">ダッシュボード</a>
+      {% if approve_ok %}<a href="{{ url_for('machinaka.manage') }}">管理</a>{% endif %}
+    </nav>
+    {% include 'machinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <h1>📝 マイ申請</h1>
+  <a href="{{ url_for('machinaka.apply_new') }}" class="new-btn">＋ 新規申請</a>
+
+  {% if events %}
+    {% for e in events %}
+    <a href="{{ url_for('machinaka.event_detail', eid=e.id) }}" class="card">
+      <div class="c-head">
+        <span class="status-badge" style="background:{{ e.status_color }}">{{ e.status_label }}</span>
+        <span class="c-dates">{{ e.event_start_date | fmtdate_m }}{% if e.event_start_date != e.event_end_date %} 〜 {{ e.event_end_date | fmtdate_m }}{% endif %}</span>
+      </div>
+      <div class="c-title">{{ e.title }}</div>
+      {% if e.summary %}<div class="c-summary">{{ e.summary }}</div>{% endif %}
+    </a>
+    {% endfor %}
+  {% else %}
+    <div class="empty">
+      まだ申請がありません。<br>
+      上の「＋ 新規申請」ボタンから申請してください。
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>

@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>申請者チャンネル - キターレオンライン審議</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh; padding: 15px;
+        }
+        .container { max-width: 880px; margin: 0 auto; }
+        .header {
+            background: white; padding: 14px 22px; border-radius: 10px;
+            margin-bottom: 12px; display: flex; align-items: center;
+            gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { flex: 1; font-size: 1.15rem; color: #4a3a7a; min-width: 180px; }
+        .nav-btn {
+            padding: 7px 13px; background: #94a3b8; color: white; border: none;
+            border-radius: 6px; cursor: pointer; text-decoration: none;
+            font-size: 0.82rem; font-weight: 600; white-space: nowrap;
+        }
+        .nav-btn.danger { background: #ef4444; }
+        .nav-btn:hover { opacity: 0.9; }
+        .card {
+            background: white; border-radius: 10px; padding: 16px 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 12px;
+        }
+        .card h2 {
+            font-size: 0.95rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px;
+        }
+        .case-meta { font-size: 0.85rem; line-height: 1.8; }
+        .meta-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .meta-label { color: #6b7280; min-width: 84px; font-weight: 600; }
+        .status-badge {
+            display: inline-block; padding: 2px 9px; border-radius: 10px;
+            font-size: 0.72rem; font-weight: 700;
+        }
+        .status-channel_open, .status-documents_uploading { background: #e0e7ff; color: #3730a3; }
+        .status-submitted { background: #ddd6fe; color: #5b21b6; }
+        .status-accepted_review { background: #fef3c7; color: #92400e; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+        .status-rejected, .status-not_accepted { background: #fee2e2; color: #991b1b; }
+        .status-withdrawn, .status-terminated { background: #f3f4f6; color: #6b7280; }
+        .doc-item {
+            display: flex; gap: 10px; align-items: center; padding: 8px 10px;
+            background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px;
+            margin-bottom: 6px; font-size: 0.85rem;
+        }
+        .doc-item .doc-title { font-weight: 600; color: #4a3a7a; flex: 1; }
+        .doc-item a { color: #6d5fb8; text-decoration: none; }
+        .doc-item a:hover { text-decoration: underline; }
+        .msg-track {
+            max-height: 440px; overflow-y: auto; padding: 4px;
+            background: #f8fafc; border-radius: 8px;
+        }
+        .msg {
+            background: white; border-radius: 8px; padding: 9px 12px;
+            margin-bottom: 8px; border-left: 3px solid #94a3b8;
+        }
+        .msg.applicant { border-left-color: #6d5fb8; }
+        .msg.chair, .msg.secretariat, .msg.admin { border-left-color: #10b981; }
+        .msg.type-notification { background: #fffbeb; border-left-color: #f59e0b; }
+        .msg-head {
+            display: flex; justify-content: space-between; gap: 8px;
+            font-size: 0.75rem; color: #6b7280; margin-bottom: 3px;
+        }
+        .msg-author { font-weight: 700; color: #4a3a7a; }
+        .role-tag {
+            font-size: 0.68rem; padding: 1px 6px; border-radius: 8px;
+            background: #e5e7eb; color: #6b7280; margin-left: 4px;
+        }
+        .role-tag.applicant { background: #ddd6fe; color: #5b21b6; }
+        .role-tag.chair, .role-tag.secretariat { background: #d1fae5; color: #065f46; }
+        .msg-body { font-size: 0.88rem; color: #374151; white-space: pre-wrap; word-break: break-word; }
+        .compose { margin-top: 10px; }
+        .compose textarea {
+            width: 100%; padding: 8px 10px; border: 1px solid #d1d5db;
+            border-radius: 6px; font-size: 0.88rem; font-family: inherit;
+            resize: vertical; min-height: 56px;
+        }
+        .compose-row { display: flex; gap: 8px; margin-top: 6px; align-items: center; }
+        .compose select {
+            padding: 6px 9px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.83rem;
+        }
+        .btn {
+            padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;
+            font-size: 0.85rem; font-weight: 600; background: #6d5fb8; color: white;
+        }
+        .btn:hover { opacity: 0.9; }
+        .readonly-note {
+            font-size: 0.83rem; color: #92400e; background: #fef3c7;
+            border-radius: 6px; padding: 8px 12px; margin-top: 8px;
+        }
+        .empty-msg { text-align: center; color: #9ca3af; padding: 18px; font-size: 0.88rem; }
+        #toast {
+            position: fixed; bottom: 22px; right: 22px; padding: 13px 20px;
+            border-radius: 8px; font-size: 0.88rem; font-weight: 600;
+            z-index: 9999; display: none; max-width: 340px;
+        }
+        #toast.success { background: #d1fae5; color: #065f46; }
+        #toast.error { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>💬 申請者チャンネル</h1>
+        <a href="{{ url_for('kitare_deliberation.index') }}" class="nav-btn">← トップへ</a>
+    </div>
+
+    <div class="card">
+        <h2>案件情報</h2>
+        <div id="case-meta" class="case-meta"><div class="empty-msg">読み込み中…</div></div>
+        <div id="withdraw-area" style="margin-top:12px;display:none">
+            <button class="nav-btn danger" id="btn-withdraw">この申請を取り下げる</button>
+        </div>
+    </div>
+
+    <div class="card" id="cover-letter-card" style="display:none">
+        <h2>添書</h2>
+        <div id="cover-letter-body" style="font-size:0.88rem;line-height:1.8;color:#374151;white-space:pre-wrap;word-break:break-word"></div>
+    </div>
+
+    <div class="card">
+        <h2>申請書類</h2>
+        <div id="docs-area"><div class="empty-msg">読み込み中…</div></div>
+    </div>
+
+    <div class="card">
+        <h2>やりとり</h2>
+        <div class="msg-track" id="msg-track"><div class="empty-msg">読み込み中…</div></div>
+        {% if read_only %}
+        <div class="readonly-note">このチャンネルは閲覧のみです。</div>
+        {% else %}
+        <div class="compose">
+            <textarea id="msg-input" placeholder="メッセージを入力…"></textarea>
+            <div class="compose-row">
+                <select id="msg-type">
+                    {% if is_applicant %}
+                    <option value="general">一般</option>
+                    <option value="answer">回答</option>
+                    {% else %}
+                    <option value="general">一般</option>
+                    <option value="question">質問</option>
+                    <option value="notification">通知</option>
+                    {% endif %}
+                </select>
+                <button class="btn" id="btn-post">送信</button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const CASE_ID = {{ case_id }};
+const READ_ONLY = {{ 'true' if read_only else 'false' }};
+const IS_APPLICANT = {{ 'true' if is_applicant else 'false' }};
+const STATUS_LABELS = {{ status_labels | tojson }};
+const URL_BASE = '{{ url_for("kitare_deliberation.index") }}';
+const TERMINAL = ['approved','rejected','not_accepted','withdrawn','terminated'];
+const ROLE_LABELS = { applicant:'申請者', chair:'委員長', secretariat:'事務局',
+                      committee:'委員', admin:'admin' };
+const TYPE_LABELS = { question:'質問', answer:'回答', notification:'通知', general:'' };
+
+function toast(msg, isErr) {
+    const $t = $('#toast');
+    $t.text(msg).removeClass('success error')
+      .addClass(isErr ? 'error' : 'success').fadeIn();
+    setTimeout(() => $t.fadeOut(), 4000);
+}
+function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function ajaxErr(xhr, fb) {
+    let msg = fb || '通信エラー';
+    try { const r = JSON.parse(xhr.responseText); if (r && r.error) msg = r.error; } catch(e) {}
+    return msg;
+}
+
+function loadMeta() {
+    $.get(URL_BASE + 'api/case/' + CASE_ID + '/view', function(resp) {
+        if (!resp.success) {
+            $('#case-meta').html('<div class="empty-msg" style="color:#ef4444">' + esc(resp.error) + '</div>');
+            return;
+        }
+        const c = resp.case;
+        let html = '';
+        html += `<div class="meta-row"><span class="meta-label">案件番号</span>`
+              + `<span><b>${esc(c.case_display_id)}</b> `
+              + `<span class="status-badge status-${c.status}">${esc(c.status_label)}</span></span></div>`;
+        html += `<div class="meta-row"><span class="meta-label">案件名</span><span>${esc(c.title) || '—'}</span></div>`;
+        html += `<div class="meta-row"><span class="meta-label">申請者</span><span>${esc(c.applicant_name)}</span></div>`;
+        html += `<div class="meta-row"><span class="meta-label">受付日</span><span>${c.received_date || '—'}</span></div>`;
+        if (c.deadline) html += `<div class="meta-row"><span class="meta-label">審議期日</span><span>${esc(c.deadline)}</span></div>`;
+        if (c.final_date) html += `<div class="meta-row"><span class="meta-label">終局日</span><span>${c.final_date}</span></div>`;
+        $('#case-meta').html(html);
+
+        if (c.cover_letter) {
+            $('#cover-letter-body').text(c.cover_letter);
+            $('#cover-letter-card').show();
+        } else {
+            $('#cover-letter-card').hide();
+        }
+
+        if (IS_APPLICANT && TERMINAL.indexOf(c.status) === -1) {
+            $('#withdraw-area').show();
+        } else {
+            $('#withdraw-area').hide();
+        }
+        renderDocs(resp.documents || []);
+    }).fail(function(xhr) {
+        $('#case-meta').html('<div class="empty-msg" style="color:#ef4444">' + esc(ajaxErr(xhr)) + '</div>');
+    });
+}
+
+function renderDocs(docs) {
+    if (!docs.length) {
+        $('#docs-area').html('<div class="empty-msg">申請書類はありません</div>');
+        return;
+    }
+    let html = '';
+    docs.forEach(d => {
+        const fn = d.download_url
+            ? `<a href="${esc(d.download_url)}" target="_blank" rel="noopener">📎 ${esc(d.original_filename || 'ファイルを開く')}</a>`
+            : '';
+        html += `<div class="doc-item">
+            <span class="doc-title">${esc(d.title)}</span>
+            ${d.note ? `<span style="color:#9ca3af;font-size:0.78rem">${esc(d.note)}</span>` : ''}
+            <span>${fn}</span>
+        </div>`;
+    });
+    $('#docs-area').html(html);
+}
+
+function loadMessages() {
+    $.get(URL_BASE + 'api/case/' + CASE_ID + '/applicant_messages', function(resp) {
+        if (!resp.success) {
+            $('#msg-track').html('<div class="empty-msg" style="color:#ef4444">' + esc(resp.error) + '</div>');
+            return;
+        }
+        const msgs = resp.messages || [];
+        if (!msgs.length) {
+            $('#msg-track').html('<div class="empty-msg">まだメッセージはありません</div>');
+            return;
+        }
+        let html = '';
+        msgs.forEach(m => {
+            const roleCls = m.role || '';
+            const typeCls = m.message_type === 'notification' ? 'type-notification' : '';
+            const roleLabel = ROLE_LABELS[m.role] || m.role || '';
+            const typeLabel = TYPE_LABELS[m.message_type] || '';
+            html += `<div class="msg ${roleCls} ${typeCls}">
+                <div class="msg-head">
+                    <span><span class="msg-author">${esc(m.user_name)}</span>`
+                  + `<span class="role-tag ${roleCls}">${esc(roleLabel)}</span>`
+                  + `${typeLabel ? '<span class="role-tag">' + esc(typeLabel) + '</span>' : ''}</span>
+                    <span>${m.created_at}</span>
+                </div>
+                <div class="msg-body">${esc(m.body)}</div>
+            </div>`;
+        });
+        $('#msg-track').html(html);
+        const t = document.getElementById('msg-track');
+        t.scrollTop = t.scrollHeight;
+    }).fail(function(xhr) {
+        $('#msg-track').html('<div class="empty-msg" style="color:#ef4444">' + esc(ajaxErr(xhr)) + '</div>');
+    });
+}
+
+$('#btn-post').on('click', function() {
+    const body = $('#msg-input').val().trim();
+    const mtype = $('#msg-type').val();
+    if (!body) { toast('本文を入力してください', true); return; }
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/applicant_messages',
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({ body: body, message_type: mtype })
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '送信失敗', true); return; }
+        $('#msg-input').val('');
+        loadMessages();
+    }).fail(function(xhr) { toast(ajaxErr(xhr), true); });
+});
+
+$('#btn-withdraw').on('click', function() {
+    if (!confirm('この申請を取り下げます。\nこの操作は取り消せません。よろしいですか？')) return;
+    const reason = prompt('取り下げ理由（任意）：') || '';
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/withdraw',
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({ reason: reason })
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '取り下げ失敗', true); return; }
+        toast('取り下げました');
+        loadMeta(); loadMessages();
+    }).fail(function(xhr) { toast(ajaxErr(xhr), true); });
+});
+
+$(document).ready(function() {
+    loadMeta();
+    loadMessages();
+});
+</script>
+</body>
+</html>

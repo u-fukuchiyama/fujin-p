@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>権限設定 – えきなかキャンパス</title>
+<style>
+:root{--c-primary:#0ea5e9;--c-surface:#f0f9ff;--c-card:#fff;--c-text:#1e293b;--c-muted:#64748b;--c-border:#e2e8f0;--c-ok:#10b981}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);padding-bottom:60px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;gap:10px;max-width:640px;margin:0 auto}
+.back{color:#fff;text-decoration:none;font-size:1.2rem;padding:2px 4px}
+.htitle{font-size:.95rem;font-weight:700}
+.content{max-width:640px;margin:0 auto;padding:14px}
+.flashes{max-width:640px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.sec{background:var(--c-card);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.sec-title{font-size:.85rem;font-weight:800;margin-bottom:4px}
+.sec-desc{font-size:.78rem;color:var(--c-muted);margin-bottom:12px;line-height:1.5}
+.sec-badge{display:inline-block;font-size:.68rem;padding:2px 8px;border-radius:10px;color:#fff;font-weight:700;margin-left:6px;vertical-align:middle}
+.sec-badge.view{background:#0ea5e9}
+.sec-badge.apply{background:#10b981}
+.sec-badge.approve{background:#f59e0b}
+
+/* チェックボックスグループ */
+.check-group{display:flex;flex-direction:column;gap:6px}
+.check-item{display:flex;align-items:center;gap:9px;padding:8px 11px;background:var(--c-surface);border:1.5px solid var(--c-border);border-radius:9px;cursor:pointer;transition:border-color .15s}
+.check-item:has(input:checked){border-color:var(--c-primary);background:#e0f2fe}
+.check-item input[type=checkbox]{accent-color:var(--c-primary);width:16px;height:16px;flex-shrink:0}
+.check-item-label{font-size:.87rem;flex:1}
+.check-item-sub{font-size:.72rem;color:var(--c-muted)}
+.anon-item{border-style:dashed}
+.anon-item:has(input:checked){border-color:var(--c-ok);background:#ecfdf5}
+
+/* 現在の設定表示 */
+.current-list{margin-bottom:10px;display:flex;flex-wrap:wrap;gap:5px}
+.current-tag{font-size:.76rem;background:var(--c-primary);color:#fff;padding:3px 9px;border-radius:12px}
+
+.save-btn{display:block;width:100%;padding:14px;background:var(--c-primary);color:#fff;border:none;border-radius:12px;font-size:.95rem;font-weight:800;cursor:pointer;font-family:inherit;margin-top:6px}
+.note{font-size:.76rem;color:var(--c-muted);margin-top:10px;line-height:1.6;padding:10px 12px;background:var(--c-surface);border-radius:8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <a class="back" href="{{ url_for('ekinaka.manage') }}">←</a>
+    <span class="htitle">🔐 アクセス権限設定</span>
+    {% include 'ekinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+
+{# 現在の設定サマリー（by_type は group_name の set） #}
+{% macro current_badges(atype) %}
+  {% if by_type[atype] %}
+    <div class="current-list">
+      {% for name in by_type[atype] | sort %}
+        <span class="current-tag">{{ '匿名（全公開）' if name == public_sentinel else name }}</span>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div style="font-size:.78rem;color:var(--c-muted);margin-bottom:8px">（未設定）</div>
+  {% endif %}
+{% endmacro %}
+
+<form method="post">
+
+  <!-- 閲覧権限 -->
+  <div class="sec">
+    <div class="sec-title">閲覧 <span class="sec-badge view">view</span></div>
+    <div class="sec-desc">
+      公開日前にイベントをプレビュー閲覧できるグループを設定します。<br>
+      「匿名（全公開）」をチェックすると公開日に関わらず誰でも常時閲覧可能になります。<br>
+      ※ 公開日を過ぎた承認済み・中止・延期イベントは設定に関わらず全員に公開されます。
+    </div>
+    {{ current_badges('view') }}
+    <div class="check-group">
+      <label class="check-item anon-item">
+          <input type="checkbox" name="view_public" value="1" {% if public_sentinel in by_type['view'] %}checked{% endif %}>
+          <div>
+            <div class="check-item-label">🌐 匿名（ログインなし・全公開）</div>
+            <div class="check-item-sub">すべての閲覧者に対して公開日前から表示</div>
+          </div>
+      </label>
+      {% for g in all_groups %}
+      <label class="check-item">
+        <input type="checkbox" name="view_groups" value="{{ g.name }}" {% if g.name in by_type['view'] %}checked{% endif %}>
+        <div>
+          <div class="check-item-label">{{ g.name }}</div>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 申請権限 -->
+  <div class="sec">
+    <div class="sec-title">申請 <span class="sec-badge apply">apply</span></div>
+    <div class="sec-desc">
+      イベント申請・公演登録ができるグループを設定します（教職員・学生等）。
+    </div>
+    {{ current_badges('apply') }}
+    <div class="check-group">
+        <label class="check-item anon-item">
+          <input type="checkbox" name="apply_public" value="1" {% if public_sentinel in by_type['apply'] %}checked{% endif %}>
+          <div>
+            <div class="check-item-label">🌐 匿名（ログインなし）</div>
+            <div class="check-item-sub">通常は使用しません</div>
+          </div>
+        </label>
+      {% for g in all_groups %}
+      <label class="check-item">
+        <input type="checkbox" name="apply_groups" value="{{ g.name }}" {% if g.name in by_type['apply'] %}checked{% endif %}>
+        <div>
+          <div class="check-item-label">{{ g.name }}</div>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 承認権限 -->
+  <div class="sec">
+    <div class="sec-title">承認・管理 <span class="sec-badge approve">approve</span></div>
+    <div class="sec-desc">
+      全申請を承認・不承認でき、設定画面にアクセスできるグループです。<br>
+      えきなか管理担当グループを設定してください。
+    </div>
+    {{ current_badges('approve') }}
+    <div class="check-group">
+      {% for g in all_groups %}
+        <label class="check-item">
+          <input type="checkbox" name="approve_groups" value="{{ g.name }}" {% if g.name in by_type['approve'] %}checked{% endif %}>
+          <div>
+            <div class="check-item-label">{{ g.name }}</div>
+          </div>
+        </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="note">
+    ⚠️ 承認グループが空になると管理画面にアクセスできなくなります。<br>
+    グループの作成・変更は「まいぐる」アプリで行ってください。
+  </div>
+
+  <button class="save-btn" type="submit">設定を保存する</button>
+</form>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,202 @@
+{#
+  えすてぃまね（stl_manager）事務局ダッシュボード
+  提出状況マトリクス：行＝団体 / 列＝月（年度内 4月〜翌3月）
+  セル＝当月にその団体が提出したレポート件数（受理済は色を濃く）
+  context: fy, fiscal_years, months, month_labels, rows, closing_day,
+           today, staff_ok, manager_ok
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STL報告書管理 — 事務局ダッシュボード</title>
+<style>
+:root{
+  --c-primary:#4338ca; --c-primary-d:#3730a3; --c-surface:#eef2ff;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-warn:#f59e0b; --c-ng:#ef4444; --c-info:#0ea5e9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:60px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:1200px;margin:0 auto;gap:6px;flex-wrap:wrap}
+.site-name{font-size:1.05rem;font-weight:800;letter-spacing:.02em}
+.hnav{display:flex;gap:6px;flex-wrap:wrap}
+.hnav a{color:#fff;text-decoration:none;font-size:.78rem;background:rgba(255,255,255,.2);padding:4px 10px;border-radius:20px;white-space:nowrap}
+.content{max-width:1200px;margin:0 auto;padding:14px}
+.flashes{max-width:1200px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+h1{font-size:1.15rem;font-weight:800;color:var(--c-primary-d);margin-bottom:4px}
+.sub{font-size:.8rem;color:var(--c-muted);margin-bottom:12px}
+
+.fy-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.fy-bar form{display:flex;align-items:center;gap:6px}
+.fy-bar select{padding:6px 10px;border:1px solid var(--c-border);border-radius:8px;font-family:inherit;font-size:.88rem;background:#fff}
+.fy-bar .closing-info{font-size:.78rem;color:var(--c-muted);margin-left:auto}
+
+.matrix-wrap{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);overflow-x:auto;margin-bottom:16px}
+table.matrix{border-collapse:collapse;width:100%;min-width:760px;font-size:.8rem}
+table.matrix th,table.matrix td{border:1px solid var(--c-border);padding:0}
+table.matrix thead th{background:var(--c-surface);color:var(--c-primary-d);font-weight:700;padding:7px 6px;text-align:center;font-size:.76rem;position:sticky;top:0}
+table.matrix thead th.team-col{text-align:left;min-width:180px;left:0;z-index:5}
+.team-cell{padding:8px 10px;font-weight:700;background:#fafafa;position:sticky;left:0;z-index:1}
+.team-cell a{color:var(--c-primary-d);text-decoration:none}
+.team-cell a:hover{text-decoration:underline}
+.team-cell .tc-sum{display:block;font-size:.7rem;color:var(--c-muted);font-weight:400;margin-top:2px}
+
+.cell{height:46px;text-align:center;vertical-align:middle}
+.cell a{display:block;width:100%;height:100%;text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1px;padding:3px}
+.cell.empty{background:#fff}
+.cell.has{background:#dbeafe}
+.cell.has-received{background:#d1fae5}
+.cell .cnt{font-weight:800;font-size:.95rem;color:var(--c-primary-d)}
+.cell.has-received .cnt{color:#065f46}
+.cell .rc{font-size:.62rem;color:var(--c-ok);font-weight:700}
+.cell .dash{color:#cbd5e1;font-size:.9rem}
+.this-month-col{box-shadow:inset 0 0 0 2px var(--c-warn)}
+
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.74rem;color:var(--c-muted);margin-bottom:8px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:14px;height:14px;border-radius:3px;border:1px solid var(--c-border);display:inline-block}
+.sw.has{background:#dbeafe}
+.sw.rec{background:#d1fae5}
+
+.empty-note{text-align:center;color:var(--c-muted);padding:30px;font-size:.9rem}
+.hnav a.btn-return{background:var(--c-ng);color:#fff;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.hnav a.btn-return:hover{background:#dc2626}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🚀 STL報告書管理</div>
+    <nav class="hnav">
+      <a href="{{ url_for('stl.manage_teams', fy=fy) }}">団体管理</a>
+      <a href="{{ url_for('stl.manage_report_types') }}">レポート型</a>
+      <a href="{{ url_for('stl.manage_disclosures') }}">開示記事</a>
+      <a href="{{ url_for('stl.disclosures') }}">公開ビュー</a>
+      {% if manager_ok %}<a href="{{ url_for('stl.settings') }}">設定</a>{% endif %}
+      {% if manager_ok %}<a href="{{ url_for('stl.access_log') }}">📊 ログ</a>{% endif %}
+      {% if stl_migration_role == 'export' %}<a href="{{ url_for('stl.migration_export') }}" style="background:#6d5fb8;color:#fff;">📤 移行データ書き出し</a>{% endif %}
+      {% if stl_migration_role == 'import' %}
+      <input type="file" id="stlMigrationFile" accept=".zip" style="display:none">
+      <a href="#" id="stlMigrationBtn" style="background:#6d5fb8;color:#fff;" onclick="document.getElementById('stlMigrationFile').click();return false;">📥 移行データ取り込み</a>
+      <form id="stlMigrationFinish" method="post" action="{{ url_for('stl.migration_upload_finish') }}" style="display:none">
+        <input type="hidden" name="filename" id="stlMigrationName">
+      </form>
+      <script>
+      (function(){
+        var CHUNK = 4 * 1024 * 1024;   // 4MB ずつ送る（大きな zip で 413 にならないように）
+        var input = document.getElementById('stlMigrationFile');
+        var btn = document.getElementById('stlMigrationBtn');
+        input.addEventListener('change', async function(){
+          if (!input.files.length) return;
+          var f = input.files[0];
+          var total = Math.max(1, Math.ceil(f.size / CHUNK));
+          try {
+            for (var i = 0; i < total; i++) {
+              btn.textContent = '📥 送信中 ' + Math.round(i * 100 / total) + '%';
+              var fd = new FormData();
+              fd.append('index', i);
+              fd.append('total', total);
+              fd.append('chunk', f.slice(i * CHUNK, (i + 1) * CHUNK), 'chunk');
+              var r = await fetch("{{ url_for('stl.migration_upload_chunk') }}", {method: 'POST', body: fd, credentials: 'same-origin'});
+              if (!r.ok) throw new Error('送信に失敗しました（' + r.status + '）');
+            }
+            btn.textContent = '📥 点検中…';
+            document.getElementById('stlMigrationName').value = f.name;
+            document.getElementById('stlMigrationFinish').submit();
+          } catch (e) {
+            alert(e.message);
+            btn.textContent = '📥 移行データ取り込み';
+            input.value = '';
+          }
+        });
+      })();
+      </script>
+      {% endif %}
+        {% set hide_top = True %}{% include 'stl_manager/_std_nav.html' %}
+    </nav>
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <h1>📋 提出状況ダッシュボード</h1>
+  <div class="sub">{{ fy }}年度 — 各団体の報告書提出状況（提出日を月ごとに整理）</div>
+
+  <div class="fy-bar">
+    <form method="GET">
+      <label style="font-size:.82rem;color:var(--c-muted)">年度</label>
+      <select name="fy" onchange="this.form.submit()">
+        {% for y in fiscal_years %}
+        <option value="{{ y }}" {% if y==fy %}selected{% endif %}>{{ y }}年度</option>
+        {% endfor %}
+      </select>
+      <noscript><button type="submit">表示</button></noscript>
+    </form>
+    <span class="closing-info">📅 締め日: 毎月 {{ closing_day }} 日</span>
+  </div>
+
+  <div class="legend">
+    <span><i class="sw has"></i> 提出あり</span>
+    <span><i class="sw rec"></i> 受理済を含む</span>
+    <span>数字＝件数 / ✓＝受理済件数</span>
+  </div>
+
+  {% if rows %}
+  <div class="matrix-wrap">
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th class="team-col">団体</th>
+          {% for lbl in month_labels %}
+          {% set ym = months[loop.index0] %}
+          <th class="{% if ym[0]==today.year and ym[1]==today.month %}this-month-col{% endif %}">{{ lbl }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td class="team-cell">
+            <a href="{{ url_for('stl.team_reports', team_id=row.team.id) }}">{{ row.team.name }}</a>
+            {% if row.team.summary %}<span class="tc-sum">{{ row.team.summary[:30] }}</span>{% endif %}
+          </td>
+          {% for cell in row.cells %}
+          {% set is_this = cell.ym[0]==today.year and cell.ym[1]==today.month %}
+          <td class="cell {% if cell.count==0 %}empty{% elif cell.received>0 %}has-received{% else %}has{% endif %}{% if is_this %} this-month-col{% endif %}">
+            {% if cell.count > 0 %}
+              <a href="{{ url_for('stl.team_reports', team_id=row.team.id) }}">
+                <span class="cnt">{{ cell.count }}</span>
+                {% if cell.received > 0 %}<span class="rc">✓{{ cell.received }}</span>{% endif %}
+              </a>
+            {% else %}
+              <span class="dash">—</span>
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div style="font-size:.74rem;color:var(--c-muted)">
+    セルをタップするとその団体のレポート一覧へ移動します。「—」は当月提出なし。
+  </div>
+  {% else %}
+  <div class="empty-note">
+    {{ fy }}年度に登録された団体がありません。<br>
+    <a href="{{ url_for('stl.manage_teams', fy=fy) }}" style="color:var(--c-primary)">団体管理</a>から追加してください。
+  </div>
+  {% endif %}
+</div>
+</body>
+</html>

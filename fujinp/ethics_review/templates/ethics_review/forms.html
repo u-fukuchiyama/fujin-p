@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>様式ダウンロード - 研究倫理審査</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh; padding: 15px;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .header {
+            background: white; padding: 16px 24px; border-radius: 10px;
+            margin-bottom: 14px; display: flex; align-items: center;
+            gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { flex: 1; font-size: 1.3rem; color: #4a3a7a; min-width: 160px; }
+        .nav-btn {
+            padding: 9px 16px; background: #6d5fb8; color: white; border: none;
+            border-radius: 6px; cursor: pointer; text-decoration: none; font-size: 0.88rem;
+        }
+        .nav-btn.secondary { background: #94a3b8; }
+        .nav-btn:hover { opacity: 0.9; }
+        .card {
+            background: white; border-radius: 10px; padding: 20px 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 14px;
+        }
+        .card h2 {
+            font-size: 1rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 14px;
+        }
+        .lead { font-size: 0.9rem; color: #374151; line-height: 1.9; }
+        .lead b { color: #4a3a7a; }
+
+        /* 審査の流れ */
+        .flow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+        .flow-step {
+            flex: 1 1 150px; border: 1px solid #e5e7eb; border-radius: 8px;
+            padding: 12px 14px; background: #f8fafc;
+        }
+        .flow-step .no {
+            font-size: 0.72rem; font-weight: 700; color: #6d5fb8; letter-spacing: 0.04em;
+        }
+        .flow-step .ttl {
+            font-size: 0.9rem; font-weight: 700; color: #4a3a7a; margin: 3px 0 5px;
+        }
+        .flow-step .txt { font-size: 0.8rem; color: #6b7280; line-height: 1.7; }
+        .flow-note {
+            font-size: 0.8rem; color: #6b7280; line-height: 1.8; margin-top: 12px;
+            border-left: 3px solid #ddd6fe; padding-left: 12px;
+        }
+
+        /* 様式一覧 */
+        .form-item {
+            display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap;
+            border: 1px solid #e5e7eb; border-radius: 8px;
+            padding: 14px 16px; margin-bottom: 10px; background: #f8fafc;
+        }
+        .form-item.first { background: #ecfdf5; border-color: #a7f3d0; }
+        .form-item .body { flex: 1; min-width: 240px; }
+        .form-item .label {
+            display: inline-block; font-size: 0.74rem; font-weight: 700;
+            color: #4a3a7a; background: #ede9fe; border-radius: 10px;
+            padding: 2px 9px; margin-bottom: 5px;
+        }
+        .form-item.first .label { color: #065f46; background: #d1fae5; }
+        .form-item .ttl { font-size: 0.95rem; font-weight: 700; color: #374151; }
+        .form-item .desc {
+            font-size: 0.82rem; color: #6b7280; margin-top: 5px; line-height: 1.75;
+        }
+        .dl-btn {
+            padding: 9px 16px; background: #6d5fb8; color: white; border: none;
+            border-radius: 6px; text-decoration: none; font-size: 0.85rem;
+            white-space: nowrap; align-self: center;
+        }
+        .dl-btn:hover { opacity: 0.9; }
+        .form-item.first .dl-btn { background: #059669; }
+
+        /* 関連規程 */
+        .reg-link {
+            display: inline-flex; align-items: center; gap: 8px;
+            font-size: 0.9rem; color: #4a3a7a; text-decoration: none;
+            border: 1px solid #ddd6fe; border-radius: 8px;
+            padding: 12px 16px; background: #f5f3ff;
+        }
+        .reg-link:hover { background: #ede9fe; }
+        .reg-note { font-size: 0.8rem; color: #9ca3af; margin-top: 8px; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <h1>📄 様式ダウンロード</h1>
+        <a href="{{ url_for('ethics_review.index') }}" class="nav-btn secondary">← トップへ</a>
+        <a href="{{ url_for('ethics_review.new_case') }}" class="nav-btn">＋ 新規申請</a>
+    </div>
+
+    <div class="card">
+        <h2>このシステムについて</h2>
+        <div class="lead">
+            福知山公立大学における<b>人を対象とする研究</b>の倫理審査を、申請から結果の通知まで
+            オンラインで行うシステムです。申請者は学内ユーザーであればどなたでも申請でき、
+            申請後は<b>申請者チャンネル</b>で審査委員会とやりとりします。
+            差し替え版や追加資料は、審査が始まったあとでも提出できます。<br>
+            審査の節目には Slack へお知らせが届きますが、
+            すべての情報はこのシステムに残りますので、ログインすればいつでも確認できます。
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>審査の流れ</h2>
+        <div class="flow">
+            <div class="flow-step">
+                <div class="no">STEP 1</div>
+                <div class="ttl">自己判断</div>
+                <div class="txt">チェックシートで、倫理審査が必要な研究かどうかを確認します。</div>
+            </div>
+            <div class="flow-step">
+                <div class="no">STEP 2</div>
+                <div class="ttl">書類の準備</div>
+                <div class="txt">申請書・研究計画書などをこのページから入手し、記入します。</div>
+            </div>
+            <div class="flow-step">
+                <div class="no">STEP 3</div>
+                <div class="ttl">申請</div>
+                <div class="txt">「新規申請」でチャンネルを立ち上げ、書類をアップロードして申請します。</div>
+            </div>
+            <div class="flow-step">
+                <div class="no">STEP 4</div>
+                <div class="ttl">審査</div>
+                <div class="txt">担当委員長・担当委員が指名され、審議されます。質問には申請者チャンネルで回答します。</div>
+            </div>
+            <div class="flow-step">
+                <div class="no">STEP 5</div>
+                <div class="ttl">結果の通知</div>
+                <div class="txt">委員会の判定を事務局が確認し、申請者チャンネルへ通知します。</div>
+            </div>
+        </div>
+        <div class="flow-note">
+            判定は「承認」「条件付き承認」「審査継続」「不承認」「非該当（審査不要）」のいずれかです。
+            条件付き承認・審査継続の場合は、回答書類を追加して「審査再開申請」を押すと、
+            同じ体制のまま審議が再開されます。<br>
+            承認・不承認・非該当は、事務局の確認を経てから通知されます。それまでは
+            「審査結果通知待ち」と表示されます。
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>申請様式</h2>
+        <div class="lead" style="margin-bottom:14px">
+            記入のうえ、「新規申請」の書類アップロードから提出してください。
+            ファイル形式は問いません（PDF に変換しても、Word のままでも構いません）。
+        </div>
+        {% for f in forms %}
+        <div class="form-item {% if loop.first %}first{% endif %}">
+            <div class="body">
+                <span class="label">{{ f.label }}</span>
+                <div class="ttl">{{ f.title }}</div>
+                <div class="desc">{{ f.desc }}</div>
+            </div>
+            <a class="dl-btn"
+               href="{{ url_for('ethics_review.download_form', code=f.code) }}">⬇ ダウンロード</a>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="card">
+        <h2>関連規程</h2>
+        <a class="reg-link" href="{{ regulation_url }}" target="_blank" rel="noopener">
+            📖 {{ regulation_title }}
+        </a>
+        <div class="reg-note">福知山公立大学 例規集（別のタブで開きます）</div>
+    </div>
+
+</div>
+</body>
+</html>

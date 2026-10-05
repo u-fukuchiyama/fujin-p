@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>申請内容の閲覧 - キターレオンライン審議</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh; padding: 15px;
+        }
+        .container { max-width: 880px; margin: 0 auto; }
+        .header {
+            background: white; padding: 14px 22px; border-radius: 10px;
+            margin-bottom: 12px; display: flex; align-items: center;
+            gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { flex: 1; font-size: 1.15rem; color: #4a3a7a; min-width: 200px; }
+        .nav-btn {
+            padding: 7px 13px; background: #94a3b8; color: white; border: none;
+            border-radius: 6px; cursor: pointer; text-decoration: none;
+            font-size: 0.82rem; font-weight: 600; white-space: nowrap;
+        }
+        .nav-btn:hover { opacity: 0.9; }
+        .card {
+            background: white; border-radius: 10px; padding: 16px 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 12px;
+        }
+        .card h2 {
+            font-size: 0.95rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px;
+        }
+        .notice {
+            background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+            border-radius: 8px; padding: 10px 16px; font-size: 0.83rem;
+            margin-bottom: 12px; line-height: 1.7;
+        }
+        .case-meta { font-size: 0.86rem; line-height: 1.9; }
+        .meta-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .meta-label { color: #6b7280; min-width: 90px; font-weight: 600; }
+        .status-badge {
+            display: inline-block; padding: 2px 9px; border-radius: 10px;
+            font-size: 0.72rem; font-weight: 700;
+        }
+        .status-channel_open, .status-documents_uploading { background: #e0e7ff; color: #3730a3; }
+        .status-submitted { background: #ddd6fe; color: #5b21b6; }
+        .status-accepted_review { background: #fef3c7; color: #92400e; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+        .status-rejected, .status-not_accepted { background: #fee2e2; color: #991b1b; }
+        .status-withdrawn, .status-terminated { background: #f3f4f6; color: #6b7280; }
+        .doc-item {
+            display: flex; gap: 10px; align-items: center; padding: 8px 10px;
+            background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px;
+            margin-bottom: 6px; font-size: 0.85rem;
+        }
+        .doc-item .doc-title { font-weight: 600; color: #4a3a7a; flex: 1; }
+        .doc-item a { color: #6d5fb8; text-decoration: none; }
+        .doc-item a:hover { text-decoration: underline; }
+        .empty-msg { text-align: center; color: #9ca3af; padding: 18px; font-size: 0.88rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📄 申請内容の閲覧</h1>
+        <a href="{{ url_for('kitare_deliberation.index') }}" class="nav-btn">← トップへ</a>
+    </div>
+    <div class="notice">
+        この画面は申請内容（案件情報・提出書類）の閲覧専用です。
+        審議の議論は含まれません。
+    </div>
+    <div class="card">
+        <h2>案件情報</h2>
+        <div id="case-meta" class="case-meta"><div class="empty-msg">読み込み中…</div></div>
+    </div>
+    <div class="card" id="cover-letter-card" style="display:none">
+        <h2>添書</h2>
+        <div id="cover-letter-body" style="font-size:0.88rem;line-height:1.8;color:#374151;white-space:pre-wrap;word-break:break-word"></div>
+    </div>
+    <div class="card">
+        <h2>申請書類</h2>
+        <div id="docs-area"><div class="empty-msg">読み込み中…</div></div>
+    </div>
+</div>
+
+<script>
+const CASE_ID = {{ case_id }};
+const STATUS_LABELS = {{ status_labels | tojson }};
+const URL_BASE = '{{ url_for("kitare_deliberation.index") }}';
+
+function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function ajaxErr(xhr) {
+    if (xhr && xhr.responseJSON && xhr.responseJSON.error) return xhr.responseJSON.error;
+    if (xhr && xhr.status === 403) return '閲覧権限がありません';
+    if (xhr && xhr.status === 404) return '案件が見つかりません';
+    return '読み込みに失敗しました';
+}
+function fmtSize(b) {
+    if (b == null) return '';
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+    return (b/1048576).toFixed(1) + ' MB';
+}
+
+function loadView() {
+    $.get(URL_BASE + 'api/case/' + CASE_ID + '/view', function(resp) {
+        if (!resp.success) {
+            $('#case-meta').html('<div class="empty-msg" style="color:#ef4444">' + esc(resp.error) + '</div>');
+            $('#docs-area').html('');
+            return;
+        }
+        const c = resp.case;
+        let html = '';
+        html += `<div class="meta-row"><span class="meta-label">案件番号</span>`
+              + `<span><b>${esc(c.case_display_id)}</b> `
+              + `<span class="status-badge status-${c.status}">${esc(c.status_label)}</span></span></div>`;
+        html += `<div class="meta-row"><span class="meta-label">案件名</span><span>${esc(c.title) || '—'}</span></div>`;
+        html += `<div class="meta-row"><span class="meta-label">申請者</span><span>${esc(c.applicant_name)}`
+              + `${c.applicant_affiliation ? '（' + esc(c.applicant_affiliation) + '）' : ''}</span></div>`;
+        html += `<div class="meta-row"><span class="meta-label">受付日</span><span>${c.received_date || '—'}</span></div>`;
+        if (c.deadline) html += `<div class="meta-row"><span class="meta-label">審議期日</span><span>${esc(c.deadline)}</span></div>`;
+        $('#case-meta').html(html);
+
+        // 添書
+        if (c.cover_letter) {
+            $('#cover-letter-body').text(c.cover_letter);
+            $('#cover-letter-card').show();
+        } else {
+            $('#cover-letter-card').hide();
+        }
+
+        const docs = resp.documents || [];
+        if (!docs.length) {
+            $('#docs-area').html('<div class="empty-msg">申請書類はありません</div>');
+            return;
+        }
+        let dhtml = '';
+        docs.forEach(d => {
+            const fn = d.download_url
+                ? `<a href="${esc(d.download_url)}" target="_blank" rel="noopener">📎 ${esc(d.original_filename || 'ダウンロード')}</a>`
+                : '';
+            dhtml += `<div class="doc-item">
+                <span class="doc-title">${esc(d.title)}</span>
+                ${d.file_size ? `<span style="color:#9ca3af;font-size:0.76rem">${fmtSize(d.file_size)}</span>` : ''}
+                <span>${fn}</span>
+            </div>`;
+        });
+        $('#docs-area').html(dhtml);
+    }).fail(function(xhr) {
+        $('#case-meta').html('<div class="empty-msg" style="color:#ef4444">' + esc(ajaxErr(xhr)) + '</div>');
+        $('#docs-area').html('');
+    });
+}
+
+$(document).ready(loadView);
+</script>
+</body>
+</html>

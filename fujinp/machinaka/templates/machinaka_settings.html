@@ -1,0 +1,546 @@
+{#
+  まちなかキャンパス アクセス設定
+
+  context:
+    view_policy             - 'private' | 'group' | 'domestic' | 'public'
+    view_groups             - set of group names (group ポリシー選択時の許可グループ)
+    valid_view_policies     - tuple of valid policies (表示順)
+    apply_policy            - 'private' | 'group' | 'domestic'
+    apply_groups            - set of group names (group ポリシー選択時の許可グループ)
+    valid_apply_policies    - tuple of valid policies
+    all_groups              - list of {id, name}  まいぐる全グループ
+    all_users               - list of {id, full_name, email, category}  全ユーザ
+    current_receptionist_ids - 現在 active=1 で登録されている窓口職員 user_id のセット
+    current_inspector_ids   - 現在 active=1 で登録されている点検者 user_id のセット
+    public_sentinel         - '__public__' （互換のため保持、現状は未使用）
+    manager_group           - 'まちなか管理'
+    is_admin                - admin ユーザか
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>アクセス設定 - まちなかキャンパス</title>
+<style>
+:root{
+  --c-primary:#059669; --c-primary-d:#047857; --c-surface:#ecfdf5;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-info:#0ea5e9; --c-warn:#f59e0b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px;line-height:1.6}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:720px;margin:0 auto;gap:6px;flex-wrap:wrap}
+.site-name{font-size:1.05rem;font-weight:800}
+.back{color:#fff;text-decoration:none;font-size:.8rem;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px}
+.content{max-width:720px;margin:0 auto;padding:14px}
+.flashes{max-width:720px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+.card{background:#fff;border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+h1{font-size:1.15rem;font-weight:800;color:var(--c-primary-d);margin-bottom:10px}
+
+.info-box{background:#eff6ff;border-left:4px solid var(--c-info);padding:10px 12px;border-radius:6px;font-size:.84rem;color:#1e3a8a;margin-bottom:14px;line-height:1.55}
+.info-box code{background:rgba(29,78,216,.08);padding:1px 6px;border-radius:4px;font-size:.92em}
+
+.manager-box{background:#fffbeb;border-left:4px solid var(--c-warn);padding:10px 12px;border-radius:6px;font-size:.82rem;color:#78350f;margin-bottom:14px;line-height:1.55}
+.manager-box code{background:rgba(120,53,15,.1);padding:1px 6px;border-radius:4px;font-size:.92em}
+
+.perm-sec{margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--c-border)}
+.perm-sec:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.perm-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.perm-title{font-size:.98rem;font-weight:700;color:var(--c-primary-d)}
+.perm-desc{font-size:.78rem;color:var(--c-muted)}
+
+/* view / apply ポリシー用ラジオ */
+.policy-grid{display:grid;grid-template-columns:1fr;gap:8px;margin:8px 0}
+.policy-opt{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:#fff;border:1.5px solid var(--c-border);border-radius:10px;cursor:pointer;transition:border-color .15s,background .15s}
+.policy-opt:hover{background:var(--c-surface)}
+.policy-opt input[type=radio]{margin-top:3px;width:16px;height:16px;cursor:pointer;flex-shrink:0}
+.policy-opt.on{border-color:var(--c-primary);background:var(--c-surface)}
+.policy-opt .p-name{font-size:.92rem;font-weight:700;color:var(--c-primary-d)}
+.policy-opt .p-desc{font-size:.78rem;color:var(--c-muted);margin-top:2px}
+
+.group-box{margin-top:8px;padding:10px 12px;background:var(--c-surface);border-radius:8px;border:1px dashed var(--c-border)}
+.group-box.disabled{opacity:.45;pointer-events:none}
+.group-box-title{font-size:.8rem;color:var(--c-muted);margin-bottom:6px}
+
+.group-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}
+.group-chip{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#fff;border:1px solid var(--c-border);border-radius:8px;cursor:pointer;font-size:.84rem}
+.group-chip input{width:16px;height:16px;cursor:pointer}
+.group-chip:hover{background:var(--c-surface)}
+
+/* ── 選択済みメンバー表示 ── */
+.selected-members{
+  min-height:38px;
+  display:flex;flex-wrap:wrap;gap:6px;
+  padding:8px 10px;
+  background:var(--c-surface);
+  border:1px solid var(--c-border);
+  border-radius:8px;
+  margin-bottom:10px;
+}
+.selected-members.empty::before{
+  content:'（まだ選択されていません）';
+  font-size:.8rem;color:var(--c-muted);
+  align-self:center;
+}
+.member-tag{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px 3px 12px;
+  background:#fff;border:1px solid var(--c-primary);
+  border-radius:20px;font-size:.82rem;color:var(--c-primary-d);font-weight:600;
+}
+.member-tag .remove-btn{
+  background:none;border:none;cursor:pointer;
+  color:var(--c-muted);font-size:1rem;line-height:1;padding:0;
+  display:flex;align-items:center;
+}
+.member-tag .remove-btn:hover{color:#ef4444}
+
+/* ── 候補ユーザリスト ── */
+.candidate-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:6px;flex-wrap:wrap;gap:6px;
+}
+.candidate-title{font-size:.8rem;color:var(--c-muted)}
+.user-search-row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.user-search-row input[type=search]{
+  flex:1;padding:7px 11px;border:1px solid var(--c-border);
+  border-radius:6px;font-size:.88rem;font-family:inherit;background:#fff
+}
+
+.user-list{max-height:240px;overflow-y:auto;border:1px solid var(--c-border);border-radius:8px;background:#fff;margin-bottom:8px}
+.user-row{display:flex;align-items:center;gap:8px;padding:7px 11px;border-bottom:1px solid var(--c-border);cursor:pointer;font-size:.86rem}
+.user-row:last-child{border-bottom:none}
+.user-row input[type=checkbox]{width:16px;height:16px;cursor:pointer;flex-shrink:0}
+.user-row:hover{background:var(--c-surface)}
+.user-row.hidden{display:none}
+.user-row.already-selected{opacity:.4;pointer-events:none}
+.user-name{font-weight:600;flex:1}
+.user-email{font-size:.76rem;color:var(--c-muted);font-family:"SF Mono",Consolas,monospace}
+.user-cat{font-size:.7rem;padding:1px 7px;border-radius:10px;background:var(--c-surface);color:var(--c-primary-d);font-weight:700}
+.user-cat.admin{background:#fef3c7;color:#92400e}
+
+.add-btn-row{text-align:right}
+.btn-add{
+  padding:7px 18px;border-radius:8px;font-size:.86rem;font-weight:700;
+  border:2px solid var(--c-primary);background:#fff;color:var(--c-primary-d);
+  cursor:pointer;
+}
+.btn-add:hover{background:var(--c-surface)}
+
+.save-row{margin-top:14px;padding-top:14px;border-top:2px solid var(--c-primary);text-align:right}
+.btn{display:inline-block;padding:9px 22px;border-radius:8px;font-size:.92rem;font-weight:700;border:none;cursor:pointer;text-decoration:none}
+.btn-primary{background:var(--c-primary);color:#fff}
+
+/* hiddenチェックボックス（フォーム送信用） */
+.hidden-checks{display:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🏘️ まちなかキャンパス</div>
+    <a href="{{ url_for('machinaka.index') }}" class="back">‹ 戻る</a>
+    {% include 'machinaka_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <div class="card">
+    <h1>🔐 アクセス設定</h1>
+
+    <div class="manager-box">
+      📌 この画面にアクセスできるのは、まいぐるで <code>{{ manager_group }}</code>
+      グループに所属しているユーザと、admin のみです。メンバーの変更は admin
+      またはまいぐる総管理者が行います。
+    </div>
+
+    <div class="info-box">
+      ℹ️ 閲覧 (view) と申請 (apply) はポリシーを選択します。
+      承認 (approve) と点検 (inspect) はユーザを個別に指定します。
+    </div>
+
+    {# ユーザ情報を JavaScript に渡す #}
+    <script>
+    var ALL_USERS = [
+      {% for u in all_users %}
+      { id: {{ u.id }}, name: {{ (u.full_name or '名前なし')|tojson }}, email: {{ (u.email or '')|tojson }}, category: {{ (u.category or '')|tojson }} }{% if not loop.last %},{% endif %}
+      {% endfor %}
+    ];
+    var INIT_RECEPTIONIST_IDS = {{ current_receptionist_ids | list | tojson }};
+    var INIT_INSPECTOR_IDS    = {{ current_inspector_ids    | list | tojson }};
+    </script>
+
+    <form method="POST" action="{{ url_for('machinaka.settings') }}" id="settings-form">
+
+      {# ══════════════════════════════════════════
+         閲覧 (view) ポリシー
+         ══════════════════════════════════════════ #}
+      <div class="perm-sec">
+        <div class="perm-head">
+          <span class="perm-title">閲覧 (view)</span>
+          <span class="perm-desc">公開日を過ぎたイベント情報を誰に見せるか</span>
+        </div>
+
+        {% set view_policy_meta = {
+          'private':  ('🔒 非公開 (private)',  'adminのみ閲覧可。テスト中の初期段階で使用。'),
+          'group':    ('👥 グループ (group)',  '指定グループ所属者のみ閲覧可。関係者レビュー段階で使用。'),
+          'domestic': ('🏫 学内 (domestic)',  'user_category=regular のユーザ（学内メンバー）全員が閲覧可。'),
+          'public':   ('🌐 公開 (public)',    'ログインなしでも誰でも閲覧可。一般公衆への広報段階。')
+        } %}
+
+        <div class="policy-grid">
+          {% for p in valid_view_policies %}
+          {% set lbl, desc = view_policy_meta[p] %}
+          <label class="policy-opt{% if view_policy == p %} on{% endif %}"
+                 data-view-policy="{{ p }}">
+            <input type="radio" name="view_policy" value="{{ p }}"
+                   {% if view_policy == p %}checked{% endif %}>
+            <div>
+              <div class="p-name">{{ lbl }}</div>
+              <div class="p-desc">{{ desc }}</div>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+
+        <div class="group-box{% if view_policy != 'group' %} disabled{% endif %}"
+             id="view-groups-box">
+          <div class="group-box-title">許可グループ（「グループ」選択時のみ有効）:</div>
+          <div class="group-grid">
+            {% for g in all_groups %}
+            <label class="group-chip">
+              <input type="checkbox" name="view_groups" value="{{ g.name }}"
+                     {% if g.name in view_groups %}checked{% endif %}>
+              <span>{{ g.name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      {# ══════════════════════════════════════════
+         申請 (apply) ポリシー
+         ══════════════════════════════════════════ #}
+      <div class="perm-sec">
+        <div class="perm-head">
+          <span class="perm-title">申請 (apply)</span>
+          <span class="perm-desc">イベントを申請できるユーザの範囲（public は当面設定不可）</span>
+        </div>
+
+        {% set apply_policy_meta = {
+          'private':  ('🔒 非公開 (private)',  '誰も申請できない（申請受付を一時停止する場合に使用）。'),
+          'group':    ('👥 グループ (group)',  '指定グループ所属者のみ申請可。'),
+          'domestic': ('🏫 学内 (domestic)',  'user_category=regular のユーザ（学内メンバー）全員が申請可。')
+        } %}
+
+        <div class="policy-grid">
+          {% for p in valid_apply_policies %}
+          {% set lbl, desc = apply_policy_meta[p] %}
+          <label class="policy-opt{% if apply_policy == p %} on{% endif %}"
+                 data-apply-policy="{{ p }}">
+            <input type="radio" name="apply_policy" value="{{ p }}"
+                   {% if apply_policy == p %}checked{% endif %}>
+            <div>
+              <div class="p-name">{{ lbl }}</div>
+              <div class="p-desc">{{ desc }}</div>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+
+        <div class="group-box{% if apply_policy != 'group' %} disabled{% endif %}"
+             id="apply-groups-box">
+          <div class="group-box-title">許可グループ（「グループ」選択時のみ有効）:</div>
+          <div class="group-grid">
+            {% for g in all_groups %}
+            <label class="group-chip">
+              <input type="checkbox" name="apply_groups" value="{{ g.name }}"
+                     {% if g.name in apply_groups %}checked{% endif %}>
+              <span>{{ g.name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      {# ══════════════════════════════════════════
+         承認 (approve) : ユーザ個別指定
+         ══════════════════════════════════════════ #}
+      <div class="perm-sec">
+        <div class="perm-head">
+          <span class="perm-title">承認 (approve)</span>
+          <span class="perm-desc">窓口職員。イベント承認・管理・日報の作成ができる</span>
+        </div>
+
+        {# 選択済みタグ表示エリア #}
+        <div class="selected-members empty" id="receptionist-tags"></div>
+
+        {# フォーム送信用 hidden チェックボックス（JS が動的に生成） #}
+        <div class="hidden-checks" id="receptionist-hidden"></div>
+
+        {# 候補リスト #}
+        <div class="candidate-header">
+          <span class="candidate-title">メンバーを追加:</span>
+        </div>
+        <div class="user-search-row">
+          <input type="search" id="receptionist-search" placeholder="🔍 氏名・メールで絞り込み…">
+        </div>
+        <div class="user-list" id="receptionist-candidate-list"></div>
+        <div class="add-btn-row">
+          <button type="button" class="btn-add" onclick="addChecked('receptionist')">
+            ✚ チェックしたメンバーを加える
+          </button>
+        </div>
+        <div style="font-size:.76rem;color:var(--c-muted);margin-top:8px">
+          タグの「×」で外すと、保存時に approve 権限が停止されます（過去の承認履歴は残ります）。
+        </div>
+      </div>
+
+      {# ══════════════════════════════════════════
+         点検 (inspect) : ユーザ個別指定
+         ══════════════════════════════════════════ #}
+      <div class="perm-sec">
+        <div class="perm-head">
+          <span class="perm-title">点検 (inspect)</span>
+          <span class="perm-desc">地域連携係。日報の「確認しました」マークと点検コメントを付与できる</span>
+        </div>
+
+        {# 選択済みタグ表示エリア #}
+        <div class="selected-members empty" id="inspector-tags"></div>
+
+        {# フォーム送信用 hidden チェックボックス（JS が動的に生成） #}
+        <div class="hidden-checks" id="inspector-hidden"></div>
+
+        {# 候補リスト #}
+        <div class="candidate-header">
+          <span class="candidate-title">メンバーを追加:</span>
+        </div>
+        <div class="user-search-row">
+          <input type="search" id="inspector-search" placeholder="🔍 氏名・メールで絞り込み…">
+        </div>
+        <div class="user-list" id="inspector-candidate-list"></div>
+        <div class="add-btn-row">
+          <button type="button" class="btn-add" onclick="addChecked('inspector')">
+            ✚ チェックしたメンバーを加える
+          </button>
+        </div>
+        <div style="font-size:.76rem;color:var(--c-muted);margin-top:8px">
+          タグの「×」で外すと、保存時に inspect 権限が停止されます（過去の点検履歴は残ります）。
+        </div>
+      </div>
+
+      <div class="save-row">
+        <button type="submit" class="btn btn-primary">💾 設定を保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function() {
+
+  // ── view ポリシー ──
+  var viewOpts     = document.querySelectorAll('.policy-opt[data-view-policy]');
+  var viewGroupBox = document.getElementById('view-groups-box');
+  function syncViewPolicy() {
+    var checked = document.querySelector('input[name="view_policy"]:checked');
+    var val = checked ? checked.value : 'private';
+    viewOpts.forEach(function(o) {
+      o.classList.toggle('on', o.getAttribute('data-view-policy') === val);
+    });
+    if (viewGroupBox) viewGroupBox.classList.toggle('disabled', val !== 'group');
+  }
+  viewOpts.forEach(function(o) {
+    o.querySelector('input[type=radio]').addEventListener('change', syncViewPolicy);
+  });
+
+  // ── apply ポリシー ──
+  var applyOpts     = document.querySelectorAll('.policy-opt[data-apply-policy]');
+  var applyGroupBox = document.getElementById('apply-groups-box');
+  function syncApplyPolicy() {
+    var checked = document.querySelector('input[name="apply_policy"]:checked');
+    var val = checked ? checked.value : 'private';
+    applyOpts.forEach(function(o) {
+      o.classList.toggle('on', o.getAttribute('data-apply-policy') === val);
+    });
+    if (applyGroupBox) applyGroupBox.classList.toggle('disabled', val !== 'group');
+  }
+  applyOpts.forEach(function(o) {
+    o.querySelector('input[type=radio]').addEventListener('change', syncApplyPolicy);
+  });
+
+  // ══════════════════════════════════════════════
+  // ユーザ選択ウィジェット（approve / inspect 共通）
+  // ══════════════════════════════════════════════
+
+  // 状態: key=uid(number), value={id, name, email, category}
+  var state = {
+    receptionist: {},
+    inspector:    {}
+  };
+
+  // 設定: セクション名 → DOM ID と form name の対応
+  var cfg = {
+    receptionist: {
+      tagsId:      'receptionist-tags',
+      hiddenId:    'receptionist-hidden',
+      listId:      'receptionist-candidate-list',
+      searchId:    'receptionist-search',
+      formName:    'approve_users',
+      initIds:     INIT_RECEPTIONIST_IDS
+    },
+    inspector: {
+      tagsId:      'inspector-tags',
+      hiddenId:    'inspector-hidden',
+      listId:      'inspector-candidate-list',
+      searchId:    'inspector-search',
+      formName:    'inspect_users',
+      initIds:     INIT_INSPECTOR_IDS
+    }
+  };
+
+  // ── タグエリアを再描画 ──
+  function renderTags(section) {
+    var c     = cfg[section];
+    var area  = document.getElementById(c.tagsId);
+    var hidden = document.getElementById(c.hiddenId);
+    var sel   = state[section];
+
+    area.innerHTML  = '';
+    hidden.innerHTML = '';
+
+    var ids = Object.keys(sel);
+    if (ids.length === 0) {
+      area.classList.add('empty');
+    } else {
+      area.classList.remove('empty');
+      ids.forEach(function(uid) {
+        var u = sel[uid];
+        // タグ
+        var tag = document.createElement('span');
+        tag.className = 'member-tag';
+        tag.innerHTML =
+          '<span>' + escHtml(u.name) + '</span>' +
+          '<button type="button" class="remove-btn" title="外す">×</button>';
+        tag.querySelector('.remove-btn').addEventListener('click', function() {
+          delete state[section][uid];
+          renderTags(section);
+          renderCandidateList(section);
+        });
+        area.appendChild(tag);
+
+        // hidden チェックボックス（送信用）
+        var cb = document.createElement('input');
+        cb.type    = 'checkbox';
+        cb.name    = c.formName;
+        cb.value   = uid;
+        cb.checked = true;
+        hidden.appendChild(cb);
+      });
+    }
+  }
+
+  // ── 候補リストを描画 ──
+  function renderCandidateList(section) {
+    var c    = cfg[section];
+    var list = document.getElementById(c.listId);
+    var q    = (document.getElementById(c.searchId).value || '').trim().toLowerCase();
+    var sel  = state[section];
+
+    list.innerHTML = '';
+    ALL_USERS.forEach(function(u) {
+      var isSelected = !!sel[u.id];
+      var hay = (u.name + ' ' + u.email).toLowerCase();
+      if (q && hay.indexOf(q) === -1) return;  // 検索絞り込み
+
+      var row = document.createElement('label');
+      row.className = 'user-row' + (isSelected ? ' already-selected' : '');
+
+      var cb = document.createElement('input');
+      cb.type  = 'checkbox';
+      cb.value = u.id;
+      cb.disabled = isSelected;
+      row.appendChild(cb);
+
+      var nameSpan = document.createElement('span');
+      nameSpan.className = 'user-name';
+      nameSpan.textContent = u.name;
+      row.appendChild(nameSpan);
+
+      var emailSpan = document.createElement('span');
+      emailSpan.className = 'user-email';
+      emailSpan.textContent = u.email;
+      row.appendChild(emailSpan);
+
+      if (u.category) {
+        var catSpan = document.createElement('span');
+        catSpan.className = 'user-cat ' + u.category;
+        catSpan.textContent = u.category;
+        row.appendChild(catSpan);
+      }
+
+      list.appendChild(row);
+    });
+
+    if (list.children.length === 0) {
+      list.innerHTML = '<div style="padding:12px;font-size:.84rem;color:var(--c-muted)">該当するユーザがいません</div>';
+    }
+  }
+
+  // ── 「チェックしたメンバーを加える」ボタン ──
+  window.addChecked = function(section) {
+    var c    = cfg[section];
+    var list = document.getElementById(c.listId);
+    list.querySelectorAll('input[type=checkbox]:checked:not(:disabled)').forEach(function(cb) {
+      var uid = parseInt(cb.value, 10);
+      var u   = ALL_USERS.find(function(x) { return x.id === uid; });
+      if (u) state[section][uid] = u;
+    });
+    renderTags(section);
+    renderCandidateList(section);
+  };
+
+  // ── 検索インプット ──
+  function initSearch(section) {
+    var searchEl = document.getElementById(cfg[section].searchId);
+    if (searchEl) {
+      searchEl.addEventListener('input', function() {
+        renderCandidateList(section);
+      });
+    }
+  }
+
+  // ── HTML エスケープ ──
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── 初期化 ──
+  function init(section) {
+    var initIds = cfg[section].initIds;
+    initIds.forEach(function(uid) {
+      var u = ALL_USERS.find(function(x) { return x.id === uid; });
+      if (u) state[section][uid] = u;
+    });
+    renderTags(section);
+    renderCandidateList(section);
+    initSearch(section);
+  }
+
+  init('receptionist');
+  init('inspector');
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>研究倫理審査 - FUJIN-P</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh;
+            padding: 15px;
+        }
+        .container { max-width: 1280px; margin: 0 auto; }
+        .header {
+            background: white;
+            padding: 14px 22px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .header h1 { flex: 1; font-size: 1.25rem; color: #4a3a7a; min-width: 200px; }
+        .nav-btn {
+            padding: 7px 14px;
+            background: #6d5fb8;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+        .nav-btn.secondary { background: #94a3b8; }
+        .nav-btn.success   { background: #10b981; }
+        .nav-btn:hover { opacity: 0.9; }
+
+        .btn-return {
+            padding: 7px 14px;
+            background: #e74c3c;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            white-space: nowrap;
+            box-shadow: 0 1px 3px rgba(0,0,0,.2);
+            transition: 0.2s;
+        }
+        .btn-return:hover {
+            background: #c0392b;
+        }
+        .intro-card {
+            background: white; border-radius: 10px;
+            padding: 18px 22px; margin-bottom: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        .intro-card .lead {
+            font-size: 0.92rem; line-height: 1.7; color: #374151;
+        }
+        .role-badges {
+            margin-top: 10px;
+            display: flex; gap: 6px; flex-wrap: wrap;
+        }
+        .role-badge {
+            display: inline-block; padding: 3px 10px;
+            border-radius: 10px; font-size: 0.78rem; font-weight: 600;
+        }
+        .rb-applicant     { background: #ecfdf5; color: #065f46; }
+        .rb-committee     { background: #fef3c7; color: #92400e; }
+        .rb-chair         { background: #ddd6fe; color: #5b21b6; }
+        .rb-secretariat   { background: #e2e8f0; color: #475569; }
+        .rb-admin         { background: #fee2e2; color: #991b1b; }
+
+        .actions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .action-card {
+            background: white; border-radius: 10px;
+            padding: 20px; text-decoration: none; color: inherit;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            display: flex; gap: 14px; align-items: center;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .action-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+        .action-card .icon { font-size: 2.2rem; }
+        .action-card .ttl { font-size: 1rem; color: #4a3a7a; font-weight: 700; margin-bottom: 3px; }
+        .action-card .desc { font-size: 0.82rem; color: #6b7280; }
+        .action-card.new { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); }
+        .action-card.new .ttl { color: #065f46; }
+        .action-card.new .desc { color: #047857; }
+
+        .ctrl-bar {
+            background: white;
+            padding: 12px 18px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            flex-wrap: wrap;
+        }
+        .ctrl-bar label { font-size: 0.85rem; font-weight: 600; color: #555; }
+        .ctrl-bar select {
+            padding: 6px 10px; border: 1px solid #d1d5db;
+            border-radius: 5px; font-size: 0.85rem;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .summary-card {
+            background: white;
+            border-radius: 8px;
+            padding: 14px;
+            text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        .summary-card .num { font-size: 1.8rem; font-weight: 800; color: #4a3a7a; }
+        .summary-card .lbl { font-size: 0.75rem; color: #9ca3af; margin-top: 4px; }
+        .summary-card.approved  .num { color: #10b981; }
+        .summary-card.reviewing .num { color: #f59e0b; }
+        .summary-card.rejected  .num { color: #ef4444; }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 18px 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            margin-bottom: 12px;
+        }
+        .card h2 {
+            font-size: 0.95rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 14px;
+        }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+        th { background: #f8fafc; color: #6b7280; font-weight: 600; font-size: 0.78rem; white-space: nowrap; }
+        tr:hover td { background: #f9fafb; }
+        td.title-cell {
+            max-width: 320px; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap;
+        }
+        .case-id-link {
+            color: #6d5fb8; text-decoration: none;
+            font-family: monospace; font-size: 0.85rem; font-weight: 600;
+        }
+        .case-id-link:hover { text-decoration: underline; }
+
+        .status-badge {
+            display: inline-block; padding: 2px 8px;
+            border-radius: 10px; font-size: 0.73rem; font-weight: 700;
+            white-space: nowrap;
+        }
+        .status-channel_open,
+        .status-documents_uploading { background: #e0e7ff; color: #3730a3; }
+        .status-submitted,
+        .status-reviewer_pending    { background: #ddd6fe; color: #5b21b6; }
+        .status-reviewing           { background: #fef3c7; color: #92400e; }
+        .status-conditional_approval{ background: #fed7aa; color: #9a3412; }
+        .status-review_continuation { background: #cffafe; color: #155e75; }
+        .status-approved            { background: #d1fae5; color: #065f46; }
+        .status-rejected            { background: #fee2e2; color: #991b1b; }
+        .status-not_applicable      { background: #ccfbf1; color: #134e4a; }
+        .status-withdrawn,
+        .status-terminated          { background: #f3f4f6; color: #6b7280; }
+
+        #toast {
+            position: fixed; bottom: 22px; right: 22px;
+            padding: 13px 20px; border-radius: 8px;
+            font-size: 0.88rem; font-weight: 600; z-index: 9999;
+            display: none; max-width: 340px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        #toast.success { background: #d1fae5; color: #065f46; }
+        #toast.error   { background: #fee2e2; color: #991b1b; }
+
+        /* 応諾待ちアラート帯（最上部） */
+        #pending-alert {
+            display: none;
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 2px solid #f59e0b;
+            border-radius: 10px;
+            padding: 14px 20px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(245,158,11,0.25);
+        }
+        #pending-alert .pa-head {
+            font-size: 1.0rem; font-weight: 800; color: #92400e;
+            margin-bottom: 8px;
+        }
+        #pending-alert .pa-item {
+            display: flex; gap: 10px; align-items: center;
+            flex-wrap: wrap;
+            background: rgba(255,255,255,0.7);
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-top: 6px;
+            font-size: 0.85rem;
+        }
+        #pending-alert .pa-item .pa-caseid {
+            font-family: monospace; font-weight: 700; color: #6d5fb8;
+            text-decoration: none;
+        }
+        #pending-alert .pa-item .pa-caseid:hover { text-decoration: underline; }
+        #pending-alert .pa-item .pa-title {
+            flex: 1; color: #374151; min-width: 120px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <h1>⚖️ 研究倫理審査</h1>
+        <a href="{{ url_for('ethics_review.public_view') }}" class="nav-btn secondary">学内公開</a>
+        <a href="{{ url_for('ethics_review.public_approved') }}" class="nav-btn secondary">承認案件</a>
+        <a href="{{ url_for('ethics_review.forms') }}" class="nav-btn secondary">📄 様式</a>
+        {% if is_admin and ethics_migration_role == 'export' %}
+        <a href="{{ url_for('ethics_review.migration_export') }}" class="nav-btn">📤 移行データ書き出し</a>
+        {% endif %}
+        {% if is_admin and ethics_migration_role == 'import' %}
+        <form method="post" action="{{ url_for('ethics_review.migration_upload') }}" enctype="multipart/form-data" style="display:inline;margin:0;">
+            <input type="file" name="package" id="ethicsMigrationFile" accept=".zip" style="display:none" onchange="if(this.files.length){this.form.submit();}">
+            <button type="button" class="nav-btn" onclick="document.getElementById('ethicsMigrationFile').click();">📥 移行データ取り込み</button>
+        </form>
+        {% endif %}
+        {% if is_secretariat or is_chair_pool or is_acting_chair %}
+        <a href="{{ url_for('ethics_review.secretariat_panel') }}" class="nav-btn">🗂️ 体制運営パネル</a>
+        {% endif %}
+        {% if is_secretariat %}
+        <a href="{{ url_for('ethics_review.report') }}" class="nav-btn secondary">年度報告</a>
+        {% endif %}
+        <a href="{{ url_for('ethics_review.return_to_fujin') }}" class="btn-return">🏠 FUJIN-Pダッシュボードに戻る</a>
+    </div>
+
+    <div class="intro-card">
+        <div class="lead">
+            福知山公立大学における<b>人を対象とする研究</b>の倫理審査窓口です。<br>
+            研究者は新規申請、審査関係者は担当案件への参加、学内ユーザーは公開情報の閲覧ができます。
+        </div>
+        <div class="role-badges">
+            <span class="role-badge rb-applicant">あなたの権限：</span>
+            {% if is_admin %}<span class="role-badge rb-admin">admin</span>{% endif %}
+            {% if is_secretariat and not is_admin %}<span class="role-badge rb-secretariat">事務局</span>{% endif %}
+            {% if is_chair_pool and not is_secretariat and not is_admin %}<span class="role-badge rb-chair">委員長</span>{% endif %}
+            {% if is_committee_pool and not is_chair_pool and not is_secretariat and not is_admin %}<span class="role-badge rb-committee">審査委員</span>{% endif %}
+            {% if is_acting_chair and not is_chair_pool and not is_secretariat and not is_admin %}<span class="role-badge rb-chair">担当委員長（代理）</span>{% endif %}
+            {% if not is_committee_pool and not is_secretariat and not is_admin %}<span class="role-badge rb-applicant">学内ユーザー（申請可）</span>{% endif %}
+        </div>
+    </div>
+
+    <div class="actions-grid">
+        <a href="{{ url_for('ethics_review.new_case') }}" class="action-card new">
+            <div class="icon">📝</div>
+            <div>
+                <div class="ttl">＋ 新規申請</div>
+                <div class="desc">人を対象とする研究の倫理審査を申請</div>
+            </div>
+        </a>
+        <a href="{{ url_for('ethics_review.my_cases') }}" class="action-card">
+            <div class="icon">📋</div>
+            <div>
+                <div class="ttl">マイ申請</div>
+                <div class="desc">自分の申請案件を確認・操作</div>
+            </div>
+        </a>
+        {% if is_secretariat or is_chair_pool or is_acting_chair %}
+        <a href="{{ url_for('ethics_review.secretariat_panel') }}" class="action-card" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);">
+            <div class="icon">🗂️</div>
+            <div>
+                <div class="ttl" style="color:#92400e">体制運営パネル</div>
+                <div class="desc" style="color:#a16207">担当委員長・担当委員の指名、体制管理</div>
+            </div>
+        </a>
+        {% endif %}
+        {% if is_committee_pool or is_chair_pool %}
+        <a href="#assignments" class="action-card">
+            <div class="icon">👥</div>
+            <div>
+                <div class="ttl">自分宛の指名</div>
+                <div class="desc">担当委員としての案件</div>
+            </div>
+        </a>
+        {% endif %}
+    </div>
+
+    {% if is_committee_pool or is_chair_pool or is_secretariat or is_admin %}
+    <div class="ctrl-bar">
+        <label>年度：</label>
+        <select id="sel-fy">
+            {% for y in range(current_fy, current_fy - 6, -1) %}
+            <option value="{{ y }}" {% if y == current_fy %}selected{% endif %}>{{ y }}年度</option>
+            {% endfor %}
+        </select>
+        <label>ステータス：</label>
+        <select id="sel-status">
+            <option value="">すべて</option>
+            {% for k, v in status_labels.items() %}
+            <option value="{{ k }}">{{ v }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="summary-grid" id="summary-grid"></div>
+
+    <div class="card" id="assignments" style="display:none">
+        <h2 id="assignments-h2">自分宛の指名</h2>
+        <div id="assignments-area"></div>
+    </div>
+
+    <div class="card">
+        <h2>担当案件一覧</h2>
+        <div style="overflow-x:auto">
+            <table id="case-table">
+                <thead>
+                <tr>
+                    <th>案件ID</th>
+                    <th>研究課題名</th>
+                    <th>申請者</th>
+                    <th>所属</th>
+                    <th>担当委員長</th>
+                    <th>受付日</th>
+                    <th>更新</th>
+                    <th>ステータス</th>
+                </tr>
+                </thead>
+                <tbody id="case-tbody">
+                <tr><td colspan="8" style="text-align:center;color:#9ca3af;padding:30px">読み込み中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+
+<div id="toast"></div>
+
+<script>
+const STATUS_LABELS = {{ status_labels | tojson }};
+const IS_ADMIN          = {{ is_admin | tojson }};
+const IS_SECRETARIAT    = {{ is_secretariat | tojson }};
+const IS_CHAIR_POOL     = {{ is_chair_pool | tojson }};
+const IS_COMMITTEE_POOL = {{ is_committee_pool | tojson }};
+const HAS_REVIEW_ROLE   = IS_ADMIN || IS_SECRETARIAT || IS_CHAIR_POOL || IS_COMMITTEE_POOL;
+
+function toast(msg, isErr) {
+    const $t = $('#toast');
+    $t.text(msg).removeClass('success error').addClass(isErr ? 'error' : 'success').fadeIn();
+    setTimeout(() => $t.fadeOut(), 4000);
+}
+function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function loadCases() {
+    if (!HAS_REVIEW_ROLE) return;
+    const fy = $('#sel-fy').val();
+    const status = $('#sel-status').val();
+    const params = { fiscal_year: fy };
+    if (status) params.status = status;
+
+    $.get('{{ url_for("ethics_review.api_cases_list") }}', params, function(resp) {
+        if (!resp.success) { toast('読み込み失敗: ' + resp.error, true); return; }
+
+        const counts = {};
+        resp.cases.forEach(c => { counts[c.status] = (counts[c.status] || 0) + 1; });
+        const order = ['channel_open','documents_uploading','submitted','reviewer_pending',
+                       'reviewing','conditional_approval','review_continuation',
+                       'approved','rejected','not_applicable','withdrawn','terminated'];
+        let sh = `<div class="summary-card"><div class="num">${resp.cases.length}</div><div class="lbl">合計</div></div>`;
+        order.forEach(k => {
+            if (!counts[k]) return;
+            const cls = (k === 'approved') ? 'approved' :
+                        (k === 'rejected') ? 'rejected' :
+                        (k === 'reviewing' || k === 'conditional_approval' || k === 'review_continuation') ? 'reviewing' : '';
+            sh += `<div class="summary-card ${cls}"><div class="num">${counts[k]}</div><div class="lbl">${esc(STATUS_LABELS[k])}</div></div>`;
+        });
+        $('#summary-grid').html(sh);
+
+        if (!resp.cases.length) {
+            $('#case-tbody').html('<tr><td colspan="8" style="text-align:center;color:#9ca3af;padding:30px">担当案件なし</td></tr>');
+            return;
+        }
+        let rows = '';
+        resp.cases.forEach(c => {
+            rows += `
+            <tr>
+                <td><a class="case-id-link" href="{{ url_for('ethics_review.index') }}case/${c.id}">${esc(c.case_display_id)}</a></td>
+                <td class="title-cell" title="${esc(c.title)}">${esc(c.title) || '—'}</td>
+                <td>${esc(c.applicant_name)}</td>
+                <td>${esc(c.applicant_affiliation)}</td>
+                <td>${esc(c.chair_name) || '—'}</td>
+                <td>${c.received_date || '—'}</td>
+                <td style="font-size:0.78rem;color:#6b7280">${c.updated_at || ''}</td>
+                <td><span class="status-badge status-${c.status}">${esc(c.status_label || STATUS_LABELS[c.status])}</span></td>
+            </tr>`;
+        });
+        $('#case-tbody').html(rows);
+    }).fail(() => toast('通信エラー', true));
+}
+
+function loadAssignments() {
+    if (!HAS_REVIEW_ROLE) return;
+    $.get('{{ url_for("ethics_review.api_my_assignments") }}', function(resp) {
+        if (!resp.success) return;
+        const pending = (resp.assignments || []).filter(a => a.assignment_status === 'pending');
+
+        // 応諾待ちが無ければ、カードごと隠す
+        if (!pending.length) {
+            $('#assignments').hide();
+            $('#assignments-area').html('');
+            return;
+        }
+
+        // 応諾待ちがあれば、目立つ見出しでカードを表示
+        $('#assignments-h2').html('⚠ あなたの応諾を待っている指名が ' + pending.length + ' 件あります');
+        let html = '<table><thead><tr><th>案件ID</th><th>研究課題</th><th>担当委員長</th><th>メッセージ</th><th>指名日時</th><th>操作</th></tr></thead><tbody>';
+        pending.forEach(a => {
+            html += `
+            <tr>
+                <td><a class="case-id-link" href="{{ url_for('ethics_review.index') }}case/${a.case_id}">${esc(a.case_display_id)}</a></td>
+                <td class="title-cell">${esc(a.title) || '—'}</td>
+                <td>${esc(a.chair_name) || '—'}</td>
+                <td style="font-size:0.8rem">${esc(a.assignment_message)}</td>
+                <td style="font-size:0.78rem;color:#6b7280">${a.assigned_at}</td>
+                <td style="white-space:nowrap">
+                    <button class="nav-btn success" data-act="accept" data-cid="${a.case_id}" style="padding:4px 10px;font-size:0.78rem">応諾</button>
+                    <button class="nav-btn"           data-act="decline" data-cid="${a.case_id}" style="padding:4px 10px;font-size:0.78rem;background:#ef4444">辞退</button>
+                </td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        $('#assignments-area').html(html);
+        $('#assignments').show();
+    });
+}
+
+$(document).on('click', 'button[data-act]', function() {
+    const act = $(this).data('act');
+    const cid = $(this).data('cid');
+    let reason = '';
+    if (act === 'decline') {
+        reason = prompt('辞退理由（任意・担当委員長に通知されます）：') || '';
+        if (reason === null) return;
+    }
+    $.ajax({
+        url: `{{ url_for('ethics_review.index') }}api/case/${cid}/reviewer/response`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ action: act, decline_reason: reason })
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '失敗', true); return; }
+        toast(act === 'accept' ? '応諾しました' : '辞退しました');
+        loadAssignments(); loadCases();
+    }).fail(() => toast('通信エラー', true));
+});
+
+$('#sel-fy, #sel-status').on('change', loadCases);
+$(document).ready(function() {
+    if (HAS_REVIEW_ROLE) {
+        loadCases();
+        loadAssignments();
+    }
+});
+</script>
+</body>
+</html>

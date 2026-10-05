@@ -1,0 +1,150 @@
+{#
+  団体のレポート一覧
+  * 上部に当月レポートの提出ステータス（締切付き）
+  * レポートカード列（提出済/下書き、受理状況）
+  context: team, reports, role, can_edit, staff_ok, today, this_month,
+           submitted_this_month, closing_date, closing_day, past_due
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ team.name }} — レポート一覧</title>
+<style>
+:root{
+  --c-primary:#4338ca; --c-primary-d:#3730a3; --c-surface:#eef2ff;
+  --c-card:#fff; --c-text:#1f2937; --c-muted:#64748b; --c-border:#d1d5db;
+  --c-ok:#10b981; --c-warn:#f59e0b; --c-ng:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Noto Sans JP',sans-serif;background:var(--c-surface);color:var(--c-text);min-height:100vh;padding-bottom:40px}
+header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.hrow{display:flex;align-items:center;justify-content:space-between;max-width:760px;margin:0 auto;gap:6px;flex-wrap:wrap}
+.site-name{font-size:1.05rem;font-weight:800}
+.hnav{display:flex;gap:6px;flex-wrap:wrap}
+.hnav a{color:#fff;text-decoration:none;font-size:.78rem;background:rgba(255,255,255,.2);padding:4px 10px;border-radius:20px}
+.content{max-width:760px;margin:0 auto;padding:14px}
+.flashes{max-width:760px;margin:6px auto 0;padding:0 14px}
+.fm{padding:9px 13px;border-radius:8px;font-size:.83rem;margin-bottom:4px}
+.fm.success{background:#d1fae5;color:#065f46}
+.fm.error{background:#fee2e2;color:#991b1b}
+
+h1{font-size:1.15rem;font-weight:800;color:var(--c-primary-d)}
+.team-meta{font-size:.8rem;color:var(--c-muted);margin-bottom:12px}
+
+.status-band{border-radius:12px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.status-band.done{background:#d1fae5}
+.status-band.todo{background:#fef3c7}
+.status-band.overdue{background:#fee2e2}
+.sb-icon{font-size:1.8rem;line-height:1}
+.sb-text{flex:1}
+.sb-title{font-size:1rem;font-weight:800}
+.status-band.done .sb-title{color:#065f46}
+.status-band.todo .sb-title{color:#92400e}
+.status-band.overdue .sb-title{color:#991b1b}
+.sb-sub{font-size:.78rem;color:var(--c-muted);margin-top:2px}
+.sb-action{display:inline-block;padding:9px 18px;border-radius:8px;font-size:.86rem;font-weight:700;text-decoration:none;background:var(--c-primary);color:#fff}
+
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.toolbar .ttl{font-size:.78rem;color:var(--c-muted)}
+.btn{display:inline-block;padding:8px 16px;border-radius:8px;font-size:.84rem;font-weight:700;text-decoration:none;border:none;cursor:pointer}
+.btn-primary{background:var(--c-primary);color:#fff}
+
+.report-card{background:#fff;border-radius:10px;padding:12px 16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-border);text-decoration:none;color:inherit;display:block}
+.report-card.submitted{border-left-color:var(--c-ok)}
+.report-card.draft{border-left-color:var(--c-muted)}
+.rc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.rc-date{font-size:.78rem;color:var(--c-muted)}
+.rc-badge{font-size:.69rem;padding:2px 8px;border-radius:9px;color:#fff;font-weight:700}
+.rc-type{font-size:.69rem;padding:2px 8px;border-radius:9px;background:var(--c-surface);color:var(--c-primary-d);font-weight:700}
+.rc-recv{font-size:.69rem;padding:2px 8px;border-radius:9px;font-weight:700}
+.rc-recv.ok{background:#d1fae5;color:#065f46}
+.rc-recv.pending{background:#fef3c7;color:#92400e}
+.rc-title{font-size:.98rem;font-weight:700;margin-top:2px}
+.rc-author{font-size:.76rem;color:var(--c-muted);margin-top:3px}
+
+.empty{text-align:center;color:var(--c-muted);padding:30px;font-size:.9rem}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="site-name">🚀 STL報告書</div>
+    <nav class="hnav">
+      <a href="{{ url_for('stl.my_teams') }}">マイ団体</a>
+      {% if staff_ok %}<a href="{{ url_for('stl.index') }}">事務局</a>{% endif %}
+    </nav>
+    {% include 'stl_manager/_std_nav.html' %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
+<div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+
+<div class="content">
+  <h1>{{ team.name }}</h1>
+  <div class="team-meta">{{ team.fiscal_year }}年度{% if not team.active %} ・ 活動終了{% endif %}{% if team.summary %} ・ {{ team.summary }}{% endif %}</div>
+
+  {% if team.fiscal_year == today.year or (team.fiscal_year == today.year - 1 and today.month <= 3) %}
+  {# 当年度の団体のみ当月ステータスを表示 #}
+  {% if submitted_this_month %}
+  <div class="status-band done">
+    <span class="sb-icon">✅</span>
+    <div class="sb-text">
+      <div class="sb-title">{{ this_month }}月度レポート：提出済み</div>
+      <div class="sb-sub">今月分の報告書は提出されています</div>
+    </div>
+  </div>
+  {% elif past_due %}
+  <div class="status-band overdue">
+    <span class="sb-icon">⚠️</span>
+    <div class="sb-text">
+      <div class="sb-title">{{ this_month }}月度レポート：未提出（締切超過）</div>
+      <div class="sb-sub">締切 {{ closing_date | fmtdate_s('%m/%d') }} を過ぎています</div>
+    </div>
+    {% if can_edit %}<a href="{{ url_for('stl.report_new', team_id=team.id) }}" class="sb-action">今すぐ作成</a>{% endif %}
+  </div>
+  {% else %}
+  <div class="status-band todo">
+    <span class="sb-icon">📝</span>
+    <div class="sb-text">
+      <div class="sb-title">{{ this_month }}月度レポート：未提出</div>
+      <div class="sb-sub">締切は {{ closing_date | fmtdate_s('%m/%d') }} です</div>
+    </div>
+    {% if can_edit %}<a href="{{ url_for('stl.report_new', team_id=team.id) }}" class="sb-action">作成する</a>{% endif %}
+  </div>
+  {% endif %}
+  {% endif %}
+
+  <div class="toolbar">
+    <span class="ttl">全 {{ reports|length }} 件</span>
+    {% if can_edit %}
+    <a href="{{ url_for('stl.report_new', team_id=team.id) }}" class="btn btn-primary">＋ 新規レポート</a>
+    {% endif %}
+  </div>
+
+  {% if reports %}
+    {% for r in reports %}
+    <a href="{{ url_for('stl.report_detail', rid=r.id) }}" class="report-card {{ r.status }}">
+      <div class="rc-head">
+        <span class="rc-badge" style="background:{{ r.status_color }}">{{ r.status_label }}</span>
+        {% if r.type_name %}<span class="rc-type">{{ r.type_name }}</span>{% endif %}
+        {% if r.status=='submitted' %}
+          {% if r.is_received %}<span class="rc-recv ok">✓ 受理済</span>
+          {% else %}<span class="rc-recv pending">受理待ち</span>{% endif %}
+        {% endif %}
+        {% if r.submitted_at %}<span class="rc-date">提出 {{ r.submitted_at | fmtdatetime_s('%Y/%m/%d') }}</span>
+        {% else %}<span class="rc-date">作成 {{ r.created_at | fmtdatetime_s('%Y/%m/%d') }}</span>{% endif %}
+      </div>
+      <div class="rc-title">{{ r.title }}</div>
+      <div class="rc-author">{{ r.author_name or '(不明)' }}</div>
+    </a>
+    {% endfor %}
+  {% else %}
+    <div class="empty">まだレポートがありません。</div>
+  {% endif %}
+</div>
+</body>
+</html>
