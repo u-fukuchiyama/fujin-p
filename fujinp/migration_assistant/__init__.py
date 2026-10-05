@@ -30,7 +30,7 @@ migration_assistant = Blueprint(
     __name__,
     url_prefix='/migration_assistant',
     template_folder='templates',
-    static_folder='static',
+    static_folder=None,          # 2026-10-05 データ流出を防ぐため静的配信を無効化．復活させないこと
     static_url_path='static'         # ← 追加
 )
 

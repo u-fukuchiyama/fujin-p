@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-03 22:18:21",
+  "generated_at": "2026-10-06 01:22:20",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -923,8 +923,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260731.140601-231f06",
-      "version_confirmed_at": "2026-07-31 14:06:01"
+      "version_id": "v20261003.222003-557fc2",
+      "version_confirmed_at": "2026-10-03 22:20:04"
     },
     {
       "app_name": "document_archive",
@@ -1607,6 +1607,234 @@
       ],
       "version_id": "v20261002.010356-6c767a",
       "version_confirmed_at": "2026-10-02 01:03:57"
+    },
+    {
+      "app_name": "kitare_deliberation",
+      "display_name": "キターレオンライン審議",
+      "icon": "🏞️",
+      "description": "委員会によるオンライン審議の議題提出・審議・議決",
+      "sort_order": 520.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "kitare_deliberation_bp",
+          "name": "kitare_deliberation",
+          "module": "fujinp.kitare_deliberation",
+          "url_prefix": "/kitare_deliberation"
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "🏞️",
+          "label": "キターレオンライン審議",
+          "groups": [],
+          "params": "",
+          "section": "admin_support",
+          "endpoint": "kitare_deliberation.index",
+          "dashboards": [
+            "admin",
+            "guest"
+          ],
+          "sort_order": 10,
+          "visibility": "private",
+          "description": "委員会によるオンライン審議の議題提出・審議・議決",
+          "extra_class": ""
+        }
+      ],
+      "version_id": "v20261006.012137-44c883",
+      "version_confirmed_at": "2026-10-06 01:21:37"
+    },
+    {
+      "app_name": "ethics_review",
+      "display_name": "研究倫理審査",
+      "icon": "📦",
+      "description": "研究倫理審査申請と審査のためのアプリです．",
+      "sort_order": 530.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "ethics_review_bp",
+          "name": "ethics_review",
+          "module": "fujinp.ethics_review",
+          "url_prefix": null
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "📦",
+          "label": "研究倫理審査",
+          "groups": [],
+          "params": "",
+          "section": "admin_support",
+          "endpoint": "ethics_review.index",
+          "dashboards": [
+            "admin",
+            "guest"
+          ],
+          "sort_order": 10,
+          "visibility": "private",
+          "description": "研究倫理審査申請と審査のためのアプリです．",
+          "extra_class": ""
+        }
+      ],
+      "version_id": "v20261006.012215-2ab934",
+      "version_confirmed_at": "2026-10-06 01:22:15"
+    },
+    {
+      "app_name": "ext_engagement",
+      "display_name": "外部連携審査",
+      "icon": "📦",
+      "description": "{受託／共同}・{研究／事業}申請の審査プロセス支援",
+      "sort_order": 540.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "ext_engagement_bp",
+          "name": "ext_engagement",
+          "module": "fujinp.ext_engagement",
+          "url_prefix": null
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "📦",
+          "label": "外部連携審査",
+          "groups": [],
+          "params": "",
+          "section": "admin_support",
+          "endpoint": "ext_engagement.index",
+          "dashboards": [
+            "admin",
+            "guest"
+          ],
+          "sort_order": 10,
+          "visibility": "private",
+          "description": "{受託／共同}・{研究／事業}申請の審査プロセス支援",
+          "extra_class": ""
+        }
+      ],
+      "version_id": "v20260906.071723-2994f8",
+      "version_confirmed_at": null
+    },
+    {
+      "app_name": "stl_manager",
+      "display_name": "えすてぃマネ",
+      "icon": "🚀",
+      "description": "STLの管理支援",
+      "sort_order": 550.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "stl_bp",
+          "name": "stl",
+          "module": "fujinp.stl_manager",
+          "url_prefix": null
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "🚀",
+          "label": "えすてぃマネ",
+          "groups": [],
+          "params": "",
+          "section": "admin_support",
+          "endpoint": "stl.index",
+          "dashboards": [
+            "admin",
+            "guest"
+          ],
+          "sort_order": 10,
+          "visibility": "domestic",
+          "description": "STLの管理支援",
+          "extra_class": ""
+        }
+      ],
+      "version_id": "v20260906.072525-3f0d22",
+      "version_confirmed_at": null
+    },
+    {
+      "app_name": "machinaka",
+      "display_name": "まちなか",
+      "icon": "🏘️",
+      "description": "まちなかキャンパスの管理アプリ",
+      "sort_order": 560.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "machinaka_bp",
+          "name": "machinaka",
+          "module": "fujinp.machinaka",
+          "url_prefix": null
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "🏘️",
+          "label": "まちなか",
+          "groups": [],
+          "params": "",
+          "section": "guest",
+          "endpoint": "machinaka.index",
+          "dashboards": [
+            "admin",
+            "guest"
+          ],
+          "sort_order": 10,
+          "visibility": "public",
+          "description": "まちなかキャンパスの管理アプリ",
+          "extra_class": ""
+        }
+      ],
+      "version_id": "v20260906.072531-7981d5",
+      "version_confirmed_at": null
+    },
+    {
+      "app_name": "ekinaka",
+      "display_name": "えきなか",
+      "icon": "🚉",
+      "description": "えきなかキャンパスのイベント閲覧と申請",
+      "sort_order": 570.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "ekinaka_bp",
+          "name": "ekinaka",
+          "module": "fujinp.ekinaka",
+          "url_prefix": null
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "🚉",
+          "label": "えきなか",
+          "groups": [],
+          "params": "",
+          "section": "guest",
+          "endpoint": "ekinaka.index",
+          "dashboards": [
+            "admin",
+            "guest"
+          ],
+          "sort_order": 10,
+          "visibility": "public",
+          "description": "えきなかキャンパスのイベント閲覧と申請",
+          "extra_class": ""
+        }
+      ],
+      "version_id": "v20260906.072535-7c9799",
+      "version_confirmed_at": null
     }
   ],
   "sections": [
