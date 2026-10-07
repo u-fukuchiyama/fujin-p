@@ -193,7 +193,8 @@ def api_structure():
                 x['plan_html'] = md_to_html(texts.get((x['year'], b['mid_plan_no'], b['annual_plan_no'], src), '')) if src else ''
             x.pop('_same', None)
     # 計画の正本が空の細目は，執筆者の提案を代わりに見せる（状態はバッジで示す．編集欄は正本のまま）
-    from .progress import fallback_badge
+    from .progress import fallback_badge, active_keys
+    active = active_keys()
     for b in blocks.values():
         cur_by = {d['detail_no']: d for d in b['current']}
         for d in b['current']:
@@ -203,7 +204,7 @@ def api_structure():
             if base and not (base['plan_text'] or '').strip() and base.get('proposal'):
                 q = reqs.get((b['mid_plan_no'], b['annual_plan_no'], base['detail_no'])) or {}
                 d['plan_html'] = base['proposal_html']
-                d['plan_badge'] = fallback_badge(q, '執筆者の提案')
+                d['plan_badge'] = fallback_badge(q, '執筆者の提案', active)
     # 今年度に行のある年度計画だけ（過去にしか無いものは廃止済みとして末尾に参考表示）
     out = sorted(blocks.values(), key=lambda b: (not b['current'], b['mid_plan_no'], b['annual_plan_no']))
     return jsonify({'success': True, 'year': year, 'from_year': lo, 'locked': locked, 'blocks': out,

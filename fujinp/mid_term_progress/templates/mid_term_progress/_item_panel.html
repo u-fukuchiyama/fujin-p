@@ -141,8 +141,10 @@
         h += '</div>';
       }
       // 正本（計画段階は計画本文，報告段階は編集者がまとめた／承認した報告）
-      const finalEdit = s.can_edit && !(s.report && authorMode);
-      h += `<div class="ip-txt" data-view="${s.stage}">` +
+      // 進捗状況報告は評価室でまとめない（細目ごとの執筆者の報告をそのまま使う）．旧版の正本があれば表示だけする
+      const progNoFinal = s.stage === 'progress';
+      const finalEdit = s.can_edit && !(s.report && authorMode) && !progNoFinal;
+      if (!(progNoFinal && !s.text)) h += `<div class="ip-txt" data-view="${s.stage}">` +
            (s.report ? `<div class="ip-lbl" style="color:#1e3a8a">評価室がまとめた／承認した${esc(s.label)}</div>` : '') +
            (s.same ? `<div class="ip-note" style="color:#6d28d9;font-weight:700;margin-bottom:3px">` +
                      (s.same_src ? `同上（細目${s.same_src}と同じ計画）` : '同上（相手の細目がありません）') + '</div>' : '') +

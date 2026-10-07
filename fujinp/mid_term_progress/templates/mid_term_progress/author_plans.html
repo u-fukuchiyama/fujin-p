@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>担当表（執筆者） - 事業全貌</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans",sans-serif; background:#f1f5f9; color:#1f2937; font-size:14px; }
+  .bar { background:#1f2937; color:#fff; position:sticky; top:0; z-index:60; box-shadow:0 2px 6px rgba(0,0,0,.25); }
+  .row1 { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:6px 14px; }
+  .ttl { font-weight:700; font-size:0.95rem; white-space:nowrap; margin-right:6px; }
+  .set { display:inline-flex; align-items:center; gap:5px; font-size:0.76rem; font-weight:700; padding:2px 11px; border-radius:14px;
+         border:2px solid #6366f1; color:#c7d2fe; cursor:pointer; white-space:nowrap; }
+  .set.on { background:#4f46e5; color:#fff; }
+  .set input { display:none; }
+  .quick { margin-left:auto; display:inline-flex; gap:5px; align-items:center; flex-wrap:wrap; }
+  .q { font-size:0.74rem; font-weight:700; color:#fff; text-decoration:none; padding:3px 9px; border-radius:6px; white-space:nowrap; }
+  .q:hover { filter:brightness(1.12); }
+  .q.editor { background:#4f46e5; } .q.author { background:#b45309; } .q.teal { background:#0f766e; } .q.view { background:#475569; } .q.home { background:#e74c3c; }
+  .warn { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:8px; padding:10px 12px; font-size:0.84rem; line-height:1.7; margin:14px; }
+  .pending { color:#9ca3af; font-style:italic; }
+  .pick { max-width:1400px; margin:12px auto 0; padding:0 14px 60px; }
+  .card { background:#fff; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); padding:8px 12px; }
+  .gchips { display:flex; flex-wrap:wrap; gap:4px 6px; align-items:center; font-size:0.78rem; padding-bottom:6px; border-bottom:1px solid #e5e7eb; }
+  .gchips .lb { font-weight:700; color:#475569; margin-right:4px; }
+  .gchip { display:inline-flex; align-items:center; gap:4px; padding:1px 9px; border-radius:12px; border:1px solid #cbd5e1; background:#f8fafc; cursor:pointer; white-space:nowrap; }
+  .gchip.on { background:#ccfbf1; border-color:#14b8a6; color:#115e59; font-weight:700; }
+  .gchip.mine::after { content:'所属'; font-size:0.62rem; color:#0f766e; background:#fff; border-radius:8px; padding:0 5px; margin-left:2px; }
+  .gchip input { margin:0; }
+  .gchips .more { font-size:0.72rem; padding:1px 8px; border-radius:6px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; font-family:inherit; }
+  .grow { display:grid; grid-template-columns:minmax(9em, 16em) 1fr; gap:6px; padding:5px 0; border-bottom:1px dashed #eef2f7; align-items:start; }
+  .grow:last-child { border-bottom:none; }
+  .grow .gn { font-size:0.8rem; font-weight:700; color:#0f766e; word-break:break-all; }
+  .grow .gn small { display:block; font-weight:400; color:#64748b; }
+  .pbtns { display:flex; flex-wrap:wrap; gap:4px; }
+  .pb { min-width:2.6em; padding:2px 7px; border-radius:5px; border:1px solid #d1d5db; background:#fff; color:#374151; font-size:0.8rem; font-weight:700; text-align:center; text-decoration:none; font-variant-numeric:tabular-nums; }
+  .pb:hover { border-color:#6366f1; background:#eef2ff; }
+  .pb.todo { background:#fff7ed; border-color:#fdba74; color:#c2410c; }
+  .pb.submitted { background:#dbeafe; border-color:#60a5fa; color:#1e40af; }
+  .pb.confirmed { background:#dcfce7; border-color:#86efac; color:#166534; }
+  .legend { font-size:0.7rem; color:#64748b; margin-top:4px; }
+  @media (max-width:600px) { .grow { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="row1">
+    <span class="ttl">🗂 担当表（執筆者）</span>
+    {% for a in sets %}{% set key = a.year ~ '-' ~ a.stage %}{% set on = cur_set and cur_set.year == a.year and cur_set.stage == a.stage %}
+    <label class="set {{ 'on' if on else '' }}"><input type="radio" name="set" {{ 'checked' if on else '' }} onchange="location.href='?set={{ key }}'">{{ '◉' if on else '○' }} {{ a.label }}</label>
+    {% endfor %}
+    <span class="quick">
+      {% if editor %}<a class="q editor" href="{{ url_for('mid_term_progress.editor') }}{% if cur_set %}?year={{ cur_set.year }}{% endif %}">🧩 編集者⇒</a>{% endif %}
+      <a class="q author" href="{{ url_for('mid_term_progress.author') }}{% if cur_set %}?set={{ cur_set.year }}-{{ cur_set.stage }}{% endif %}">✍️ 執筆者⇒</a>
+      <a class="q teal" href="{{ url_for('mid_term_progress.manage') }}?{% if cur_set %}year={{ cur_set.year }}&{% endif %}view=rows" title="全部門の担当表（部門別）">🗂 担当表（全体）</a>
+      <a class="q view" href="{{ url_for('mid_term_progress.view') }}" title="事業全貌（このアプリのトップ）">📊 トップ</a>
+      <a class="q home" href="{{ url_for('mid_term_progress.return_to_fujin') }}">🏠 FUJIN-P</a>
+    </span>
+  </div>
+</div>
+
+{% if not sets %}
+  <div class="warn">いま執筆をお願いしている依頼はありません．</div>
+{% elif not ready %}
+  <div class="warn">執筆の受付の準備がまだ整っていません（管理者にお知らせください）．</div>
+{% else %}
+  <div class="pick"><div class="card">
+    <div class="gchips" id="gchips"><span class="lb">チェックインしたグループ</span></div>
+    <div id="grows"><span class="pending">読み込み中…</span></div>
+    <div class="legend">計画番号を押すと，執筆者ダッシュボードでその計画番号の細目を開きます．橙：未入力・執筆中の細目がある　青：提出済み　緑：すべて確認済み</div>
+  </div></div>
+<script>
+const YEAR = {{ cur_set.year|tojson }}, STAGE = {{ cur_set.stage|tojson }}, EDITOR = {{ 'true' if editor else 'false' }};
+const STATE = {{ state_label|tojson }};
+const MY_GROUPS = {{ my_groups|tojson }};
+const U = {
+  data: '{{ url_for("mid_term_progress.api_author_items") }}',
+  author: '{{ url_for("mid_term_progress.author") }}',
+};
+let DATA = null, SHOW_ALL = false;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// チェックイン：所属グループを既定とし，ブラウザに覚える（執筆者ダッシュボードの前後移動も同じものを使う）
+const CK_KEY = 'mtp_author_checkin';
+function getCk(){ try { const v = JSON.parse(localStorage.getItem(CK_KEY) || 'null'); if (Array.isArray(v)) return v; } catch (e) {} return MY_GROUPS.slice(); }
+function setCk(v){ try { localStorage.setItem(CK_KEY, JSON.stringify(v)); } catch (e) {} }
+function stateCls(ds){
+  if (!ds.length) return '';
+  if (ds.every(d => d.state === 'confirmed')) return 'confirmed';
+  if (ds.some(d => ['none','requested','writing'].includes(d.state))) return 'todo';
+  return 'submitted';
+}
+// 計画番号ごと（第1期のように1つの中期計画に年度計画が複数あるときもまとめる）
+function plansOf(g){
+  const out = [];
+  for (const b of DATA.blocks) {
+    const ds = b.details.filter(d => !d.done && d.owner_group === g); if (!ds.length) continue;
+    const p = out.find(x => x.no === b.mid_plan_no);
+    if (p) p.ds.push(...ds); else out.push({no: b.mid_plan_no, ds: ds.slice()});
+  }
+  return out;
+}
+function draw(){
+  const ck = getCk(), owners = DATA.owners;
+  const mine = owners.filter(g => MY_GROUPS.includes(g));
+  const shown = (EDITOR && SHOW_ALL) ? owners : [...new Set([...mine, ...ck.filter(g => owners.includes(g))])];
+  let h = '<span class="lb">チェックインしたグループ</span>' + shown.map(g =>
+    `<label class="gchip ${ck.includes(g) ? 'on' : ''} ${MY_GROUPS.includes(g) ? 'mine' : ''}"><input type="checkbox" value="${esc(g)}" ${ck.includes(g) ? 'checked' : ''}>${esc(g)}</label>`).join('');
+  if (EDITOR) h += `<button type="button" class="more" onclick="SHOW_ALL=!SHOW_ALL;draw()">${SHOW_ALL ? '所属とチェックイン中だけ表示' : 'ほかの部門もチェックインする'}</button>`;
+  if (!shown.length) h += '<span class="pending">担当の細目のあるグループに所属していません</span>';
+  document.getElementById('gchips').innerHTML = h;
+  document.querySelectorAll('#gchips input').forEach(i => i.addEventListener('change', () => {
+    const v = [...document.querySelectorAll('#gchips input:checked')].map(x => x.value);
+    const hidden = getCk().filter(g => !shown.includes(g));       // 表示していないチェックインは保つ
+    setCk([...hidden, ...v]); draw();
+  }));
+  const rows = ck.filter(g => owners.includes(g));
+  document.getElementById('grows').innerHTML = rows.length ? rows.map(g => {
+    const ps = plansOf(g), n = ps.reduce((a, p) => a + p.ds.length, 0);
+    return `<div class="grow"><div class="gn">${esc(g)}<small>細目 ${n}</small></div><div class="pbtns">` +
+      ps.map(p => `<a class="pb ${stateCls(p.ds)}" href="${U.author}?set=${YEAR}-${STAGE}&plan=${p.no}">${p.no}</a>`).join('') +
+      `</div></div>`; }).join('') : '<span class="pending">グループをチェックインしてください．</span>';
+}
+(async () => {
+  const j = await (await fetch(`${U.data}?year=${YEAR}&stage=${STAGE}`)).json();
+  if (!j.success) { document.getElementById('grows').textContent = j.error || '読み込めません'; return; }
+  DATA = j; draw();
+})();
+</script>
+{% endif %}
+</body>
+</html>

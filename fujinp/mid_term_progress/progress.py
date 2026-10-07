@@ -44,9 +44,19 @@ STATE_LABEL = {'none': '未依頼', 'requested': '依頼中（未入力）', 'wr
                'submitted': '提出済み（確認待ち）', 'confirmed': '確認済み'}
 
 
-def fallback_badge(q, what):
+def active_keys():
+    """執筆者に開いている依頼（年度, 段階）の集合．行ごとの判定の前に1回だけ引いておく。"""
+    return {(a['year'], a['stage']) for a in load_active_sets()}
+
+
+def fallback_badge(q, what, active=None):
     """正本が空のときに代わりに出す執筆者の本文につけるバッジ（例：「執筆者の提案・執筆中」）．
-    内容は常に優先度のいちばん高いものを出し，低いものを出すときは状態をバッジで示す。"""
+    内容は常に優先度のいちばん高いものを出し，低いものを出すときは状態をバッジで示す。
+    その年度・段階の依頼が執筆者に開いていない（閉じた）ときは，バッジを付けない（None）。"""
+    if active is None:
+        active = active_keys()
+    if (q.get('fiscal_year'), q.get('stage')) not in active:
+        return None
     st = _state(q)
     return '%s・%s' % (what, STATE_LABEL.get(st, '') if st not in ('none', 'requested') else '執筆中')
 
@@ -140,6 +150,7 @@ def build_blocks(cur, year, stage, visible=None):
     """計画番号ごとのブロック．visible（細目 → bool の関数）を渡すと，見える細目のあるブロックだけにする。
     細目ごとに，計画（【同上】は出どころの計画）・承認済みの進捗状況報告を添える。"""
     col = FINAL_COL[stage]
+    active = active_keys()
     cur.execute('SELECT * FROM T_ann_plan_details WHERE fiscal_year = %s '
                 'ORDER BY mid_plan_no, annual_plan_no, detail_no', (year,))
     rows = cur.fetchall()
@@ -176,7 +187,7 @@ def build_blocks(cur, year, stage, visible=None):
             t = (r.get('plan_text') or '').strip()
             pq = plreqs.get((mp, ap, r['detail_no']))
             if not t and pq:
-                t, badge_of[r['detail_no']] = pq['author_text'], fallback_badge(pq, '執筆者の提案')
+                t, badge_of[r['detail_no']] = pq['author_text'], fallback_badge(pq, '執筆者の提案', active)
             text_of[r['detail_no']] = t
         details = []
         for r in rs:

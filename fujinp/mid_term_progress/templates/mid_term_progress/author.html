@@ -36,6 +36,13 @@
   .tocin a.todo { background:#fff7ed; border-color:#fdba74; color:#c2410c; font-weight:700; }
   .tocin a.submitted { background:#dbeafe; border-color:#60a5fa; color:#1e40af; }
   .tocin a.confirmed { background:#dcfce7; border-color:#86efac; color:#166534; }
+  /* 担当表から計画番号を選んで開いたとき（?plan=）の帯 */
+  .pnav { max-width:1400px; margin:10px auto 0; padding:6px 14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .pnav[hidden] { display:none !important; }
+  .pnav b { font-size:0.9rem; color:#1e3a8a; }
+  .pnav a, .pnav button { font-size:0.8rem; padding:3px 12px; border-radius:6px; border:1px solid #c7d2fe; background:#eef2ff; color:#3730a3; cursor:pointer; font-family:inherit; text-decoration:none; }
+  .pnav button:disabled { opacity:.4; cursor:default; }
+  .pnav .pos { font-size:0.78rem; color:#64748b; }
   .note { background:#eef2ff; border:1px solid #c7d2fe; color:#3730a3; border-radius:8px; padding:5px 12px; font-size:0.78rem; margin:10px auto 0; max-width:1400px; }
   .warn { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:8px; padding:10px 12px; font-size:0.84rem; line-height:1.7; margin:14px; }
   /* 本文（閲覧画面と同じ並び） */
@@ -107,7 +114,7 @@
     {% endfor %}
     <span class="quick">
       {% if editor %}<a class="q editor" href="{{ url_for('mid_term_progress.editor') }}{% if cur_set %}?year={{ cur_set.year }}{% endif %}">🧩 編集者⇒</a>{% endif %}
-      <a class="q teal" href="{{ url_for('mid_term_progress.manage') }}?{% if cur_set %}year={{ cur_set.year }}&{% endif %}view=rows">🗂 担当表</a>
+      <a class="q teal" href="{{ url_for('mid_term_progress.author_plans') }}{% if cur_set %}?set={{ cur_set.year }}-{{ cur_set.stage }}{% endif %}" title="チェックインしたグループの担当計画番号">🗂 担当表</a>
       <a class="q view" href="{{ url_for('mid_term_progress.hojin') }}">🏛 法人評価⇒</a>
       <a class="q view" href="{{ url_for('mid_term_progress.view') }}" title="事業全貌（このアプリのトップ）">📊 トップ</a>
       <a class="q home" href="{{ url_for('mid_term_progress.return_to_fujin') }}">🏠 FUJIN-P</a>
@@ -146,6 +153,7 @@
 {% else %}
   {% if editor %}<div class="note">編集者として開いています．担当にかかわらず，すべての細目の報告を入力できます．</div>
   {% elif not has_groups %}<div class="warn">所属しているグループがないため，担当の細目はありません．</div>{% endif %}
+  <div class="pnav" id="pnav" hidden></div>
   <div class="wrap" id="wrap">読み込み中…</div>
 {% endif %}
 <div id="toast"></div>
@@ -154,6 +162,30 @@
 <script>
 const YEAR = {{ cur_set.year|tojson }}, STAGE = {{ cur_set.stage|tojson }}, EDITOR = {{ 'true' if editor else 'false' }};
 const STATE = {{ state_label|tojson }};
+const MY_GROUPS = {{ my_groups|tojson }};
+const PLAN = (v => isNaN(v) ? null : v)(parseInt(new URLSearchParams(location.search).get('plan')));
+const PLANS_URL = '{{ url_for("mid_term_progress.author_plans") }}?set=' + {{ cur_set.year|tojson }} + '-' + {{ cur_set.stage|tojson }};
+// 担当表（計画番号のボタン）と同じチェックイン（既定は所属グループ）
+function getCk(){ try { const v = JSON.parse(localStorage.getItem('mtp_author_checkin') || 'null'); if (Array.isArray(v)) return v; } catch (e) {} return MY_GROUPS.slice(); }
+function navList(blocks){
+  const ck = new Set(getCk()), out = [];
+  for (const b of blocks) if (!out.includes(b.mid_plan_no) && b.details.some(d => !d.done && ck.has(d.owner_group))) out.push(b.mid_plan_no);
+  return out;
+}
+function goPlan(no){
+  const open = [...document.querySelectorAll('#wrap .ed')].some(e => !e.classList.contains('hidden'));
+  if (open && !confirm('編集中の本文があります．保存せずに移りますか？')) return;
+  const u = new URL(location.href); u.searchParams.set('plan', no); location.href = u;
+}
+function drawPnav(all){
+  const nav = navList(all), i = nav.indexOf(PLAN), el = document.getElementById('pnav');
+  el.hidden = false;
+  el.innerHTML = `<a href="${PLANS_URL}">🗂 担当表へ戻る</a><b>計画番号 ${PLAN}</b>` +
+    `<button type="button" ${i > 0 ? '' : 'disabled'} onclick="goPlan(${nav[i - 1]})">← 前の計画番号</button>` +
+    `<span class="pos">${i >= 0 ? `${i + 1} / ${nav.length}` : ''}</span>` +
+    `<button type="button" ${i >= 0 && i < nav.length - 1 ? '' : 'disabled'} onclick="goPlan(${nav[i + 1]})">次の計画番号 →</button>` +
+    `<a href="?set=${YEAR}-${STAGE}">すべての計画番号を一覧する</a>`;
+}
 const SUB = {plan:'計画の提案', progress:'進捗状況報告', result:'業務実績報告'}[STAGE];
 const A_LBL = {writing:'執筆中', done:'執筆完了', revised:'改訂済み'};
 const U = {
@@ -192,6 +224,10 @@ async function load(onlyKey){
   const j = await (await fetch(`${U.data}?year=${YEAR}&stage=${STAGE}`)).json();
   const wrap = document.getElementById('wrap');
   if (!j.success) { wrap.textContent = j.error || '読み込めません'; return; }
+  if (PLAN !== null) {           // 担当表から計画番号を選んで開いたときは，その計画番号の細目だけを出す
+    drawPnav(j.blocks);
+    j.blocks = j.blocks.filter(b => b.mid_plan_no === PLAN);
+  }
   DATA = j;
   if (!wrap.dataset.built) {
     const sel = document.getElementById('fOwner');
@@ -249,8 +285,7 @@ function renderBlock(b){
               (d.author_text_at ? `<span class="pending" style="font-style:normal;font-size:0.68rem">${esc(d.author_text_at)}</span>` : '') +
               `<span class="ast">` + ['writing','done','revised'].map(a =>
                 `<button type="button" class="${d.author_status === a ? 'on' : ''}" onclick='setA(${J}, "${d.author_status === a ? '' : a}", "${bid(b)}")'>${A_LBL[a]}</button>`).join('') + `</span></div>` +
-              (d.comment ? `<div class="cmt"><div class="lbl">評価室からのコメント${d.comment_at ? '（' + esc(d.comment_at) + '）' : ''}</div>${d.comment_html}</div>` : '') +
-              (STAGE === 'progress' && d.final_html ? `<div class="cmt" style="background:#eff6ff;border-color:#bfdbfe"><div class="lbl" style="color:#1e3a8a">評価室がまとめた／承認した進捗状況報告</div>${d.final_html}</div>` : '');
+              (d.comment ? `<div class="cmt"><div class="lbl">評価室からのコメント${d.comment_at ? '（' + esc(d.comment_at) + '）' : ''}</div>${d.comment_html}</div>` : '');
     h += `<div class="trow mine ${gridCls}" data-owner="${esc(d.owner_group)}" data-state="${d.state}">${noCell}` +
          `<div class="cell" data-h="${STAGE === 'plan' ? '現在の計画' : '年度計画'}">${planCell}</div>` +
          (STAGE === 'result' ? `<div class="cell" data-h="進捗状況報告">${d.progress_html || d.progress_author_html || '<span class="pending">なし</span>'}</div>` : '') +

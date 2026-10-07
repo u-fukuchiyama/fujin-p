@@ -392,15 +392,17 @@ def view():
             # 業務実績は正本の result_text を優先して出す．正本が空の細目は，
             # 執筆者が報告してきた細目の実績（T_ann_plan_requests の業務実績報告）を出す
             # 計画の正本が空の細目も同じく，計画策定の段階の執筆者の提案を出す．正本以外を出すときは状態をバッジで示す
-            author_res, author_plan = {}, {}
+            # 業務実績がまだ無い細目は，進捗状況報告（正本 progress_text，空なら執筆者の進捗状況報告）を
+            # 「進捗状況報告」のバッジ付きで出す（進捗状況報告は評価室でまとめず，細目ごとの報告をそのまま使う）
+            author_res, author_plan, author_prog = {}, {}, {}
             try:
-                cur.execute("SELECT * FROM T_ann_plan_requests WHERE stage IN ('plan', 'result') "
+                cur.execute("SELECT * FROM T_ann_plan_requests WHERE stage IN ('plan', 'progress', 'result') "
                             "AND author_text IS NOT NULL AND TRIM(author_text) <> ''")
                 for q in cur.fetchall():
                     k = (q['fiscal_year'], q['mid_plan_no'], q['annual_plan_no'], q['detail_no'])
-                    (author_res if q['stage'] == 'result' else author_plan)[k] = q
+                    {'result': author_res, 'plan': author_plan, 'progress': author_prog}[q['stage']][k] = q
             except Exception:
-                author_res, author_plan = {}, {}
+                author_res, author_plan, author_prog = {}, {}, {}
             # 計画番号ごとの評価（大学の自己評価・評価委員会の評点とコメント）．各年度の行の直下に出す
             evals = {}
             try:
@@ -408,6 +410,9 @@ def view():
                 evals = {(q['fiscal_year'], q['mid_plan_no'], q['annual_plan_no']): q for q in cur.fetchall()}
             except Exception:
                 evals = {}
+
+        from .progress import fallback_badge, active_keys
+        active = active_keys()
 
         # (term, plan_no, sub_term) → 細目をまとめた1版
         vers = OrderedDict()
@@ -503,14 +508,19 @@ def view():
             if yr not in terms[t]['years']:
                 terms[t]['years'].append(yr)
             a = p['annual'].setdefault(yr, {'midterm': mv, 'entries': []})
-            from .progress import fallback_badge
             rk = (r['fiscal_year'], r['mid_plan_no'], r['annual_plan_no'], r['detail_no'])
             plan, plan_badge = (r.get('plan_text') or '').strip(), None
             if not plan and rk in author_plan:
-                plan, plan_badge = author_plan[rk]['author_text'], fallback_badge(author_plan[rk], '執筆者の提案')
+                plan, plan_badge = author_plan[rk]['author_text'], fallback_badge(author_plan[rk], '執筆者の提案', active)
             rep_, rep_badge = (r.get('result_text') or '').strip(), None
             if not rep_ and rk in author_res:
-                rep_, rep_badge = author_res[rk]['author_text'], fallback_badge(author_res[rk], '執筆者の報告')
+                rep_, rep_badge = author_res[rk]['author_text'], fallback_badge(author_res[rk], '執筆者の報告', active)
+            if not rep_ and not is_done(r.get('plan_text')):
+                pq = author_prog.get(rk)
+                prog = (r.get('progress_text') or '').strip() or (pq['author_text'] if pq else '')
+                if prog:
+                    rep_ = prog
+                    rep_badge = (fallback_badge(pq, '進捗状況報告', active) if pq else None) or '進捗状況報告'
             a['entries'].append({'annual_sub_no': r.get('detail_no') or '',
                                  'annual_plan_no': r.get('annual_plan_no'),
                                  'annual_plan': plan, 'plan_badge': plan_badge,

@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-06 01:22:20",
+  "generated_at": "2026-10-07 23:27:46",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -467,8 +467,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260917.153501-823e6d",
-      "version_confirmed_at": "2026-09-17 15:35:02"
+      "version_id": "v20261006.012547-0d4ed3",
+      "version_confirmed_at": "2026-10-06 01:25:47"
     },
     {
       "app_name": "table_share",
@@ -1529,7 +1529,7 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261002.migrate-all",
+      "version_id": "v20261007.author-plans",
       "version_confirmed_at": null
     },
     {
@@ -1719,8 +1719,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260906.071723-2994f8",
-      "version_confirmed_at": null
+      "version_id": "v20261006.012344-5f53be",
+      "version_confirmed_at": "2026-10-06 01:23:44"
     },
     {
       "app_name": "stl_manager",
@@ -1757,8 +1757,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260906.072525-3f0d22",
-      "version_confirmed_at": null
+      "version_id": "v20261006.012419-263306",
+      "version_confirmed_at": "2026-10-06 01:24:19"
     },
     {
       "app_name": "machinaka",
@@ -1795,8 +1795,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260906.072531-7981d5",
-      "version_confirmed_at": null
+      "version_id": "v20261006.012443-1e35b0",
+      "version_confirmed_at": "2026-10-06 01:24:43"
     },
     {
       "app_name": "ekinaka",
@@ -1833,7 +1833,45 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260906.072535-7c9799",
+      "version_id": "v20261006.012523-5ab403",
+      "version_confirmed_at": "2026-10-06 01:25:24"
+    },
+    {
+      "app_name": "appo",
+      "display_name": "あぽる",
+      "icon": "🤝",
+      "description": "オフィスアワー（対面／オンライン）の公開と，招待・請求によるミーティングの成立．排他的と懇談を区別し，直前の予約・キャンセルとサブチャンネルを扱う",
+      "sort_order": 580.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "appo_bp",
+          "name": "appo",
+          "module": "fujinp.appo",
+          "url_prefix": null
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "🤝",
+          "label": "あぽる",
+          "groups": [],
+          "params": "",
+          "section": "guest",
+          "endpoint": "appo.index",
+          "dashboards": [
+            "admin",
+            "guest"
+          ],
+          "sort_order": 10,
+          "visibility": "public",
+          "description": "オフィスアワーを出す・会いたい人に請求する・招待する",
+          "extra_class": ""
+        }
+      ],
+      "version_id": null,
       "version_confirmed_at": null
     }
   ],
