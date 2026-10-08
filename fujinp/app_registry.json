@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-07 23:27:46",
+  "generated_at": "2026-10-08 22:06:35",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -1529,8 +1529,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261007.author-plans",
-      "version_confirmed_at": null
+      "version_id": "v20261007.232819-fb601b",
+      "version_confirmed_at": "2026-10-07 23:28:19"
     },
     {
       "app_name": "universal_form_composer",
@@ -1871,8 +1871,82 @@
           "extra_class": ""
         }
       ],
+      "version_id": "v20261007.232910-a276a6",
+      "version_confirmed_at": "2026-10-07 23:29:11"
+    },
+    {
+      "app_name": "all_portal",
+      "display_name": "オール",
+      "icon": "🌐",
+      "description": "機関・グループ・個人・システムのポータルに文書の束を置き，権限（閲覧・リクエスト・アクト）に応じて人間には画面で，Claude には MCP で同じ中身を渡す入口．",
+      "sort_order": 590.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "all_portal_bp",
+          "name": "all_portal",
+          "module": "fujinp.all_portal",
+          "url_prefix": "/all_portal"
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "🌐",
+          "label": "オール",
+          "groups": [],
+          "params": "",
+          "section": "internal",
+          "endpoint": "all_portal.index",
+          "dashboards": [
+            "admin"
+          ],
+          "sort_order": 91,
+          "visibility": "private",
+          "description": "人間と Claude に同じ文書の束を渡すポータル",
+          "extra_class": ""
+        }
+      ],
       "version_id": null,
       "version_confirmed_at": null
+    },
+    {
+      "app_name": "file_container",
+      "display_name": "ふぁいこん",
+      "icon": "📦",
+      "description": "大型ファイル（1件100MBまで）をURLとパスワードで受け渡す．渡す箱／受け取る箱を作り，用事がすめば実体を消して記録だけを残す．管理はadmin専用．",
+      "sort_order": 600.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "file_container_bp",
+          "name": "file_container",
+          "module": "fujinp.file_container",
+          "url_prefix": "/file_container"
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "📦",
+          "label": "ふぁいこん",
+          "groups": [],
+          "params": "",
+          "section": "system",
+          "endpoint": "file_container.index",
+          "dashboards": [
+            "admin"
+          ],
+          "sort_order": 30,
+          "visibility": "private",
+          "description": "大型ファイルをURLとパスワードで受け渡す",
+          "extra_class": ""
+        }
+      ],
+      "version_id": "v20261008.215448-1b5b8b",
+      "version_confirmed_at": "2026-10-08 21:54:48"
     }
   ],
   "sections": [
