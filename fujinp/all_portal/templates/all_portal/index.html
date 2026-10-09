@@ -1,0 +1,46 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'all_portal/base.html' %}
+{% block content %}
+<p class="small text-muted">オールは，機関・グループ・個人・システムごとのポータルに文書の束を置き，人間と Claude に同じ中身を渡す入口です．あなたが使えるポータルと，それぞれでの段（閲覧・リクエスト・アクト）が並びます．</p>
+{% if rows %}
+<div class="table-responsive">
+<table class="table table-sm table-hover bg-white border align-middle">
+  <thead class="table-light"><tr>
+    <th style="width:5rem">種類</th>
+    <th>ポータル</th>
+    <th class="d-none d-lg-table-cell">説明</th>
+    <th class="text-end" style="width:4rem">文書</th>
+    <th style="width:6rem">段</th>
+    <th style="width:9rem">依頼</th>
+  </tr></thead>
+  <tbody>
+  {% for p in rows %}
+    <tr>
+      <td class="small text-muted text-nowrap">{{ p.kind }}</td>
+      <td><a href="{{ url_for('all_portal.portal', pid=p.id) }}" class="fw-semibold">{{ p.name }}</a>
+        {% if p.ai_act %}<span class="small text-muted" title="AI のアクト可">🤖</span>{% endif %}
+        {% if p.description %}<div class="small text-muted d-lg-none">{{ p.description }}</div>{% endif %}</td>
+      <td class="d-none d-lg-table-cell small text-muted">{{ p.description or '' }}</td>
+      <td class="text-end small">{{ p.n_items }}</td>
+      <td>{% if p.level %}<span class="lv lv{{ p.level }}">{{ LEVEL_LABEL[p.level] }}</span>{% else %}<span class="small text-muted">一部の URL</span>{% endif %}</td>
+      <td class="small">
+        {% set t = todo.get(p.id) %}{% set a = answered.get(p.id) %}
+        {% if t %}<a href="{{ t.url }}" class="text-danger fw-semibold text-nowrap">未処理 {{ t.n }} 件</a>{% endif %}
+        {% if a %}{% if t %}<br>{% endif %}<a href="{{ url_for('all_portal.portal', pid=a.pid) }}#mine" class="text-success text-nowrap">返答あり {{ a.n }} 件</a>{% endif %}
+        {% if not t and not a %}<span class="text-muted">—</span>{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="small text-muted">「依頼」には，あなたがアクトを持つポータル（子ポータルを含む）に届いた未処理のリクエストと，あなたが出したリクエストへの30日以内の返答が出ます．</p>
+{% else %}
+  <p class="text-muted">使えるポータルはまだありません．{% if not logged_in %}ログインすると，あなたが使えるポータルが並びます．{% endif %}</p>
+{% endif %}
+{% endblock %}

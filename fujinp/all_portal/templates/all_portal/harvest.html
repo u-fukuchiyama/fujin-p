@@ -1,0 +1,54 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'all_portal/base.html' %}
+{% block title %}リンクの候補 - {{ p.name }} - オール{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{{ edit_home(p) }}">{{ p.kind }}／{{ p.name }}</a> ／ <a href="{{ url_for('all_portal.item', iid=it.id) }}">{{ it.title }}</a> ／ リンクの候補</nav>
+<h2 class="h6 mb-1">「{{ it.title }}」のページにあるリンク{% if tp.id != p.id %}<span class="small text-muted fw-normal">（選んだものは子ポータル「{{ tp.name }}」に登録）</span>{% endif %}</h2>
+<div class="small text-muted mb-2 text-break"><a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.url }}</a>　{{ links|length }} 件</div>
+{% if links %}
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+    <input id="flt" class="form-control form-control-sm" style="max-width:18rem" placeholder="題名・URL で絞り込む" oninput="filt()">
+    <button type="button" class="btn btn-outline-secondary btn-sm py-0" onclick="checkShown(true)">見えているものを全部選ぶ</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm py-0" onclick="checkShown(false)">選択を外す</button>
+    <label class="small"><input type="checkbox" id="hideHave" checked onchange="filt()"> 登録済みを隠す</label>
+  </div>
+  <table class="table table-sm bg-white border align-middle">
+    <thead class="table-light"><tr><th style="width:2rem"></th><th>題名（登録のときの名前．書き換えられます）</th><th class="d-none d-md-table-cell">URL</th></tr></thead>
+    <tbody>
+    {% for x in links %}
+      <tr class="lk{{ ' have' if x.have }}" data-k="{{ (x.title ~ ' ' ~ x.url)|lower }}">
+        <td><input type="checkbox" name="pick" value="{{ loop.index }}" class="form-check-input"{{ ' disabled' if x.have }}></td>
+        <td><input name="title_{{ loop.index }}" value="{{ x.title }}" class="form-control form-control-sm py-0">
+          {% if x.have %}<span class="small text-muted">登録済み</span>{% endif %}{% if x.pdf %}<span class="badge text-bg-light border">PDF</span>{% endif %}</td>
+        <td class="d-none d-md-table-cell small text-break font-monospace"><a href="{{ x.url }}" target="_blank" rel="noopener">{{ x.url }}</a>
+          <input type="hidden" name="url_{{ loop.index }}" value="{{ x.url }}"></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="d-flex gap-2 align-items-center"><button class="btn btn-primary btn-sm">選んだリンクを登録</button>
+    <span class="small text-muted">一覧の末尾に，公開範囲「ポータルと同じ」で加わります．</span></div>
+</form>
+<script>
+function filt(){
+  const q=document.getElementById('flt').value.trim().toLowerCase(), h=document.getElementById('hideHave').checked;
+  document.querySelectorAll('tr.lk').forEach(tr=>{
+    tr.style.display=((!q||tr.dataset.k.includes(q))&&!(h&&tr.classList.contains('have')))?'':'none';});
+}
+function checkShown(v){
+  document.querySelectorAll('tr.lk').forEach(tr=>{const c=tr.querySelector('input[name=pick]');
+    if(tr.style.display!=='none'&&!c.disabled)c.checked=v;});
+}
+filt();
+</script>
+{% else %}
+<p class="text-muted small">リンクは見つかりませんでした．</p>
+{% endif %}
+{% endblock %}

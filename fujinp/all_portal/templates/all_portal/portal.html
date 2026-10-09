@@ -1,0 +1,53 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'all_portal/base.html' %}
+{% block title %}{{ p.name }} - オール{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+  <div>
+    <div class="small text-muted">{% if crumbs %}{% for c in crumbs %}<a href="{{ url_for('all_portal.portal', pid=c.id) }}">{{ c.name }}</a> ／ {% endfor %}{% else %}{{ p.kind }}ポータル{% endif %}</div>
+    <h2 class="h5 m-0">{{ p.name }} {% if p.level %}<span class="lv lv{{ p.level }} align-middle">{{ LEVEL_LABEL[p.level] }}</span>{% endif %}</h2>
+    {% if p.description %}<div class="small text-muted">{{ p.description }}</div>{% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    {% if edit %}<a class="btn btn-primary btn-sm" href="{{ url_for('all_portal.item_edit', pid=p.id) }}">URL を追加</a>
+    {% if is_admin %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('all_portal.portal_settings', pid=p.id) }}">設定と権限</a>{% endif %}
+    {% elif p.level >= 3 %}<a class="btn btn-outline-secondary btn-sm" href="{{ home }}">編集はこちら（親の行のページ）</a>{% endif %}
+  </div>
+</div>
+
+{% with ep=p, eitems=items, ekids=kids, editable=edit %}{% include 'all_portal/_edit_list.html' %}{% endwith %}
+
+{% if p.level >= 2 %}
+<form method="post" action="{{ url_for('all_portal.request_new', pid=p.id) }}" class="card card-body mt-4" style="max-width:44rem">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <h3 class="h6">リクエストを出す</h3>
+  <p class="small text-muted mb-2">文書の追加・修正の依頼や質問を，このポータルの担当（アクトの段を持つ人）に送ります．</p>
+  <textarea name="body" rows="3" class="form-control form-control-sm mb-2" required></textarea>
+  <div><button class="btn btn-primary btn-sm">送る</button></div>
+</form>
+{% endif %}
+
+{% if mine %}
+<div class="card card-body mt-4" id="mine">
+  <h3 class="h6">あなたが出したリクエスト</h3>
+  {% for r in mine %}
+    <div class="border-bottom py-2">
+      <div class="small text-muted">{{ r.created_at.strftime('%Y-%m-%d %H:%M') }}　{{ '🤖 Claude 経由' if r.via == 'mcp' else 'Web' }}
+        <strong class="{{ 'text-danger' if r.status == 'open' else 'text-success' }}">{{ {'open': '未処理', 'done': '対応済み', 'rejected': '見送り'}[r.status] }}</strong>
+        {% if r.handled_by %}（{{ r.handled_by }} {{ r.handled_at.strftime('%m-%d %H:%M') if r.handled_at else '' }}）{% endif %}</div>
+      <div class="body-text small">{{ r.body }}</div>
+      {% if r.response %}<div class="small mt-1 p-2 bg-light border rounded">返答：{{ r.response }}</div>{% endif %}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if edit %}
+{% with ereqs=reqs, etitle='リクエスト' %}{% include 'all_portal/_requests.html' %}{% endwith %}
+{% endif %}
+{% endblock %}

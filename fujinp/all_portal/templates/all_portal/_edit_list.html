@@ -1,0 +1,64 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{# URL の一覧．ep＝ポータル，eitems＝行，ekids＝{行の id: 子ポータル}，editable＝編集の欄を出すか #}
+{% set pol_badge = {'inherit': 'secondary', 'private': 'dark', 'group': 'warning', 'domestic': 'info', 'domestic_group': 'info', 'public': 'success'} %}
+{% if eitems %}
+<form method="post" action="{{ url_for('all_portal.portal_order', pid=ep.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if editable %}<button type="submit" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">並びを保存</button>{% endif %}{# Enter キーで押される既定ボタン（行の「外す」が先に押されないように） #}
+  <table class="table table-sm table-hover bg-white border align-middle mb-2">
+    <thead class="table-light"><tr>
+      {% if editable %}<th style="width:6.5rem">順序数</th>{% endif %}
+      <th>題名</th>
+      <th class="d-none d-md-table-cell">URL</th>
+      {% if editable %}<th style="width:9rem">公開範囲</th>{% endif %}
+      <th style="width:1%"></th>
+    </tr></thead>
+    <tbody>
+    {% for it in eitems %}
+      {% set kid = ekids.get(it.id) %}
+      <tr>
+        {% if editable %}<td><input name="o_{{ it.id }}" class="form-control form-control-sm text-end font-monospace py-0"
+             value="{{ '%.2f'|format(it.sort_order) if it.sort_order is not none else '' }}" inputmode="decimal"></td>{% endif %}
+        <td><span class="fw-semibold">{{ it.title }}</span>{% if kid %} <span class="badge text-bg-light border">子ポータル</span>{% endif %}
+          {% if it.note %}<div class="small text-muted">{{ it.note }}</div>{% endif %}
+          <div class="d-md-none small text-break"><a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.url }}</a></div></td>
+        <td class="d-none d-md-table-cell small text-break font-monospace"><a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.url }}</a></td>
+        {% if editable %}
+        <td><span class="badge text-bg-{{ pol_badge.get(it.access_policy or 'inherit', 'secondary') }}">{{ POLICY_LABEL.get(it.access_policy or 'inherit') }}</span>
+          {% if it.access_policy in ('group', 'domestic_group') %}<div class="small text-muted">{{ it.groups_list|join('，') }}</div>{% endif %}</td>
+        {% endif %}
+        <td class="text-end text-nowrap">
+          {% if kid and not editable %}<a class="btn btn-outline-primary btn-sm py-0" href="{{ url_for('all_portal.portal', pid=kid.id) }}">子ポータルを開く</a>{% endif %}
+          {% if editable %}<a class="btn btn-outline-secondary btn-sm py-0" href="{{ url_for('all_portal.item', iid=it.id) }}">{{ ('子ポータルの編集' if kid else '編集') if is_admin else 'アクト' }}</a>
+          <button class="btn btn-outline-danger btn-sm py-0" formaction="{{ url_for('all_portal.item_delete', iid=it.id) }}" name="back" value="{{ request.path }}"
+            onclick='return confirm({{ ("「" ~ it.title ~ "」をこの一覧から外します．"
+              ~ ("この行は子ポータルになっているので，子ポータル「" ~ kid.name ~ "」とその中身も一緒に消えます．" if kid else "")
+              ~ "元に戻せません．よろしいですか？")|tojson }})'>外す</button>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if editable %}
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <button class="btn btn-primary btn-sm">並びを保存</button>
+    <button name="renumber" value="1" class="btn btn-outline-secondary btn-sm"
+            onclick="return confirm('今の並びのまま，順序数を 1.00，2.00，… に振り直します．よろしいですか？')">順序数を振り直す</button>
+    <button form="refresh{{ ep.id }}" class="btn btn-outline-secondary btn-sm"
+            onclick="this.disabled=true;this.textContent='読んでいます…';this.form.submit()">写しをまとめて更新</button>
+    <span class="small text-muted">順序数の小さい順に並びます．間に入れたいときは 1.50 のように小数点以下2桁まで使えます．</span>
+  </div>
+  {% endif %}
+</form>
+{% if editable %}
+  <form id="refresh{{ ep.id }}" method="post" action="{{ url_for('all_portal.portal_refresh', pid=ep.id) }}" class="d-none">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>
+{% endif %}
+{% else %}
+  <p class="text-muted small mt-2 mb-0">URL はまだありません．</p>
+{% endif %}

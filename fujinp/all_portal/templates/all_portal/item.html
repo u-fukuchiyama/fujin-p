@@ -1,0 +1,66 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'all_portal/base.html' %}
+{% block title %}{{ it.title }} - オール{% endblock %}
+{% block content %}
+<nav class="small mb-2">{{ p.kind }}{% for c in crumbs %}{{ '／' if loop.first else ' ／ ' }}<a href="{{ c.url }}">{{ c.name }}</a>{% endfor %}{% if p.level >= 3 %} ／ {{ 'URL の編集' if is_admin else 'URL のアクト' }}{% endif %}</nav>
+<div class="card mb-2"><div class="card-body py-2">
+  <div><strong>{{ it.title }}</strong>{% if kid %} <span class="badge text-bg-light border">子ポータル</span>{% endif %}　<span class="text-muted small">ID {{ it.id }}</span></div>
+  {% set is_url = it.source == 'url' %}
+  {% if it.url %}<div class="small text-break">{{ 'URL：' if is_url else '出所：' }}<a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.url }}</a></div>{% endif %}
+  {% if it.note %}<div class="small text-muted" style="white-space:pre-wrap">{{ it.note }}</div>{% endif %}
+  <div class="small text-muted">更新 {{ it.updated_at.strftime('%Y-%m-%d %H:%M') if it.updated_at else '' }}
+    {% if is_url %}　写し {{ it.fetched_at.strftime('%Y-%m-%d %H:%M') if it.fetched_at else 'まだありません' }}{% endif %}</div>
+</div></div>
+
+{% if p.level >= 3 %}
+<div class="card card-body mb-2">
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <a class="btn btn-primary btn-sm" href="{{ url_for('all_portal.item_edit', iid=it.id) }}">題名・URL・公開範囲を変える</a>
+    {% if it.url and (not kid or kid_items|length <= 1) %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('all_portal.item_harvest', iid=it.id) }}" title="{{ 'このページにあるリンクを候補に出し，選んで子ポータルに登録する' if kid else 'このページにあるリンクを候補に出し，選んでこのポータルに登録する' }}">リンクを拾う</a>{% endif %}
+    {% if not kid %}<form method="post" action="{{ url_for('all_portal.item_make_portal', iid=it.id) }}" class="m-0"
+          onsubmit="return confirm('「{{ it.title }}」をポータルにします．よろしいですか？')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">ポータルにする</button></form>{% endif %}
+    {% if is_url %}<form method="post" action="{{ url_for('all_portal.item_refetch', iid=it.id) }}" class="m-0"
+          onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='読んでいます…'">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary btn-sm">写しを読み直す</button></form>{% endif %}
+    {% if not kid %}<form method="post" action="{{ url_for('all_portal.item_delete', iid=it.id) }}" class="m-0 ms-auto"
+          onsubmit="return confirm('この URL を一覧から消します．元に戻せません．よろしいですか？')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm">削除</button></form>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if kid %}
+<div class="card card-body mb-2 border-primary">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <h3 class="h6 m-0">子ポータル「{{ kid.name }}」の編集 <span class="small text-muted fw-normal">ID {{ kid.id }}</span></h3>
+    <div class="d-flex gap-2">
+      <a class="btn btn-primary btn-sm" href="{{ url_for('all_portal.item_edit', pid=kid.id) }}">URL を追加</a>
+      {% if is_admin %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('all_portal.portal_settings', pid=kid.id) }}">設定と権限</a>{% endif %}
+    </div>
+  </div>
+  {% if kid.description %}<div class="small text-muted mb-2">{{ kid.description }}</div>{% endif %}
+  {% with ep=kid, eitems=kid_items, ekids=kid_kids, editable=true %}{% include 'all_portal/_edit_list.html' %}{% endwith %}
+</div>
+{% with ereqs=kid_reqs, etitle='子ポータルへのリクエスト' %}{% include 'all_portal/_requests.html' %}{% endwith %}
+<div class="mb-3"></div>
+{% endif %}
+
+{% if is_url %}
+  {% if it.url.startswith('/') and not kid %}
+  <iframe src="{{ it.url }}" title="{{ it.title }}" class="mb-2" style="width:100%;height:70vh;border:1px solid #dee2e6;border-radius:.375rem;background:#fff"></iframe>
+  {% endif %}
+  <details class="mb-2"{{ ' open' if not it.url.startswith('/') and not kid }}><summary class="small">Claude に渡るテキスト（最後に読んだ写し．Claude は読むたびに URL をたたき直します）</summary>
+    {% if it.body %}<div class="bg-white border rounded p-3 body-text mt-1">{{ it.body }}</div>{% else %}<p class="text-muted small mt-1">写しはまだありません．</p>{% endif %}
+  </details>
+{% elif it.body %}
+<div class="bg-white border rounded p-3 body-text">{{ it.body }}</div>
+{% else %}
+<p class="text-muted small">本文はありません．</p>
+{% endif %}
+{% endblock %}

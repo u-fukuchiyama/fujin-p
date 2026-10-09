@@ -1,0 +1,72 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'all_portal/base.html' %}
+{% block title %}設定 - オール{% endblock %}
+{% block content %}
+<h2 class="h5 mb-3">設定ダッシュボード</h2>
+
+<div class="row g-2 mb-3">
+  {% for label, v in [('ポータル', stats.portals), ('子ポータル', stats.children), ('文書（URL）', stats.items), ('未処理のリクエスト', stats.open), ('Claude の接続', stats.connections)] %}
+  <div class="col-6 col-md"><div class="card card-body py-2 text-center">
+    <div class="small text-muted">{{ label }}</div><div class="h5 m-0 {{ 'text-danger' if label == '未処理のリクエスト' and v else '' }}">{{ v }}</div>
+  </div></div>
+  {% endfor %}
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <form method="post" action="{{ url_for('all_portal.portal_new') }}" class="card card-body h-100">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <h3 class="h6">ポータルを作る</h3>
+      <div class="row g-2 mb-2">
+        <div class="col-sm-4"><select name="kind" class="form-select form-select-sm">{% for k in kinds %}<option>{{ k }}</option>{% endfor %}</select></div>
+        <div class="col-sm-8"><input name="name" class="form-control form-control-sm" placeholder="名前" required></div>
+      </div>
+      <input name="description" class="form-control form-control-sm mb-2" placeholder="説明（任意）">
+      <div class="small text-muted mb-2">持ち主は admin です．作ったあと，設定の画面で誰にどの段を与えるかを決めます．</div>
+      <div><button class="btn btn-primary btn-sm">作る</button></div>
+    </form>
+  </div>
+  <div class="col-lg-5">
+    <div class="card card-body h-100">
+      <h3 class="h6">Claude 接続</h3>
+      <p class="small text-muted">Claude に登録する URL，接続の一覧と切断，Web と MCP の操作の記録を見ます．</p>
+      <div><a class="btn btn-outline-primary btn-sm" href="{{ url_for('all_portal.connect') }}">Claude 接続を開く</a></div>
+    </div>
+  </div>
+</div>
+
+<div class="card card-body mt-3">
+  <h3 class="h6">ポータルの編集</h3>
+  <table class="table table-sm table-hover align-middle mb-0">
+    <thead class="table-light"><tr><th style="width:5rem">種類</th><th>ポータル</th><th class="text-end" style="width:4rem">文書</th><th class="text-end" style="width:4.5rem">未処理</th><th style="width:1%"></th></tr></thead>
+    <tbody>
+    {% for p in tree %}
+      <tr>
+        <td class="small text-muted">{% if not p.depth %}{{ p.kind }}{% endif %}</td>
+        <td><span style="padding-left:{{ p.depth * 1.4 }}rem">{% if p.depth %}<span class="text-muted">└ </span>{% endif %}<a href="{{ url_for('all_portal.portal', pid=p.id) }}">{{ p.name }}</a></span>
+          {% if p.ai_act %}<span class="small text-muted" title="AI のアクト可">🤖</span>{% endif %}</td>
+        <td class="text-end small">{{ p.n_items }}</td>
+        <td class="text-end small">{% if p.n_open %}<a href="{{ p.home }}#requests" class="text-danger">{{ p.n_open }}</a>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td class="text-end text-nowrap">
+          <a class="btn btn-outline-secondary btn-sm py-0" href="{{ url_for('all_portal.item_edit', pid=p.id) }}">URL を追加</a>
+          <a class="btn btn-outline-secondary btn-sm py-0" href="{{ url_for('all_portal.portal_settings', pid=p.id) }}">設定と権限</a>
+          <button form="del{{ p.id }}" class="btn btn-outline-danger btn-sm py-0" >削除</button>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="small text-muted">ポータルはまだありません．</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% for p in tree %}
+  <form id="del{{ p.id }}" method="post" action="{{ url_for('all_portal.portal_delete', pid=p.id) }}" class="d-none"
+        onsubmit="return confirm('ポータル「{{ p.name }}」を，文書・権限・リクエスト・その下の子ポータルごと消します．元に戻せません．よろしいですか？')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>
+  {% endfor %}
+</div>
+{% endblock %}

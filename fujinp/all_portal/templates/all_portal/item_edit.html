@@ -1,0 +1,67 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'all_portal/base.html' %}
+{% block title %}{{ 'URL の編集' if it.id else 'URL の追加' }} - {{ p.name }} - オール{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{{ home }}">{{ p.kind }}／{{ p.name }}</a> ／ {% if it.id %}<a href="{{ url_for('all_portal.item', iid=it.id) }}">{{ it.title }}</a> ／ 題名・URL・公開範囲{% else %}URL の追加{% endif %}</nav>
+<form method="post" class="card card-body" style="max-width:52rem">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-2 mb-2">
+    <div class="col-sm-3"><label class="form-label small mb-0">順序数</label>
+      <input name="sort_order" class="form-control form-control-sm text-end font-monospace" inputmode="decimal"
+             value="{{ ('%.2f'|format(it.sort_order|float(0))) if it.sort_order not in (none, '') else '' }}" placeholder="空なら末尾"></div>
+    <div class="col-sm-9"><label class="form-label small mb-0">題名</label>
+      <input name="title" class="form-control form-control-sm" value="{{ it.title or '' }}" required autofocus></div>
+  </div>
+  <div class="mb-2"><label class="form-label small mb-0">URL</label>
+    <input name="url" class="form-control form-control-sm font-monospace" value="{{ it.url or '' }}" required
+           placeholder="https://fujinp.pythonanywhere.com/mid_term_progress/view">
+    <div class="form-text small">このサイトのページも，ほかのサイトのページも書けます．# の後に id を書くとその部分だけを Claude に渡します（例 <code>#plan-2-12</code>）．</div></div>
+  <div class="mb-3"><label class="form-label small mb-0">備考（任意．一覧の題名の下に出ます）</label>
+    <input name="note" class="form-control form-control-sm" value="{{ it.note or '' }}"></div>
+
+  <div class="card border-info mb-3">
+    <div class="card-header bg-info text-dark py-1"><h6 class="mb-0"><i class="fas fa-shield-alt"></i> 公開範囲</h6></div>
+    <div class="card-body py-2">
+      {% set cur = it.access_policy or 'inherit' %}
+      {% set icons = {'inherit': 'fa-link', 'private': 'fa-lock', 'group': 'fa-users', 'domestic': 'fa-building', 'public': 'fa-globe'} %}
+      {% set names = {'inherit': 'ポータルと同じ（ポータルの閲覧の範囲）', 'private': '非公開（アクトの人のみ）', 'group': '指定グループのみ', 'domestic': '構成員だけ', 'domestic_group': '構成員＋グループ', 'public': '一般公開（未ログインでも閲覧可）'} %}
+      {% for pk in policies %}
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="access_policy" id="ap_{{ pk }}" value="{{ pk }}"{{ ' checked' if cur == pk }} onchange="toggleGroupSelect()">
+        <label class="form-check-label small" for="ap_{{ pk }}">
+          {% if pk == 'domestic_group' %}<i class="fas fa-building"></i><i class="fas fa-plus mx-1"></i><i class="fas fa-users"></i>{% else %}<i class="fas {{ icons[pk] }}"></i>{% endif %}
+          {{ names[pk] }}</label>
+      </div>
+      {% endfor %}
+      <div id="ga" style="display:none;background:#f8f9fa;padding:12px;border-radius:5px" class="mt-2">
+        <label class="form-label small mb-1">対象のグループを選択：</label>
+        <div id="dn" class="form-text text-muted mb-2" style="display:none"><i class="fas fa-info-circle"></i> 「構成員＋グループ」では，構成員 <strong>または</strong> 選択したグループの所属者が対象です．</div>
+        <div class="row">
+          {% for g in groups %}
+          <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" name="access_groups" value="{{ g }}" id="g{{ loop.index }}"{{ ' checked' if g in (it.groups_list or []) }}>
+            <label class="form-check-label small" for="g{{ loop.index }}">{{ g }}</label></div></div>
+          {% else %}
+          <div class="col-12 small text-muted">グループがありません．</div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="form-text small mt-2">ここで選んだ範囲の人（と，その人が接続した Claude）にこの URL が見えます．アクトの人と admin にはいつも見えます．</div>
+    </div>
+  </div>
+  <div><button class="btn btn-primary btn-sm">保存</button>
+    <a class="btn btn-link btn-sm" href="{{ url_for('all_portal.item', iid=it.id) if it.id else home }}">戻る</a></div>
+</form>
+<script>
+function toggleGroupSelect(){
+  const v=(document.querySelector('input[name="access_policy"]:checked')||{}).value;
+  document.getElementById('ga').style.display=(v==='group'||v==='domestic_group')?'block':'none';
+  document.getElementById('dn').style.display=v==='domestic_group'?'block':'none';
+}
+toggleGroupSelect();
+</script>
+{% endblock %}

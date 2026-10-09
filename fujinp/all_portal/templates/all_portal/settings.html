@@ -1,0 +1,92 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'all_portal/base.html' %}
+{% block title %}設定 - {{ p.name }} - オール{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{{ home }}">{{ p.kind }}／{{ p.name }}</a> ／ 設定と権限</nav>
+<form method="post" class="card card-body mb-3" style="max-width:44rem">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <h2 class="h6">ポータル</h2>
+  <div class="row g-2 mb-2">
+    <div class="col-sm-4"><label class="form-label small mb-0">種類</label>
+      <select name="kind" class="form-select form-select-sm">{% for k in kinds %}<option{{ ' selected' if p.kind == k }}>{{ k }}</option>{% endfor %}</select></div>
+    <div class="col-sm-8"><label class="form-label small mb-0">名前</label>
+      <input name="name" class="form-control form-control-sm" value="{{ p.name }}" required></div>
+  </div>
+  <div class="mb-2"><label class="form-label small mb-0">説明</label>
+    <input name="description" class="form-control form-control-sm" value="{{ p.description or '' }}"></div>
+  <div class="row g-2 mb-2">
+    <div class="col-sm-6"><label class="form-label small mb-0">持ち主</label>
+      <div class="form-control form-control-sm bg-light">admin</div></div>
+    <div class="col-sm-6"><label class="form-label small mb-0">並び順</label>
+      <input name="sort_order" class="form-control form-control-sm" value="{{ p.sort_order if p.sort_order is not none else '' }}"></div>
+  </div>
+  <div class="form-check small mb-2"><input class="form-check-input" type="checkbox" name="ai_act" value="1" id="aa"{{ ' checked' if p.ai_act }}>
+    <label class="form-check-label" for="aa">AI のアクトを許す（アクトの段を持つ人が接続した Claude が，このポータルに文書を登録できる）</label></div>
+  <div><button class="btn btn-primary btn-sm">保存</button></div>
+</form>
+
+<form method="post" action="{{ url_for('all_portal.policy_save', pid=p.id) }}" class="card card-body mb-3" style="max-width:44rem">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <h2 class="h6">公開範囲</h2>
+  {% if p.parent_id %}<p class="small mb-2">このポータルは子ポータルです．親の行（URL）が見える人はここで設定しなくても閲覧でき，親でアクトの人はここでもアクトです．ここでの設定はそれに加える分です．</p>{% endif %}
+  <p class="small text-muted mb-2">段ごとに，文書アーカイブと同じ区分で公開範囲を選びます．閲覧は読むだけ，リクエストは読むことと担当へのリクエスト，アクトはそれに加えて文書の登録・編集・削除とリクエストの受付ができます．一般公開は未ログインの人も読めるので，閲覧だけで選べます．admin はいつでもアクトです．Claude にはここで決めた段がそのまま効きます．</p>
+  {% set icons = {'private': 'fa-lock', 'group': 'fa-users', 'domestic': 'fa-building', 'public': 'fa-globe'} %}
+  {% set names = {'private': '自分のみ（非公開）', 'group': '指定グループのみ', 'domestic': '構成員だけ', 'domestic_group': '構成員＋グループ', 'public': '一般公開（未ログインでも閲覧可）'} %}
+  {% for lv in level_keys %}
+  {% set cur = pol[lv] %}
+  <div class="card mb-3 border-info">
+    <div class="card-header bg-info text-dark py-1"><h6 class="mb-0"><i class="fas fa-shield-alt"></i> {{ level_key_label[lv] }}</h6></div>
+    <div class="card-body py-2">
+      <div class="mb-2">
+        {% for pk in policies if not (pk == 'public' and lv != 'view') %}
+        <div class="form-check form-check-inline">
+          <input class="form-check-input pol" type="radio" name="policy_{{ lv }}" id="p_{{ lv }}_{{ pk }}" value="{{ pk }}" data-lv="{{ lv }}"{{ ' checked' if cur.policy == pk }}>
+          <label class="form-check-label small" for="p_{{ lv }}_{{ pk }}">
+            {% if pk == 'domestic_group' %}<i class="fas fa-building"></i><i class="fas fa-plus mx-1"></i><i class="fas fa-users"></i>{% else %}<i class="fas {{ icons[pk] }}"></i>{% endif %}
+            {{ names[pk] if pk != 'private' else '非公開（admin のみ）' }}</label>
+        </div>
+        {% endfor %}
+      </div>
+      {% if cur.legacy %}<div class="small text-danger mb-2">旧方式の設定（ログインしている全員・利用者 ID）が残っています．保存するとここで選んだ範囲に置き換わります．</div>{% endif %}
+      <div id="ga_{{ lv }}" class="grp-area" style="display:none;background:#f8f9fa;padding:12px;border-radius:5px">
+        <label class="form-label small mb-1">対象のグループを選択：</label>
+        <div id="dn_{{ lv }}" class="form-text text-muted mb-2" style="display:none"><i class="fas fa-info-circle"></i> 「構成員＋グループ」では，構成員 <strong>または</strong> 選択したグループの所属者が対象です．</div>
+        <div class="row">
+          {% for g in cur.groups if g not in groups %}
+          <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" name="groups_{{ lv }}" value="{{ g }}" id="g_{{ lv }}_x{{ loop.index }}" checked disabled>
+            <label class="form-check-label small text-danger" for="g_{{ lv }}_x{{ loop.index }}">{{ g }}（グループが見つかりません）</label></div></div>
+          {% endfor %}
+          {% for g in groups %}
+          <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" name="groups_{{ lv }}" value="{{ g }}" id="g_{{ lv }}_{{ loop.index }}"{{ ' checked' if g in cur.groups }}>
+            <label class="form-check-label small" for="g_{{ lv }}_{{ loop.index }}">{{ g }}</label></div></div>
+          {% else %}
+          <div class="col-12 small text-muted">グループがありません（ユーザとグループで作ってください）．</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  <div><button class="btn btn-primary btn-sm"><i class="fas fa-save"></i> 公開範囲を保存</button></div>
+</form>
+<script>
+function toggleGroupSelect(lv){
+  const v=(document.querySelector('input[name="policy_'+lv+'"]:checked')||{}).value;
+  document.getElementById('ga_'+lv).style.display=(v==='group'||v==='domestic_group')?'block':'none';
+  document.getElementById('dn_'+lv).style.display=v==='domestic_group'?'block':'none';
+}
+document.querySelectorAll('.pol').forEach(r=>r.addEventListener('change',()=>toggleGroupSelect(r.dataset.lv)));
+{% for lv in level_keys %}toggleGroupSelect('{{ lv }}');{% endfor %}
+</script>
+
+<form method="post" action="{{ url_for('all_portal.portal_delete', pid=p.id) }}" class="text-end" style="max-width:44rem"
+      onsubmit="return confirm('このポータルを，文書・権限・リクエストごと消します．元に戻せません．よろしいですか？')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button class="btn btn-outline-danger btn-sm py-0">このポータルを消す</button>
+</form>
+{% endblock %}

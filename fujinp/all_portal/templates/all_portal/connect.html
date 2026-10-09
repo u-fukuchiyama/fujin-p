@@ -1,0 +1,78 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'all_portal/base.html' %}
+{% block title %}Claude 接続 - オール{% endblock %}
+{% block content %}
+<div class="small text-muted mb-2"><a href="{{ url_for('all_portal.admin_home') }}">設定</a> ／ Claude 接続</div>
+<div class="card card-body mb-3">
+  <h2 class="h6">Claude に登録する URL</h2>
+  <input class="form-control font-monospace" readonly value="{{ url }}" onclick="this.select()">
+  <p class="small text-muted mt-2 mb-0">Claude の設定のコネクタ欄で「カスタムコネクタを追加」を選び，この URL を貼って追加します．「連携」を押すとこのサイトの許可画面が開くので，FUJIN-P にログインした状態で「許可する」を押してください．Claude には，あなたがこの画面で使えるポータルが，同じ段で見えます．URL に秘密は入っていないので，人に教えてかまいません．</p>
+</div>
+
+<div class="card card-body mb-3">
+  <h2 class="h6">Claude に見えるもの（あなたの場合）</h2>
+  {% for p in portals %}
+    <div class="small">{{ p.kind }}／{{ p.name }}　<span class="lv lv{{ p.level }}">{{ LEVEL_LABEL[p.level] }}</span>{% if p.ai_act and p.level >= 3 %}　🤖 AI のアクト可{% endif %}</div>
+  {% else %}
+    <div class="small text-muted">使えるポータルはありません．</div>
+  {% endfor %}
+</div>
+
+<div class="card card-body mb-3">
+  <h2 class="h6">あなたの接続</h2>
+  {% for c in mine %}
+    <form method="post" action="{{ url_for('all_portal.connect_revoke') }}" class="d-flex justify-content-between align-items-center border-bottom py-1 small">
+      <span>{{ c.client_name or 'Claude' }}　許可 {{ c.since.strftime('%Y-%m-%d %H:%M') if c.since else '' }}　最終利用 {{ c.last_used.strftime('%Y-%m-%d %H:%M') if c.last_used else '—' }}</span>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="family" value="{{ c.family }}">
+      <button class="btn btn-outline-danger btn-sm py-0" onclick="return confirm('この接続を切ります．よろしいですか？')">切る</button>
+    </form>
+  {% else %}
+    <p class="small text-muted mb-0">接続はありません．</p>
+  {% endfor %}
+</div>
+
+{% if is_admin %}
+<div class="card card-body mb-3">
+  <h2 class="h6">すべての接続（admin）</h2>
+  {% for c in everyone %}
+    <form method="post" action="{{ url_for('all_portal.connect_revoke') }}" class="d-flex justify-content-between align-items-center border-bottom py-1 small">
+      <span>{{ c.user }}（#{{ c.user_id }}）　{{ c.client_name or 'Claude' }}　許可 {{ c.since.strftime('%Y-%m-%d %H:%M') if c.since else '' }}　最終利用 {{ c.last_used.strftime('%Y-%m-%d %H:%M') if c.last_used else '—' }}</span>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="family" value="{{ c.family }}">
+      <button class="btn btn-outline-danger btn-sm py-0" onclick="return confirm('この接続を切ります．よろしいですか？')">切る</button>
+    </form>
+  {% else %}
+    <p class="small text-muted mb-0">接続はありません．</p>
+  {% endfor %}
+  <p class="small text-muted mt-2 mb-0">認可サーバ：<code>{{ issuer }}</code></p>
+</div>
+
+<div class="card card-body mb-3">
+  <h2 class="h6">操作の記録（admin，新しい順に200件）</h2>
+  <div class="d-flex gap-2 mb-2">
+    {% for k, label in [('', 'すべて'), ('web', 'Web'), ('mcp', 'Claude（MCP）')] %}
+      <a class="btn btn-sm py-0 {{ 'btn-secondary' if via == k else 'btn-outline-secondary' }}" href="{{ url_for('all_portal.connect', via=k) }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <div class="table-responsive"><table class="table table-sm bg-white small">
+    <thead><tr><th>日時</th><th>誰が</th><th>経路</th><th>操作</th><th>ポータル</th><th>詳細</th></tr></thead>
+    <tbody>
+    {% for r in logs %}
+      <tr><td class="text-nowrap">{{ r.at.strftime('%m-%d %H:%M') }}</td><td>{{ r.user_name }}</td><td>{{ 'Claude' if r.via == 'mcp' else 'Web' }}</td>
+        <td>{{ r.action }}</td><td>{{ r.portal_id or '' }}</td><td class="text-muted" style="word-break:break-all;max-width:24rem">{{ r.detail or '' }}</td></tr>
+    {% else %}
+      <tr><td colspan="6" class="text-muted">記録はまだありません．</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+</div>
+{% endif %}
+
+<div class="card card-body">
+  <h2 class="h6">Claude が使える道具</h2>
+  {% for t in tools %}<p class="mb-1 small"><code>{{ t.name }}</code> — {{ t.description }}</p>{% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{# 届いたリクエストの受付．ereqs＝リクエストの行，etitle＝見出し #}
+<div class="card card-body mt-4" id="requests">
+  <h3 class="h6">{{ etitle }}</h3>
+  {% for r in ereqs %}
+    <form method="post" action="{{ url_for('all_portal.request_handle', rid=r.id) }}" class="border-bottom py-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="small text-muted">{{ r.created_at.strftime('%Y-%m-%d %H:%M') }}　{{ r.user_name }}　{{ '🤖 Claude 経由' if r.via == 'mcp' else 'Web' }}
+        <strong class="{{ 'text-danger' if r.status == 'open' else '' }}">{{ {'open': '未処理', 'done': '対応済み', 'rejected': '見送り'}[r.status] }}</strong>
+        {% if r.handled_by %}（{{ r.handled_by }} {{ r.handled_at.strftime('%m-%d %H:%M') if r.handled_at else '' }}）{% endif %}</div>
+      <div class="body-text small">{{ r.body }}</div>
+      <div class="d-flex flex-wrap gap-2 mt-1">
+        <input name="response" class="form-control form-control-sm" style="max-width:28rem" placeholder="返答（任意）" value="{{ r.response or '' }}">
+        <button name="status" value="done" class="btn btn-outline-success btn-sm py-0">対応済み</button>
+        <button name="status" value="rejected" class="btn btn-outline-secondary btn-sm py-0">見送り</button>
+        {% if r.status != 'open' %}<button name="status" value="open" class="btn btn-outline-danger btn-sm py-0">未処理に戻す</button>{% endif %}
+      </div>
+    </form>
+  {% else %}
+    <p class="small text-muted mb-0">リクエストはありません．</p>
+  {% endfor %}
+</div>

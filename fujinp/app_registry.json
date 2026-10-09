@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-08 22:06:35",
+  "generated_at": "2026-10-09 23:46:12",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -1900,10 +1900,11 @@
           "section": "internal",
           "endpoint": "all_portal.index",
           "dashboards": [
-            "admin"
+            "admin",
+            "guest"
           ],
           "sort_order": 91,
-          "visibility": "private",
+          "visibility": "public",
           "description": "人間と Claude に同じ文書の束を渡すポータル",
           "extra_class": ""
         }
