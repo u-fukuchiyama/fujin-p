@@ -5,12 +5,14 @@
   Source: https://github.com/u-fukuchiyama/fujin-p
 #}
 {% extends 'finder/base.html' %}
+{% block section %}manage{% endblock %}
 {% block title %}更新 - ふぁいんだ{% endblock %}
 {% block extra_style %}
   .log td{font-size:.82rem;vertical-align:top}
   .log .det{font-size:.75rem;color:#6c757d;word-break:break-all;max-width:28rem}
 {% endblock %}
 {% block content %}
+{% with manage_tab = 'update' %}{% include 'finder/_manage_nav.html' %}{% endwith %}
 <ul class="nav nav-tabs mb-3">
   {% for key, label in [('minutes', '議事録'), ('docs', '文書'), ('apps', 'アプリ')] + ([('log', '登録ログ')] if is_admin else []) %}
   <li class="nav-item"><a class="nav-link{{ ' active' if t == key }}" href="{{ url_for('finder.update', t=key) }}">{{ label }}</a></li>

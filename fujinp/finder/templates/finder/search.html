@@ -5,12 +5,13 @@
   Source: https://github.com/u-fukuchiyama/fujin-p
 #}
 {% extends 'finder/base.html' %}
+{% block section %}search{% endblock %}
 {% block title %}検索 - ふぁいんだ{% endblock %}
 {% block content %}
 <form method="get" action="{{ url_for('finder.search') }}" class="card card-body mb-3">
   <div class="row g-2">
     <div class="col-md-7">
-      <textarea name="q" rows="4" class="form-control" placeholder="1行が1つのまとまり．行の中は空白で区切る．例：&#10;西田 副学長&#10;中期計画">{{ q }}</textarea>
+      <textarea name="q" rows="4" class="form-control" placeholder="1行が1つのまとまり．行の中は空白で区切る．例：&#10;情報学部 地域協働&#10;中期計画">{{ q }}</textarea>
     </div>
     <div class="col-md-5 small">
       <div class="form-check"><input class="form-check-input" type="radio" name="mode" value="and_or" id="m1" {{ 'checked' if mode == 'and_or' }}>

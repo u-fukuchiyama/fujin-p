@@ -1,0 +1,15 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{# 管理区画の中の移動（★2026-10-09）．manage_tab で今いる画面を示す #}
+<div class="subnav">
+  <a href="{{ url_for('finder.manage') }}" class="{{ 'on' if manage_tab == 'top' }}">⚙️ 管理トップ</a>
+  <a href="{{ url_for('finder.update') }}" class="{{ 'on' if manage_tab == 'update' }}">📤 更新</a>
+  {% if is_admin %}
+  <a href="{{ url_for('finder.io') }}" class="{{ 'on' if manage_tab == 'io' }}">🔁 JSON入出力</a>
+  <a href="{{ url_for('finder.settings') }}" class="{{ 'on' if manage_tab == 'settings' }}">🛠 設定</a>
+  {% endif %}
+</div>

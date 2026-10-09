@@ -1763,6 +1763,34 @@ def update_archive():
     return redirect(url_for('finder.update', t='log'))
 
 
+# ── 管理のダッシュボード（★2026-10-09） ──
+# 更新・JSON入出力・設定をひとくくりにした区画の入口．更新できる人が開け，admin には操作の入口と最近の登録を出す．
+
+@bp.route('/manage')
+@login_required
+def manage():
+    require_update()
+    stats = {'minutes': 0, 'committees': 0, 'docs': 0, 'apps': 0}
+    with get_db_cursor(database=DB) as (cursor, conn):
+        cursor.execute(f"SELECT COUNT(*) AS n, COUNT(DISTINCT committee) AS c FROM {TABLE}")
+        r = cursor.fetchone()
+        stats['minutes'], stats['committees'] = r['n'] or 0, r['c'] or 0
+    with items_cursor() as (cursor, conn):
+        cursor.execute(f"SELECT item_type, COUNT(*) AS n FROM {ITEMS} GROUP BY item_type")
+        for r in cursor.fetchall():
+            if r['item_type'] == '文書類':
+                stats['docs'] = r['n']
+            elif r['item_type'] == 'アプリ':
+                stats['apps'] = r['n']
+    logs = []
+    if is_admin():
+        with get_db_cursor(database=DB) as (cursor, conn):
+            cursor.execute(LOG_DDL)
+            cursor.execute(f"SELECT * FROM {LOG} ORDER BY at DESC, id DESC LIMIT 8")
+            logs = cursor.fetchall()
+    return render_template('finder/manage.html', stats=stats, logs=logs)
+
+
 @bp.route('/return_to_fujin')
 @login_required
 def return_to_fujin():

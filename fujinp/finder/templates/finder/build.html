@@ -5,6 +5,7 @@
   Source: https://github.com/u-fukuchiyama/fujin-p
 #}
 {% extends 'finder/base.html' %}
+{% block section %}manage{% endblock %}
 {% block title %}データ構築 - ふぁいんだ{% endblock %}
 {% block content %}
 {% if error %}<div class="alert alert-danger py-2 small">{{ error }}</div>{% endif %}

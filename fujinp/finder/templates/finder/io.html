@@ -5,8 +5,10 @@
   Source: https://github.com/u-fukuchiyama/fujin-p
 #}
 {% extends 'finder/base.html' %}
+{% block section %}manage{% endblock %}
 {% block title %}JSON入出力 - ふぁいんだ{% endblock %}
 {% block content %}
+{% with manage_tab = 'io' %}{% include 'finder/_manage_nav.html' %}{% endwith %}
 <div class="card card-body mb-3">
   <h2 class="h6">書き出す</h2>
   <form method="get" action="{{ url_for('finder.export') }}" class="d-flex flex-wrap gap-2 align-items-center">

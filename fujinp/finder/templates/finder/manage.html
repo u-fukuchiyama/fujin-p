@@ -1,0 +1,61 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+{% extends 'finder/base.html' %}
+{% block section %}manage{% endblock %}
+{% block title %}管理 - ふぁいんだ{% endblock %}
+{% block extra_style %}
+  .mcard{display:block;height:100%;padding:.9rem 1rem;border:1px solid #cbd5e1;border-left:5px solid var(--sec);border-radius:.45rem;
+         background:#fff;color:#212529;text-decoration:none}
+  .mcard:hover{background:#f8fafc;border-color:var(--sec)}
+  .mcard .h{font-weight:700;margin-bottom:.25rem}
+  .mcard .d{font-size:.84rem;color:#64748b}
+  .stat{background:#fff;border:1px solid #e2e8f0;border-radius:.45rem;padding:.6rem .9rem;text-align:center}
+  .stat .n{font-size:1.4rem;font-weight:700;color:var(--sec)}
+  .stat .l{font-size:.78rem;color:#64748b}
+  .log td{font-size:.82rem}
+{% endblock %}
+{% block content %}
+{% with manage_tab = 'top' %}{% include 'finder/_manage_nav.html' %}{% endwith %}
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-3"><div class="stat"><div class="n">{{ '{:,}'.format(stats.minutes) }}</div><div class="l">議事録</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat"><div class="n">{{ '{:,}'.format(stats.committees) }}</div><div class="l">委員会</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat"><div class="n">{{ '{:,}'.format(stats.docs) }}</div><div class="l">文書類</div></div></div>
+  <div class="col-6 col-md-3"><div class="stat"><div class="n">{{ '{:,}'.format(stats.apps) }}</div><div class="l">アプリ</div></div></div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-6 col-lg-3"><a class="mcard" href="{{ url_for('finder.update', t='minutes') }}">
+    <div class="h">📜 議事録を登録</div><div class="d">議事録の PDF を上げ，委員会と開催日を付けて登録します．</div></a></div>
+  <div class="col-md-6 col-lg-3"><a class="mcard" href="{{ url_for('finder.update', t='docs') }}">
+    <div class="h">📁 文書を登録</div><div class="d">分類やフォルダを選び，文書ファイルを上げて登録します．</div></a></div>
+  <div class="col-md-6 col-lg-3"><a class="mcard" href="{{ url_for('finder.update', t='apps') }}">
+    <div class="h">🧩 アプリを登録</div><div class="d">Web アプリをアプリ名と URL で登録します．</div></a></div>
+  {% if is_admin %}
+  <div class="col-md-6 col-lg-3"><a class="mcard" href="{{ url_for('finder.update', t='log') }}">
+    <div class="h">🗒 登録ログ</div><div class="d">登録・編集・削除の記録と，保管フォルダの指定．</div></a></div>
+  <div class="col-md-6 col-lg-3"><a class="mcard" href="{{ url_for('finder.io') }}">
+    <div class="h">🔁 JSON入出力</div><div class="d">議事録の書き出しと，議事録・文書類・アプリの読み込み．</div></a></div>
+  <div class="col-md-6 col-lg-3"><a class="mcard" href="{{ url_for('finder.settings') }}">
+    <div class="h">🛠 設定</div><div class="d">更新できるグループと，委員会の並び．</div></a></div>
+  {% endif %}
+</div>
+{% if is_admin %}
+<div class="card"><div class="card-body py-2">
+  <div class="d-flex justify-content-between align-items-center mb-1">
+    <strong class="small">最近の登録</strong>
+    <a class="small" href="{{ url_for('finder.update', t='log') }}">すべて見る →</a>
+  </div>
+  <table class="table table-sm mb-0 log">
+    {% for r in logs %}
+      <tr><td class="text-nowrap">{{ r.at.strftime('%Y-%m-%d %H:%M') if r.at else '' }}</td><td>{{ r.user_name }}</td>
+        <td>{{ r.kind }}</td><td>{{ r.action }}</td><td>{{ r.title or (r.target_id or '') }}</td></tr>
+    {% else %}
+      <tr><td class="text-muted">記録はまだありません．</td></tr>
+    {% endfor %}
+  </table>
+</div></div>
+{% endif %}
+{% endblock %}

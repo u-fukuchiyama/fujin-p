@@ -5,8 +5,10 @@
   Source: https://github.com/u-fukuchiyama/fujin-p
 #}
 {% extends 'finder/base.html' %}
+{% block section %}manage{% endblock %}
 {% block title %}設定 - ふぁいんだ{% endblock %}
 {% block content %}
+{% with manage_tab = 'settings' %}{% include 'finder/_manage_nav.html' %}{% endwith %}
 <div class="card card-body mb-3">
   <h2 class="h6">更新できるグループ</h2>
   <p class="small text-muted mb-2">印を付けたグループの構成員が「更新」（議事録・文書・アプリの登録）を使えます．複数選べます．admin はいつでも使えます．閲覧はログインしている人なら誰でも，編集・削除などの操作は admin だけです．</p>
