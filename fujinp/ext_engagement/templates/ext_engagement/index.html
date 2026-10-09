@@ -22,12 +22,25 @@
             border-radius: 10px;
             margin-bottom: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            display: flex;
-            align-items: center;
-            gap: 15px;
         }
-        .header h1 { color: #1e3a5f; font-size: 1.35rem; flex: 1; }
-        .header-subtitle { color: #666; font-size: 0.8rem; margin-top: 2px; }
+        .header-title-row {
+            display: flex;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 4px 16px;
+            padding-bottom: 12px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .header h1 { color: #1e3a5f; font-size: 1.35rem; }
+        .header-subtitle { color: #666; font-size: 0.85rem; }
+        .header-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+        .header-actions .btn-return { margin-left: auto; }
         .btn-return {
             padding: 8px 14px;
             background: #e74c3c;
@@ -436,13 +449,16 @@
 
     <!-- ヘッダー -->
     <div class="header">
-        <div style="flex:1">
+        <div class="header-title-row">
             <h1>🤝 北近畿地域連携機構　連携申請審査</h1>
             <div class="header-subtitle">受託研究・受託事業・共同研究・共同事業 審査ワークフロー</div>
         </div>
+        <div class="header-actions">
 
+        {% if can_view_report %}
+        <a href="{{ url_for('ext_engagement.report_year', fiscal_year=current_fy) }}" class="report-btn">📊 年度報告</a>
+        {% endif %}
         {% if is_admin %}
-        <a href="{{ url_for('ext_engagement.report') }}" class="report-btn">📊 年度報告</a>
         <button class="t0604-btn" id="btn-t0604-sync">📋 T_06_04更新</button>
         {% endif %}
         {% if is_admin or is_chair %}
@@ -462,7 +478,7 @@
         </form>
         {% endif %}
         <a href="{{ url_for('ext_engagement.return_to_fujin') }}" class="btn-return">🏠 FUJIN-Pダッシュボードに戻る</a>
-
+        </div>
     </div>
 
     <!-- フィルタ -->

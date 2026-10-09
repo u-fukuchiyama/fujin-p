@@ -22,7 +22,7 @@ import io
 from pytz import timezone
 
 from flask import (
-    render_template, request, jsonify, session, Response, url_for
+    render_template, request, jsonify, session, Response, url_for, redirect
 )
 import mysql.connector
 
@@ -875,6 +875,8 @@ def index():
         # 下書きタブの表示可否に使う。委員長は審議開始を宣言できるため
         # 下書き案件にアクセスできる必要がある。
         is_chair=user_is_in_group(user_id, GROUP_CHAIR),
+        # 年度報告：事務局は管理者用，regular 以上はゲスト用（承認案件のみ）
+        can_view_report=(is_engagement_admin(user_id) or can_view_concluded(user_id)),
         can_view_stats=True,   # ここまで来られた人は Stats 表示可
         current_fy=get_current_fiscal_year(),
         type_labels=TYPE_LABELS,
@@ -901,14 +903,32 @@ def detail(case_id):
 @ext_engagement_bp.route('/report')
 @login_required
 def report():
+    """年度なしの URL は今年度の年度報告（/report/<年度>）へ転送する。"""
+    return redirect(url_for('ext_engagement.report_year',
+                            fiscal_year=get_current_fiscal_year()))
+
+
+@ext_engagement_bp.route('/report/<int:fiscal_year>')
+@login_required
+def report_year(fiscal_year):
     user_id = session.get('user_id')
-    if not is_engagement_admin(user_id):
+    # 連携審査_管理者は管理者用の年度報告，regular 以上はゲスト用の年度報告を見る
+    is_admin_v = is_engagement_admin(user_id)
+    if not (is_admin_v or can_view_concluded(user_id)):
         return "アクセス権限がありません", 403
+    current_fy = get_current_fiscal_year()
+    # 年度の選択肢：今年度から6年分。URL の年度がその外なら加える
+    fy_options = list(range(current_fy, current_fy - 6, -1))
+    if fiscal_year not in fy_options:
+        fy_options = sorted(set(fy_options + [fiscal_year]), reverse=True)
     return render_template(
         'ext_engagement/report.html',
         current_user_id=user_id,
-        is_admin=True,
-        current_fy=get_current_fiscal_year(),
+        is_admin=is_admin_v,
+        can_view_index=can_view_index(user_id),
+        current_fy=current_fy,
+        fiscal_year=fiscal_year,
+        fy_options=fy_options,
         type_labels=TYPE_LABELS,
         status_labels=STATUS_LABELS,
     )
@@ -2242,8 +2262,14 @@ def api_users_search():
 @ext_engagement_bp.route('/api/report', methods=['GET'])
 @login_required
 def api_report():
+    """
+    年度報告。
+      連携審査_管理者：全状態の案件と各件の直接経費・間接経費・合計経費、経費の合計
+      ゲスト（regular 以上）：承認済みの案件だけを、案件ID・金額・ステータスを除いて返す
+    """
     user_id = session.get('user_id')
-    if not is_engagement_admin(user_id):
+    is_admin_v = is_engagement_admin(user_id)
+    if not (is_admin_v or can_view_concluded(user_id)):
         return jsonify({'success': False, 'error': '権限がありません'}), 403
     try:
         fiscal_year = request.args.get('fiscal_year', get_current_fiscal_year(), type=int)
@@ -2254,8 +2280,46 @@ def api_report():
             (fiscal_year,))
         cases = [serialize_case(c) for c in cursor.fetchall()]
 
+        if not is_admin_v:
+            # ゲスト用：承認済みのみ。案件ID・リンク・金額・ステータスは返さない
+            approved_cases = [c for c in cases if c['status'] == 'approved']
+            by_type = {}
+            out = []
+            for c in approved_cases:
+                tk = c['type_key']
+                if tk not in by_type:
+                    by_type[tk] = {'label': TYPE_LABELS.get(tk, tk), 'approved': 0}
+                by_type[tk]['approved'] += 1
+                out.append({
+                    'application_no':      c.get('application_no') or '',
+                    'type_key':            tk,
+                    'type_label':          c.get('type_label', ''),
+                    'is_new_application':  c.get('is_new_application'),
+                    'title':               c.get('title') or '',
+                    'org_name':            c.get('org_name') or '',
+                    'faculty_dept':        c.get('faculty_dept') or '',
+                    'representative_name': c.get('representative_name') or '',
+                    'period_start':        c.get('period_start') or '',
+                    'period_end':          c.get('period_end') or '',
+                    'approved_date':       c.get('approved_date') or '',
+                })
+            return jsonify({'success': True, 'view': 'guest',
+                            'fiscal_year': fiscal_year, 'cases': out,
+                            'summary': {'approved': len(out), 'by_type': by_type}})
+
+        # 管理者用：各件の経費。合計は直接＋間接、どちらも無ければ旧テキスト欄の数字
+        for c in cases:
+            d, i = c.get('direct_fee'), c.get('indirect_fee')
+            if d is not None or i is not None:
+                c['total_fee'] = (d or 0) + (i or 0)
+                c['fee_from_text'] = False
+            else:
+                c['total_fee'] = _parse_fee_to_int(c.get('research_fee'))
+                c['fee_from_text'] = c['total_fee'] is not None
+
+        approved_cases = [c for c in cases if c['status'] == 'approved']
         total    = len(cases)
-        approved = sum(1 for c in cases if c['status'] == 'approved')
+        approved = len(approved_cases)
         by_type  = {}
         for c in cases:
             tk = c['type_key']
@@ -2265,12 +2329,20 @@ def api_report():
             if c['status'] == 'approved':
                 by_type[tk]['approved'] += 1
 
-        return jsonify({'success': True, 'fiscal_year': fiscal_year, 'cases': cases,
+        # 経費の合計（承認済み案件）
+        sum_direct   = sum(c.get('direct_fee') or 0 for c in approved_cases)
+        sum_indirect = sum(c.get('indirect_fee') or 0 for c in approved_cases)
+        sum_total    = sum(c.get('total_fee') or 0 for c in approved_cases)
+
+        return jsonify({'success': True, 'view': 'admin',
+            'fiscal_year': fiscal_year, 'cases': cases,
             'summary': {'total': total, 'approved': approved,
                 'rejected':  sum(1 for c in cases if c['status'] == 'rejected'),
                 'reviewing': sum(1 for c in cases if c['status'] == 'reviewing'),
                 'draft':     sum(1 for c in cases if c['status'] == 'draft'),
-                'by_type': by_type}})
+                'by_type': by_type,
+                'fee': {'direct': sum_direct, 'indirect': sum_indirect,
+                        'total': sum_total}}})
     except Exception as e:
         logging.error("api_report error: %s", e)
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -2282,6 +2354,7 @@ def api_report():
 @ext_engagement_bp.route('/api/report/csv', methods=['GET'])
 @login_required
 def api_report_csv():
+    # CSV 出力は連携審査_管理者（および admin）だけ。ゲスト用の年度報告からは使えない
     user_id = session.get('user_id')
     if not is_engagement_admin(user_id):
         return jsonify({'success': False, 'error': '権限がありません'}), 403
