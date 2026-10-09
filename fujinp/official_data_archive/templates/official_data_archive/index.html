@@ -205,6 +205,8 @@ body{font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;
 .bulk-import-body{padding:10px 15px;font-size:12.5px;line-height:1.6}
 .bulk-import-body ul{margin:6px 0 10px;padding-left:20px;max-height:320px;overflow:auto}
 .bulk-import-body .bi-q{font-weight:700;margin:4px 0}
+.rep-url{padding:7px 15px;font-family:Consolas,Monaco,'Courier New',monospace;font-size:11.5px;
+         color:#555;word-break:break-all;background:#fdfdfe}
 
 /* ページャー */
 #pager{display:none;align-items:center;gap:6px;padding:6px 12px;
@@ -485,6 +487,39 @@ body{font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;
       </div>
     </div>
 
+    <h3 class="mig-h">📄 一覧ドキュメント（Web文書）</h3>
+    <p class="bulk-intro">
+      指標のグラフとテーブルの定義を，それぞれ1本のWeb文書として公開しています．
+      下のURLにアクセスすると，その時点の最新状態からHTML文書が返されます（閲覧権限のあるログイン中の利用者が読めます）．
+      「開く」で別タブに表示し，「⬇ ダウンロード」でHTMLファイルとして保存します．
+    </p>
+
+    <div class="bulk-card">
+      <div class="bulk-head">
+        <div class="bulk-title">📈 指標の動き</div>
+        <div class="bulk-desc">単一指標と複合指標のグラフ（SVG）を，指標名の見出しつきで並べた文書（HTML＋SVG＋CSS）</div>
+        <div class="bulk-ops">
+          <a class="btn-toggle rep-open" data-rep="iv" href="#" target="_blank" rel="noopener">開く</a>
+          <a class="btn-toggle rep-dl" data-rep="iv" href="#">⬇ ダウンロード</a>
+          <button class="btn-toggle rep-copy" data-rep="iv">📋 URLコピー</button>
+        </div>
+      </div>
+      <div class="rep-url" data-rep="iv"></div>
+    </div>
+
+    <div class="bulk-card">
+      <div class="bulk-head">
+        <div class="bulk-title">🧱 テーブル一覧</div>
+        <div class="bulk-desc">登録簿に載っている公式テーブルの名前と，列構成・DDL（スキーマ）の一覧</div>
+        <div class="bulk-ops">
+          <a class="btn-toggle rep-open" data-rep="tb" href="#" target="_blank" rel="noopener">開く</a>
+          <a class="btn-toggle rep-dl" data-rep="tb" href="#">⬇ ダウンロード</a>
+          <button class="btn-toggle rep-copy" data-rep="tb">📋 URLコピー</button>
+        </div>
+      </div>
+      <div class="rep-url" data-rep="tb"></div>
+    </div>
+
     <h3 class="mig-h">📦 定義情報の一括取り出し</h3>
     <p class="bulk-intro">
       登録されている公式テーブル・指標の定義情報を、種類ごとにまとめて取り出せます。
@@ -717,6 +752,8 @@ const URL_MIG_TABLE = '{{ url_for("official_data_archive.api_migration_import_ta
 const URL_MIG_DEFS  = '{{ url_for("official_data_archive.api_migration_import_definitions") }}';
 const URL_MIG_MANIFEST = '{{ url_for("official_data_archive.api_migration_manifest") }}';
 const URL_MIG_EXPORT   = '{{ url_for("official_data_archive.api_migration_table") }}';
+const URL_REP_IV       = '{{ url_for("official_data_archive.report_indicators") }}';
+const URL_REP_TABLES   = '{{ url_for("official_data_archive.report_tables") }}';
 
 const PAGE_SIZE = 500;
 let allRows    = [];
@@ -1229,6 +1266,11 @@ function buildIvSvg(){
   if(!ivChartData) return null;
   const s = extractSeries(ivChartData.columns, ivChartData.rows);
   if(!s) return null;
+  return svgSingle(ivCurrent ? ivCurrent.name : s.yLabel, s, ivChartMode);
+}
+
+// 単一指標のSVG（純関数：タイトル・系列・グラフ種別から組み立てる．一覧ドキュメントでも使う）
+function svgSingle(title, s, mode){
   const nums = s.values.filter(v => v !== null);
   if(!nums.length) return null;
 
@@ -1241,7 +1283,6 @@ function buildIvSvg(){
   const n  = s.labels.length;
   const X  = i => mL + pw * (i + 0.5) / n;
   const Y  = v => mT + ph * (1 - (v - ymin) / (ymax - ymin));
-  const title = ivCurrent ? ivCurrent.name : s.yLabel;
 
   const o = [];
   o.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H +
@@ -1264,7 +1305,7 @@ function buildIvSvg(){
   o.push('<line x1="' + mL + '" y1="' + (mT + ph) + '" x2="' + (W - mR) + '" y2="' +
          (mT + ph) + '" stroke="#9ca3af" stroke-width="1"/>');
   // データ
-  if(ivChartMode === 'bar'){
+  if(mode === 'bar'){
     const bw = pw / n * 0.6;
     s.values.forEach(function(v, i){
       if(v === null) return;
@@ -1685,9 +1726,15 @@ function renderCpChart(){
 // ── SVGアウトプット（複数系列・凡例付き、縦軸0〜最大値） ──
 function buildCpSvg(){
   if(!cpSeries || !cpSeries.length) return null;
-  const labels = unionLabels(cpSeries);
+  return svgMulti(cpCurrent ? cpCurrent.name : '複合指標', cpSeries);
+}
+
+// 複合指標のSVG（純関数：タイトルと抽出済み系列の配列から組み立てる．一覧ドキュメントでも使う）
+function svgMulti(title, seriesList){
+  if(!seriesList || !seriesList.length) return null;
+  const labels = unionLabels(seriesList);
   let vmax = -Infinity;
-  const mapped = cpSeries.map(function(s){
+  const mapped = seriesList.map(function(s){
     const map = {};
     s.labels.forEach(function(l,i){ map[l] = s.values[i]; });
     const data = labels.map(function(l){
@@ -1714,7 +1761,7 @@ function buildCpSvg(){
   o.push('<rect width="' + W + '" height="' + H + '" fill="#ffffff"/>');
   o.push('<text x="' + (W/2) + '" y="22" text-anchor="middle" font-size="14" ' +
          'font-weight="bold" fill="#1a3a5c">' +
-         esc(cpCurrent ? cpCurrent.name : '複合指標') + '</text>');
+         esc(title) + '</text>');
   // 凡例
   mapped.forEach(function(s, i){
     const ly = 38 + i * 18;
@@ -1770,7 +1817,7 @@ function buildCpSvg(){
   });
   o.push('<text x="' + (mL + pw/2) + '" y="' + (H - 10) +
          '" text-anchor="middle" font-size="11" fill="#6b7280">' +
-         esc(cpSeries[0].xLabel) + '</text>');
+         esc(seriesList[0].xLabel) + '</text>');
   o.push('</svg>');
   return o.join('\n');
 }
@@ -1922,6 +1969,35 @@ function deleteComposite(c){
     toast('エラー: '+err, true);
   });
 }
+
+// ============================================================
+// 一覧ドキュメント（Web文書）
+//   サーバが所定のURLでHTML文書を返す．ここではURLを表示し，リンクを張るだけ．
+// ============================================================
+(function(){
+  const urls = {iv: URL_REP_IV, tb: URL_REP_TABLES};
+  Object.keys(urls).forEach(function(k){
+    const abs = new URL(urls[k], location.href).href;
+    $('.rep-open[data-rep="'+k+'"]').attr('href', urls[k]);
+    $('.rep-dl[data-rep="'+k+'"]').attr('href', urls[k] + '?dl=1');
+    $('.rep-url[data-rep="'+k+'"]').text(abs);
+  });
+  $('#pane-bulk').on('click', '.rep-copy', function(){
+    const k = $(this).data('rep');
+    const text = new URL(urls[k], location.href).href;
+    const ok = function(){ toast('URLをコピーしました'); };
+    const fallback = function(){
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy') ? ok() : toast('コピーに失敗しました', true); }
+      catch(e){ toast('コピーに失敗しました', true); }
+      ta.remove();
+    };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(ok, fallback);
+    } else { fallback(); }
+  });
+})();
 
 // ============================================================
 // 定義情報の一括取り出し

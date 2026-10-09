@@ -2519,6 +2519,586 @@ def api_update_reject():
 
 
 # ────────────────────────────────────────────
+# 一覧ドキュメント（Web文書）
+#   所定のURLにアクセスすると、サーバがその時点の最新状態からHTML文書を
+#   組み立てて返す。いずれも閲覧権限（regular以上）で読める読み取り専用の文書。
+#     /official_data_archive/report/indicators … 指標の動き（HTML＋SVG＋CSS）
+#     /official_data_archive/report/tables     … テーブル一覧（名前と列構成・DDL）
+#   ?dl=1 を付けるとファイルとして保存させる（Content-Disposition: attachment）。
+#   グラフのSVGは画面の「⬇ SVG」（index.html の svgSingle / svgMulti）と
+#   同じ規則で、ここで Python により生成する。
+# ────────────────────────────────────────────
+
+import html as _html_mod
+
+_NUM_HEAD_RE = re.compile(r'^\s*[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?')
+
+
+def _h(s):
+    """HTML/SVG 用のエスケープ（bytes は UTF-8 で読む）。"""
+    if s is None:
+        return ''
+    if isinstance(s, (bytes, bytearray)):
+        s = s.decode('utf-8', errors='replace')
+    return _html_mod.escape(str(s))
+
+
+def _parse_float(v):
+    """JavaScript の parseFloat 相当（先頭の数値部分を読む。読めなければ None）。"""
+    if v is None or isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        f = float(v)
+        return f if math.isfinite(f) else None
+    m = _NUM_HEAD_RE.match(str(v))
+    if not m:
+        return None
+    try:
+        f = float(m.group(0))
+    except ValueError:
+        return None
+    return f if math.isfinite(f) else None
+
+
+def _label(v):
+    """横軸ラベルの文字列化（画面の String(r[x] ?? '') に合わせる）。"""
+    if v is None:
+        return ''
+    if isinstance(v, float) and v.is_integer():
+        return str(int(v))
+    return str(safe_val(v))
+
+
+def _extract_series(columns, rows):
+    """1列目を横軸、2列目以降で最初に数値が取れる列を縦軸にする（画面と同じ規則）。"""
+    if not columns or len(columns) < 2 or not rows:
+        return None
+    x_col = columns[0]
+    for c in columns[1:]:
+        vals = [_parse_float(r.get(c)) for r in rows]
+        if any(v is not None for v in vals):
+            return {'xLabel': x_col, 'yLabel': c,
+                    'labels': [_label(r.get(x_col)) for r in rows],
+                    'values': vals}
+    return None
+
+
+def _nice_ticks(vmin, vmax, n):
+    span = (vmax - vmin) or 1
+    step0 = span / n
+    mag = 10 ** math.floor(math.log10(step0))
+    step = 10 * mag
+    for m in (1, 2, 5, 10):
+        if step0 <= m * mag:
+            step = m * mag
+            break
+    ticks = []
+    for i in range(math.ceil(vmin / step), math.floor(vmax / step) + 1):
+        ticks.append(float('%.12g' % (i * step)))
+    return ticks
+
+
+def _fmt_num(x):
+    """目盛の数値表示（整数は小数点なし）。"""
+    if float(x).is_integer():
+        return str(int(x))
+    return ('%.12g' % x)
+
+
+def _data_line(s, name=None):
+    """グラフの元データを [年度：値，…] の辞書式で書いた1行（読み手のAI向け）。
+    値が無い年度は null と書く。name を渡すと系列名を前に置く（複合指標用）。"""
+    items = []
+    for l, v in zip(s['labels'], s['values']):
+        items.append('%s：%s' % (l, 'null' if v is None else _fmt_num(v)))
+    head = ('%s（%s）' % (name, s['yLabel'])
+            if name and name != s['yLabel'] else (name or s['yLabel']))
+    return ('<p class="data"><span class="data-k">%s</span> [%s]</p>'
+            % (_h(head), _h('，'.join(items))))
+
+
+def _c(x):
+    """座標の書式（小数2桁）。"""
+    return ('%.2f' % x).rstrip('0').rstrip('.')
+
+
+def _natural_key(s):
+    """年度などを数値順に並べるキー（画面の localeCompare numeric 相当）。"""
+    parts = re.split(r'(\d+)', str(s))
+    return [(0, int(p)) if p.isdigit() else (1, p) for p in parts if p != '']
+
+
+def _x_labels_svg(o, labels, X, base_y):
+    rotate = len(labels) > 12
+    for i, lb in enumerate(labels):
+        x = X(i)
+        if rotate:
+            o.append('<text x="%s" y="%s" text-anchor="end" font-size="10" '
+                     'fill="#374151" transform="rotate(-45 %s %s)">%s</text>'
+                     % (_c(x), _c(base_y), _c(x), _c(base_y), _h(lb)))
+        else:
+            o.append('<text x="%s" y="%s" text-anchor="middle" font-size="11" '
+                     'fill="#374151">%s</text>' % (_c(x), _c(base_y), _h(lb)))
+
+
+def _svg_single(title, s, mode):
+    """単一指標のSVG（棒または折れ線。縦軸は0〜最大値の約10%上）。"""
+    nums = [v for v in s['values'] if v is not None]
+    if not nums:
+        return None
+    vmax0 = max(nums)
+    if not math.isfinite(vmax0) or vmax0 <= 0:
+        vmax0 = 1
+    ymin, ymax = 0, vmax0 * 1.1
+    W, H, mL, mR, mT, mB = 720, 340, 76, 24, 40, 64
+    pw, ph = W - mL - mR, H - mT - mB
+    n = len(s['labels'])
+    X = lambda i: mL + pw * (i + 0.5) / n
+    Y = lambda v: mT + ph * (1 - (v - ymin) / (ymax - ymin))
+    o = ['<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
+         'viewBox="0 0 %d %d" font-family="sans-serif" role="img" aria-label="%s">'
+         % (W, H, W, H, _h(title)),
+         '<rect width="%d" height="%d" fill="#ffffff"/>' % (W, H),
+         '<text x="%s" y="22" text-anchor="middle" font-size="14" font-weight="bold" '
+         'fill="#1a3a5c">%s</text>' % (_c(W / 2), _h(title))]
+    for tk in _nice_ticks(ymin, ymax, 5):
+        y = Y(tk)
+        o.append('<line x1="%d" y1="%s" x2="%d" y2="%s" stroke="#e5e7eb" stroke-width="1"/>'
+                 % (mL, _c(y), W - mR, _c(y)))
+        o.append('<text x="%d" y="%s" text-anchor="end" font-size="11" fill="#6b7280">%s</text>'
+                 % (mL - 8, _c(y + 3.5), _fmt_num(tk)))
+    o.append('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="#9ca3af" stroke-width="1"/>'
+             % (mL, mT, mL, mT + ph))
+    o.append('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="#9ca3af" stroke-width="1"/>'
+             % (mL, mT + ph, W - mR, mT + ph))
+    if mode == 'bar':
+        bw = pw / n * 0.6
+        for i, v in enumerate(s['values']):
+            if v is None:
+                continue
+            y = Y(v)
+            o.append('<rect x="%s" y="%s" width="%s" height="%s" fill="#2e6da4" '
+                     'fill-opacity="0.75"/>' % (_c(X(i) - bw / 2), _c(min(y, mT + ph)),
+                                                _c(bw), _c(abs(mT + ph - y))))
+    else:
+        pts = ['%s,%s' % (_c(X(i)), _c(Y(v)))
+               for i, v in enumerate(s['values']) if v is not None]
+        if len(pts) > 1:
+            o.append('<polyline points="%s" fill="none" stroke="#2e6da4" stroke-width="2"/>'
+                     % ' '.join(pts))
+        for i, v in enumerate(s['values']):
+            if v is not None:
+                o.append('<circle cx="%s" cy="%s" r="3" fill="#2e6da4"/>'
+                         % (_c(X(i)), _c(Y(v))))
+    _x_labels_svg(o, s['labels'], X, mT + ph + 16)
+    o.append('<text x="%s" y="%d" text-anchor="middle" font-size="11" fill="#6b7280">%s</text>'
+             % (_c(mL + pw / 2), H - 10, _h(s['xLabel'])))
+    o.append('<text x="16" y="%s" text-anchor="middle" font-size="11" fill="#6b7280" '
+             'transform="rotate(-90 16 %s)">%s</text>'
+             % (_c(mT + ph / 2), _c(mT + ph / 2), _h(s['yLabel'])))
+    o.append('</svg>')
+    return '\n'.join(o)
+
+
+def _svg_multi(title, series_list):
+    """複合指標のSVG（折れ線の重ね合わせ・凡例付き。縦軸は0〜全系列の最大値の約10%上）。"""
+    if not series_list:
+        return None
+    labels = sorted({l for s in series_list for l in s['labels']}, key=_natural_key)
+    vmax = None
+    mapped = []
+    for s in series_list:
+        m = {}
+        for l, v in zip(s['labels'], s['values']):
+            m[l] = v
+        data = [m.get(l) for l in labels]
+        for v in data:
+            if v is not None and (vmax is None or v > vmax):
+                vmax = v
+        mapped.append({'name': s['name'], 'color': s['color'], 'data': data})
+    if vmax is None or not math.isfinite(vmax) or vmax <= 0:
+        vmax = 1
+    ymin, ymax = 0, vmax * 1.1
+    legH = 18 * len(mapped)
+    W, mL, mR, mT, mB = 720, 76, 24, 44 + legH, 64
+    ph = 240
+    H = mT + ph + mB
+    pw = W - mL - mR
+    n = len(labels)
+    X = lambda i: mL + pw * (i + 0.5) / n
+    Y = lambda v: mT + ph * (1 - (v - ymin) / (ymax - ymin))
+    o = ['<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
+         'viewBox="0 0 %d %d" font-family="sans-serif" role="img" aria-label="%s">'
+         % (W, H, W, H, _h(title)),
+         '<rect width="%d" height="%d" fill="#ffffff"/>' % (W, H),
+         '<text x="%s" y="22" text-anchor="middle" font-size="14" font-weight="bold" '
+         'fill="#1a3a5c">%s</text>' % (_c(W / 2), _h(title))]
+    for i, s in enumerate(mapped):
+        ly = 38 + i * 18
+        col = _h(s['color'])
+        o.append('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="2"/>'
+                 % (mL, ly, mL + 24, ly, col))
+        o.append('<circle cx="%d" cy="%d" r="3" fill="%s"/>' % (mL + 12, ly, col))
+        o.append('<text x="%d" y="%s" font-size="11" fill="#374151">%s</text>'
+                 % (mL + 30, _c(ly + 3.5), _h(s['name'])))
+    for tk in _nice_ticks(ymin, ymax, 5):
+        y = Y(tk)
+        o.append('<line x1="%d" y1="%s" x2="%d" y2="%s" stroke="#e5e7eb" stroke-width="1"/>'
+                 % (mL, _c(y), W - mR, _c(y)))
+        o.append('<text x="%d" y="%s" text-anchor="end" font-size="11" fill="#6b7280">%s</text>'
+                 % (mL - 8, _c(y + 3.5), _fmt_num(tk)))
+    o.append('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="#9ca3af" stroke-width="1"/>'
+             % (mL, mT, mL, mT + ph))
+    o.append('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="#9ca3af" stroke-width="1"/>'
+             % (mL, mT + ph, W - mR, mT + ph))
+    for s in mapped:
+        col = _h(s['color'])
+        pts = ['%s,%s' % (_c(X(i)), _c(Y(v)))
+               for i, v in enumerate(s['data']) if v is not None]
+        if len(pts) > 1:
+            o.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="2"/>'
+                     % (' '.join(pts), col))
+        for i, v in enumerate(s['data']):
+            if v is not None:
+                o.append('<circle cx="%s" cy="%s" r="3" fill="%s"/>'
+                         % (_c(X(i)), _c(Y(v)), col))
+    _x_labels_svg(o, labels, X, mT + ph + 16)
+    o.append('<text x="%s" y="%d" text-anchor="middle" font-size="11" fill="#6b7280">%s</text>'
+             % (_c(mL + pw / 2), H - 10, _h(series_list[0]['xLabel'])))
+    o.append('</svg>')
+    return '\n'.join(o)
+
+
+_REPORT_BASE_CSS = """
+*{box-sizing:border-box}
+body{margin:0;font-family:"Helvetica Neue",Arial,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+     color:#222;background:#f4f6f8;line-height:1.6}
+header{background:#1a3a5c;color:#fff;padding:22px 28px}
+header h1{margin:0;font-size:22px}
+header p{margin:6px 0 0;font-size:12px;opacity:.85}
+nav,section{background:#fff;border:1px solid #dde3e9;border-radius:8px;padding:14px 18px;margin-bottom:18px}
+h2.part{font-size:18px;color:#1a3a5c;border-bottom:3px solid #2e6da4;padding-bottom:4px;margin:30px 0 14px}
+section h3{margin:0 0 8px;font-size:15px;color:#1a3a5c}
+.err{color:#991b1b;background:#fee2e2;border-radius:4px;padding:6px 10px;font-size:12px}
+.note{color:#856404;font-size:11px;margin:4px 0 0}
+@media print{body{background:#fff}header{background:#fff;color:#000;border-bottom:2px solid #000}
+  nav{display:none}section{break-inside:avoid;page-break-inside:avoid;border:none;padding:0}}
+"""
+
+_REPORT_IV_CSS = """
+main{max-width:820px;margin:0 auto;padding:20px 16px 48px}
+nav h2{font-size:14px;margin:6px 0}
+nav ol{margin:0 0 8px;padding-left:22px;font-size:13px;columns:2;column-gap:28px}
+nav a{color:#2e6da4;text-decoration:none}
+.fig svg{display:block;max-width:100%;height:auto}
+.data{margin:6px 0 0;font-size:11px;line-height:1.5;color:#555;word-break:break-all;
+      font-family:Consolas,Monaco,"Courier New",monospace}
+.data-k{color:#1a3a5c;font-weight:600}
+@media(max-width:600px){nav ol{columns:1}}
+"""
+
+
+def _report_page(title, heading, sub, css, body):
+    return ('<!DOCTYPE html>\n<html lang="ja">\n<head>\n<meta charset="UTF-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+            '<title>%s - 公式データ集</title>\n<style>%s%s</style>\n</head>\n<body>\n'
+            '<header><h1>%s</h1><p>%s</p></header>\n<main>\n%s\n</main>\n</body>\n</html>\n'
+            % (_h(title), _REPORT_BASE_CSS, css, heading, sub, body))
+
+
+def _report_site_name():
+    return getattr(Config, 'SITE_NAME', None) or request.host
+
+
+def _report_indicators_html():
+    """指標の動き：全単一指標・全複合指標のグラフ（SVG）を見出しつきで並べたHTML。
+    単一指標のクエリは1回ずつだけ実行し、複合指標はその結果を共有する。"""
+    conn = mysql.connector.connect(**DatabaseConfig.default())
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT id, name, query, chart_type
+            FROM official_data_archive_indicator_views
+            ORDER BY sort_order, name
+        """)
+        views = cursor.fetchall()
+        cursor.execute("""
+            SELECT id, name FROM official_data_archive_composites
+            ORDER BY sort_order, name
+        """)
+        composites = cursor.fetchall()
+        cursor.execute("""
+            SELECT cc.composite_id, cc.indicator_view_id, cc.color, cc.seq,
+                   v.name AS indicator_name
+            FROM official_data_archive_composite_components cc
+            LEFT JOIN official_data_archive_indicator_views v
+                   ON cc.indicator_view_id = v.id
+            ORDER BY cc.composite_id, cc.seq
+        """)
+        comp_rows = cursor.fetchall()
+        cursor.close()
+    finally:
+        conn.close()
+
+    # 単一指標の実行（結果は複合指標でも使う）
+    results = {}
+    for v in views:
+        r = {'name': v['name'], 'chart_type': v.get('chart_type') or 'bar'}
+        query, err = _validate_select(v['query'])
+        if err:
+            r['error'] = err
+        else:
+            try:
+                columns, rows, truncated = _run_indicator_query(
+                    query, INDICATOR_MAX_ROWS)
+                r['series'] = _extract_series(columns, rows)
+                r['nrows'] = len(rows)
+                r['truncated'] = truncated
+            except Exception as qe:
+                r['error'] = 'クエリ実行エラー：%s' % qe
+        results[v['id']] = r
+
+    toc1, toc2, sec1, sec2 = [], [], [], []
+    for v in views:
+        r = results[v['id']]
+        anchor = 'iv-%d' % v['id']
+        toc1.append('<li><a href="#%s">%s</a></li>' % (anchor, _h(v['name'])))
+        if r.get('error'):
+            body = '<p class="err">⚠️ %s</p>' % _h(r['error'])
+        else:
+            svg = (_svg_single(v['name'], r['series'],
+                               'line' if r['chart_type'] == 'line' else 'bar')
+                   if r.get('series') else None)
+            body = ('<div class="fig">%s</div>' % svg if svg else
+                    '<p class="err">⚠️ 数値列が見つからないためグラフ化できません</p>')
+            if r.get('series'):
+                body += _data_line(r['series'])
+            if r.get('truncated'):
+                body += ('<p class="note">結果が多いため先頭%d行のみで描いています</p>'
+                         % r['nrows'])
+        sec1.append('<section id="%s"><h3>%s</h3>%s</section>'
+                    % (anchor, _h(v['name']), body))
+
+    by_comp = {}
+    for cr in comp_rows:
+        by_comp.setdefault(cr['composite_id'], []).append(cr)
+    for c in composites:
+        anchor = 'cp-%d' % c['id']
+        toc2.append('<li><a href="#%s">%s</a></li>' % (anchor, _h(c['name'])))
+        series, errs = [], []
+        for cr in by_comp.get(c['id'], []):
+            nm = cr['indicator_name'] or '（削除された単一指標）'
+            r = results.get(cr['indicator_view_id'])
+            if not r:
+                errs.append('%s：構成する単一指標が削除されています' % nm)
+            elif r.get('error'):
+                errs.append('%s：%s' % (nm, r['error']))
+            elif not r.get('series'):
+                errs.append('%s：数値列が見つかりません' % nm)
+            else:
+                s = r['series']
+                series.append({'name': r['name'], 'color': cr['color'],
+                               'labels': s['labels'], 'values': s['values'],
+                               'xLabel': s['xLabel'], 'yLabel': s['yLabel']})
+        body = ''
+        if errs:
+            body += '<p class="err">⚠️ %s</p>' % '<br>⚠️ '.join(_h(e) for e in errs)
+        svg = _svg_multi(c['name'], series) if series else None
+        body += ('<div class="fig">%s</div>' % svg if svg else
+                 '<p class="err">表示できる系列がありません</p>')
+        body += ''.join(_data_line(s, s['name']) for s in series)
+        sec2.append('<section id="%s"><h3>%s</h3>%s</section>'
+                    % (anchor, _h(c['name']), body))
+
+    now = get_jst_now()
+    sub = ('公式データ集　%s　生成日時 %s JST　単一指標 %d件／複合指標 %d件'
+           % (_h(_report_site_name()), now.strftime('%Y-%m-%d %H:%M'),
+              len(views), len(composites)))
+    body = ('<nav><h2>単一指標</h2><ol>%s</ol><h2>複合指標</h2><ol>%s</ol></nav>\n'
+            '<h2 class="part">単一指標</h2>\n%s\n'
+            '<h2 class="part">複合指標</h2>\n%s'
+            % (''.join(toc1), ''.join(toc2), '\n'.join(sec1), '\n'.join(sec2)))
+    return _report_page('指標の動き', '📈 指標の動き', sub, _REPORT_IV_CSS, body)
+
+
+_REPORT_TABLES_CSS = """
+*{box-sizing:border-box}
+body{margin:0;font-family:"Helvetica Neue",Arial,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+     color:#222;background:#f4f6f8;line-height:1.6}
+header{background:#1a3a5c;color:#fff;padding:22px 28px}
+header h1{margin:0;font-size:22px}
+header p{margin:6px 0 0;font-size:12px;opacity:.85}
+main{max-width:1100px;margin:0 auto;padding:20px 16px 48px}
+nav,section{background:#fff;border:1px solid #dde3e9;border-radius:8px;padding:14px 18px;margin-bottom:18px}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{border-bottom:1px solid #e5e7eb;padding:5px 8px;text-align:left;vertical-align:top}
+th{background:#1a3a5c;color:#fff;font-weight:600;white-space:nowrap}
+tr:nth-child(even) td{background:#f9fafb}
+nav table td a{color:#2e6da4;text-decoration:none}
+.num{text-align:right;white-space:nowrap}
+h2.part{font-size:18px;color:#1a3a5c;border-bottom:3px solid #2e6da4;padding-bottom:4px;margin:30px 0 14px}
+section h3{margin:0;font-size:15px;color:#1a3a5c}
+.meta{font-size:12px;color:#666;margin:2px 0 10px}
+.mono{font-family:Consolas,Monaco,"Courier New",monospace}
+details{margin-top:10px}
+summary{cursor:pointer;font-size:12px;color:#2e6da4}
+pre{background:#1e272e;color:#e8edf1;padding:10px 12px;border-radius:4px;font-size:11.5px;
+    overflow:auto;white-space:pre}
+.err{color:#991b1b;background:#fee2e2;border-radius:4px;padding:6px 10px;font-size:12px}
+.wrap{overflow-x:auto}
+@media print{body{background:#fff}header{background:#fff;color:#000;border-bottom:2px solid #000}
+  section{break-inside:avoid;border:none;padding:0}details{display:block}}
+"""
+
+
+def _report_tables_html():
+    """テーブル一覧：登録簿のテーブルごとに列構成（SHOW FULL COLUMNS）とDDLを並べたHTML。"""
+    import html as _html
+    h = _h
+    regs = _registered_tables()
+    now = get_jst_now()
+
+    # DBごとに接続して列構成・DDL・行数を取る
+    info = {}
+    by_db = {}
+    for r in regs:
+        by_db.setdefault(r['database_name'], []).append(r)
+    for db_key, items in by_db.items():
+        if db_key not in DB_CHOICES:
+            for r in items:
+                info[r['id']] = {'error': '未対応のデータベース指定です'}
+            continue
+        try:
+            conn = mysql.connector.connect(**DB_CHOICES[db_key]())
+        except Exception as ce:
+            for r in items:
+                info[r['id']] = {'error': f'データベース接続エラー：{ce}'}
+            continue
+        try:
+            cur = conn.cursor(dictionary=True)
+            for r in items:
+                tbl = r['table_name']
+                try:
+                    cur.execute("SHOW FULL COLUMNS FROM `%s`" % tbl)
+                    cols = cur.fetchall()
+                    cur.execute("SHOW CREATE TABLE `%s`" % tbl)
+                    row = cur.fetchone() or {}
+                    ddl = row.get('Create Table') or row.get('Create View')
+                    cur.execute("SELECT COUNT(*) AS cnt FROM `%s`" % tbl)
+                    cnt = (cur.fetchone() or {}).get('cnt')
+                    info[r['id']] = {'cols': cols, 'ddl': ddl, 'count': cnt}
+                except Exception as te:
+                    info[r['id']] = {'error': f'取得エラー：{te}'}
+            cur.close()
+        finally:
+            conn.close()
+
+    # 並びは DB → テーブル名
+    regs = sorted(regs, key=lambda r: (r['database_name'], r['table_name']))
+
+    toc = []
+    secs = []
+    for i, r in enumerate(regs, 1):
+        anchor = 't%d' % r['id']
+        x = info.get(r['id'], {})
+        cnt = x.get('count')
+        toc.append(
+            '<tr><td class="num">%d</td><td><a href="#%s" class="mono">%s</a></td>'
+            '<td>%s</td><td class="mono">%s</td><td class="num">%s</td>'
+            '<td class="num">%s</td></tr>' % (
+                i, anchor, h(r['table_name']), h(r.get('display_name') or ''),
+                h(r['database_name']),
+                len(x['cols']) if x.get('cols') is not None else '?',
+                cnt if cnt is not None else '?'))
+
+        meta = ['所在DB：%s' % h(r['database_name'])]
+        if r.get('display_name'):
+            meta.append('表示名：%s' % h(r['display_name']))
+        meta.append('管理グループ：%s' % h(r.get('manager_group_name')
+                                          or '（全体管理者専管）'))
+        if cnt is not None:
+            meta.append('%s行' % cnt)
+        body = ['<section id="%s"><h3 class="mono">%s</h3>' % (anchor, h(r['table_name'])),
+                '<div class="meta">%s</div>' % '　'.join(meta)]
+        if r.get('note'):
+            body.append('<div class="meta">📝 %s</div>' % h(r['note']))
+        if x.get('error'):
+            body.append('<p class="err">⚠️ %s</p>' % h(x['error']))
+        else:
+            rows = []
+            for k, c in enumerate(x['cols'], 1):
+                dflt = c.get('Default')
+                rows.append(
+                    '<tr><td class="num">%d</td><td class="mono">%s</td>'
+                    '<td class="mono">%s</td><td>%s</td><td>%s</td>'
+                    '<td class="mono">%s</td><td class="mono">%s</td><td>%s</td></tr>' % (
+                        k, h(c.get('Field')), h(c.get('Type')),
+                        h(c.get('Null')), h(c.get('Key')),
+                        'NULL' if dflt is None else h(dflt),
+                        h(c.get('Extra')), h(c.get('Comment'))))
+            body.append(
+                '<div class="wrap"><table><thead><tr><th>#</th><th>列名</th><th>型</th>'
+                '<th>NULL</th><th>キー</th><th>既定値</th><th>付加</th><th>コメント</th>'
+                '</tr></thead><tbody>%s</tbody></table></div>' % ''.join(rows))
+            if x.get('ddl'):
+                body.append('<details><summary>DDL（SHOW CREATE TABLE）</summary>'
+                            '<pre>%s;</pre></details>' % h(x['ddl']))
+        body.append('</section>')
+        secs.append('\n'.join(body))
+
+    site = _report_site_name()
+    return ('<!DOCTYPE html>\n<html lang="ja">\n<head>\n<meta charset="UTF-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+            '<title>テーブル一覧 - 公式データ集</title>\n<style>%s</style>\n</head>\n<body>\n'
+            '<header><h1>🧱 テーブル一覧</h1><p>公式データ集　%s　生成日時 %s JST　%d テーブル</p></header>\n'
+            '<main>\n<nav><div class="wrap"><table><thead><tr><th>#</th><th>テーブル名</th>'
+            '<th>表示名</th><th>DB</th><th>列数</th><th>行数</th></tr></thead>'
+            '<tbody>%s</tbody></table></div></nav>\n'
+            '<h2 class="part">スキーマ</h2>\n%s\n</main>\n</body>\n</html>\n') % (
+                _REPORT_TABLES_CSS, h(site), now.strftime('%Y-%m-%d %H:%M'),
+                len(regs), ''.join(toc), '\n'.join(secs))
+
+
+
+def _report_response(fn, basename):
+    """一覧ドキュメントの共通応答：権限確認→生成→HTMLで返す（?dl=1 で保存）。"""
+    from flask import Response
+    user_id = session.get('user_id')
+    if not can_view(user_id):
+        return Response(_report_page('権限がありません', '公式データ集', '',
+                                     '', '<p class="err">この文書を閲覧する権限がありません．</p>'),
+                        status=403, mimetype='text/html; charset=utf-8')
+    try:
+        doc = fn()
+    except Exception as e:
+        logging.error("official_data_archive report %s error: %s", basename, e)
+        return Response(_report_page('生成エラー', '公式データ集', '', '',
+                                     '<p class="err">文書の生成に失敗しました：%s</p>'
+                                     % _h(e)),
+                        status=500, mimetype='text/html; charset=utf-8')
+    resp = Response(doc, mimetype='text/html; charset=utf-8')
+    resp.headers['Cache-Control'] = 'no-store'
+    if request.args.get('dl'):
+        fname = '%s_%s.html' % (basename, get_jst_now().strftime('%Y%m%d_%H%M%S'))
+        resp.headers['Content-Disposition'] = 'attachment; filename="%s"' % fname
+    return resp
+
+
+@official_data_archive_bp.route('/report/indicators', methods=['GET'])
+@login_required
+def report_indicators():
+    """Web文書「指標の動き」。単一指標・複合指標の全グラフ（SVG）を返す。"""
+    return _report_response(_report_indicators_html, 'official_indicators')
+
+
+@official_data_archive_bp.route('/report/tables', methods=['GET'])
+@login_required
+def report_tables():
+    """Web文書「テーブル一覧」。公式テーブルの名前と列構成・DDLを返す。"""
+    return _report_response(_report_tables_html, 'official_tables')
+
+
+# ────────────────────────────────────────────
 # ダッシュボードへ戻る
 # ────────────────────────────────────────────
 
