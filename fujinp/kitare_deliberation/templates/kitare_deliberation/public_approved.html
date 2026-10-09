@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>可決案件一覧 - キターレオンライン審議</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -56,7 +55,7 @@
 <body>
 <div class="container">
     <div class="header">
-        <h1>✅ 可決案件一覧</h1>
+        <h1>✅ 北近畿地域連携機構オンライン審議　可決案件一覧</h1>
         <a href="{{ url_for('kitare_deliberation.index') }}" class="nav-btn">← トップへ</a>
         <a href="{{ url_for('kitare_deliberation.public_view') }}" class="nav-btn">受付状況一覧</a>
     </div>
@@ -65,52 +64,39 @@
         <div class="ctrl-bar">
             年度：
             <select id="sel-fy">
-                <option value="">すべて</option>
+                <option value="" {% if not selected_fy %}selected{% endif %}>すべて</option>
                 {% for y in range(current_fy, current_fy - 6, -1) %}
-                <option value="{{ y }}">{{ y }}年度</option>
+                <option value="{{ y }}" {% if selected_fy == y %}selected{% endif %}>{{ y }}年度</option>
                 {% endfor %}
             </select>
         </div>
-        <div id="list"><div class="empty-msg">読み込み中…</div></div>
+        <div id="list">
+        {% if error %}
+            <div class="empty-msg" style="color:#ef4444">{{ error }}</div>
+        {% elif not cases %}
+            <div class="empty-msg">可決された案件はありません</div>
+        {% else %}
+            {% for c in cases %}
+            <div class="approved-item">
+                <div class="title">{{ c.title or '（無題）' }}</div>
+                <div class="meta">
+                    <span class="case-id">{{ c.case_display_id }}</span>
+                    <span class="approved-badge">可決</span><br>
+                    可決日：{{ c.approved_date or '—' }}
+                </div>
+            </div>
+            {% endfor %}
+        {% endif %}
+        </div>
     </div>
 </div>
 
 <script>
-const URL_BASE = '{{ url_for("kitare_deliberation.index") }}';
-function esc(s) {
-    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-function loadApproved() {
-    const fy = $('#sel-fy').val();
-    const params = {};
-    if (fy) params.fiscal_year = fy;
-    $.get(URL_BASE + 'api/public/approved', params, function(resp) {
-        if (!resp.success) {
-            $('#list').html('<div class="empty-msg" style="color:#ef4444">' + esc(resp.error) + '</div>');
-            return;
-        }
-        if (!resp.cases.length) {
-            $('#list').html('<div class="empty-msg">可決された案件はありません</div>');
-            return;
-        }
-        let html = '';
-        resp.cases.forEach(c => {
-            html += `<div class="approved-item">
-                <div class="title">${esc(c.title) || '（無題）'}</div>
-                <div class="meta">
-                    <span class="case-id">${esc(c.case_display_id)}</span>
-                    <span class="approved-badge">可決</span><br>
-                    可決日：${c.approved_date || '—'}
-                </div>
-            </div>`;
-        });
-        $('#list').html(html);
-    }).fail(() => {
-        $('#list').html('<div class="empty-msg" style="color:#ef4444">通信エラー</div>');
-    });
-}
-$('#sel-fy').on('change', loadApproved);
-$(document).ready(loadApproved);
+// 年度を選ぶと ?fiscal_year= を付けて読み直す（一覧はサーバ側で描く）
+document.getElementById('sel-fy').addEventListener('change', function() {
+    const fy = this.value;
+    location.href = location.pathname + (fy ? '?fiscal_year=' + encodeURIComponent(fy) : '');
+});
 </script>
 </body>
 </html>

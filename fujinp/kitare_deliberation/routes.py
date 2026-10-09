@@ -765,10 +765,18 @@ def case_applicant_channel(case_id):
 @kitare_deliberation_bp.route('/public')
 @login_required
 def public_view():
-    """パブリック公開：受付状況（タイトルまで／特定案件はぼかし）"""
+    """パブリック公開：受付状況（タイトルまで／特定案件はぼかし）。
+       一覧はサーバ側で HTML に書き込んで返す（オールなど HTML だけを
+       読む利用者にも同じ中身が渡るように）。年度は ?fiscal_year= で選ぶ。"""
+    current_fy = get_current_fiscal_year()
+    fy = request.args.get('fiscal_year', type=int) or current_fy
+    cases, error = _fetch_public_cases(fy)
     return render_template(
         'kitare_deliberation/public.html',
-        current_fy=get_current_fiscal_year(),
+        current_fy=current_fy,
+        selected_fy=fy,
+        cases=cases,
+        error=error,
         status_labels=STATUS_LABELS,
     )
 
@@ -776,10 +784,16 @@ def public_view():
 @kitare_deliberation_bp.route('/public/approved')
 @login_required
 def public_approved():
-    """議決済み案件の公開"""
+    """可決案件の公開。一覧はサーバ側で HTML に書き込んで返す。
+       年度は ?fiscal_year= で選ぶ（無指定は全年度）。"""
+    fy = request.args.get('fiscal_year', type=int)
+    cases, error = _fetch_public_approved(fy)
     return render_template(
         'kitare_deliberation/public_approved.html',
         current_fy=get_current_fiscal_year(),
+        selected_fy=fy,
+        cases=cases,
+        error=error,
     )
 
 
@@ -2354,13 +2368,9 @@ def api_committee_cases():
     return jsonify({'success': True, 'cases': cases})
 
 
-@kitare_deliberation_bp.route('/api/public/cases', methods=['GET'])
-@login_required
-def api_public_cases():
-    """パブリック：受付状況一覧。タイトルまで（特定案件はぼかし）。
-       表示するのは審議中（accepted_review）と可決（approved）のみ。
-       申請前・受理判断待ち・否決・不受理・取り下げ・打ち切りは公開しない。"""
-    fy = request.args.get('fiscal_year', type=int) or get_current_fiscal_year()
+def _fetch_public_cases(fy):
+    """公開状況（審議中と可決）の行。(cases, error) を返す。
+       申請前・受理判断待ち・否決・不受理・取り下げ・打ち切りは含めない。"""
     conn = None
     try:
         conn   = _conn()
@@ -2379,20 +2389,17 @@ def api_public_cases():
                 'received_date':   fmt_date(r.get('received_date')),
                 'final_date':      fmt_date(r.get('final_date')),
             })
-        return jsonify({'success': True, 'cases': cases})
+        return cases, None
     except Exception as e:
-        logging.error("api_public_cases error: %s", e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logging.error("_fetch_public_cases error: %s", e)
+        return [], str(e)
     finally:
         if conn and conn.is_connected():
             cursor.close(); conn.close()
 
 
-@kitare_deliberation_bp.route('/api/public/approved', methods=['GET'])
-@login_required
-def api_public_approved():
-    """パブリック：可決案件一覧。タイトルまで（特定案件はぼかし）。"""
-    fy = request.args.get('fiscal_year', type=int)
+def _fetch_public_approved(fy=None):
+    """可決案件の行。fy が None なら全年度。(cases, error) を返す。"""
     where = ["status = 'approved'"]
     params = []
     if fy:
@@ -2412,13 +2419,36 @@ def api_public_approved():
                 'title':           _public_title_of(r),
                 'approved_date':   fmt_date(r.get('approved_date')),
             })
-        return jsonify({'success': True, 'cases': cases})
+        return cases, None
     except Exception as e:
-        logging.error("api_public_approved error: %s", e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logging.error("_fetch_public_approved error: %s", e)
+        return [], str(e)
     finally:
         if conn and conn.is_connected():
             cursor.close(); conn.close()
+
+
+@kitare_deliberation_bp.route('/api/public/cases', methods=['GET'])
+@login_required
+def api_public_cases():
+    """パブリック：受付状況一覧。タイトルまで（特定案件はぼかし）。
+       表示するのは審議中（accepted_review）と可決（approved）のみ。"""
+    fy = request.args.get('fiscal_year', type=int) or get_current_fiscal_year()
+    cases, error = _fetch_public_cases(fy)
+    if error:
+        return jsonify({'success': False, 'error': error}), 500
+    return jsonify({'success': True, 'cases': cases})
+
+
+@kitare_deliberation_bp.route('/api/public/approved', methods=['GET'])
+@login_required
+def api_public_approved():
+    """パブリック：可決案件一覧。タイトルまで（特定案件はぼかし）。"""
+    fy = request.args.get('fiscal_year', type=int)
+    cases, error = _fetch_public_approved(fy)
+    if error:
+        return jsonify({'success': False, 'error': error}), 500
+    return jsonify({'success': True, 'cases': cases})
 
 
 # ════════════════════════════════════════════

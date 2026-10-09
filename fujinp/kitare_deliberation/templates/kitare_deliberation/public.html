@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>受付状況 - キターレオンライン審議</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -68,7 +67,7 @@
             年度：
             <select id="sel-fy">
                 {% for y in range(current_fy, current_fy - 6, -1) %}
-                <option value="{{ y }}" {% if y == current_fy %}selected{% endif %}>{{ y }}年度</option>
+                <option value="{{ y }}" {% if selected_fy == y %}selected{% endif %}>{{ y }}年度</option>
                 {% endfor %}
             </select>
         </div>
@@ -79,7 +78,21 @@
                     <th>ステータス</th><th>終局日</th>
                 </tr></thead>
                 <tbody id="tbody">
-                    <tr><td colspan="5" class="empty-msg">読み込み中…</td></tr>
+                {% if error %}
+                    <tr><td colspan="5" class="empty-msg" style="color:#ef4444">{{ error }}</td></tr>
+                {% elif not cases %}
+                    <tr><td colspan="5" class="empty-msg">該当する案件はありません</td></tr>
+                {% else %}
+                    {% for c in cases %}
+                    <tr>
+                        <td><span class="case-id">{{ c.case_display_id }}</span></td>
+                        <td>{{ c.title }}</td>
+                        <td>{{ c.received_date or '—' }}</td>
+                        <td><span class="status-badge status-{{ c.status }}">{{ c.status_label }}</span></td>
+                        <td>{{ c.final_date or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
                 </tbody>
             </table>
         </div>
@@ -87,38 +100,10 @@
 </div>
 
 <script>
-const URL_BASE = '{{ url_for("kitare_deliberation.index") }}';
-function esc(s) {
-    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-function loadCases() {
-    const fy = $('#sel-fy').val();
-    $.get(URL_BASE + 'api/public/cases', { fiscal_year: fy }, function(resp) {
-        if (!resp.success) {
-            $('#tbody').html('<tr><td colspan="5" class="empty-msg" style="color:#ef4444">' + esc(resp.error) + '</td></tr>');
-            return;
-        }
-        if (!resp.cases.length) {
-            $('#tbody').html('<tr><td colspan="5" class="empty-msg">該当する案件はありません</td></tr>');
-            return;
-        }
-        let rows = '';
-        resp.cases.forEach(c => {
-            rows += `<tr>
-                <td><span class="case-id">${esc(c.case_display_id)}</span></td>
-                <td>${esc(c.title)}</td>
-                <td>${c.received_date || '—'}</td>
-                <td><span class="status-badge status-${c.status}">${esc(c.status_label)}</span></td>
-                <td>${c.final_date || '—'}</td>
-            </tr>`;
-        });
-        $('#tbody').html(rows);
-    }).fail(() => {
-        $('#tbody').html('<tr><td colspan="5" class="empty-msg" style="color:#ef4444">通信エラー</td></tr>');
-    });
-}
-$('#sel-fy').on('change', loadCases);
-$(document).ready(loadCases);
+// 年度を選ぶと ?fiscal_year= を付けて読み直す（一覧はサーバ側で描く）
+document.getElementById('sel-fy').addEventListener('change', function() {
+    location.href = location.pathname + '?fiscal_year=' + encodeURIComponent(this.value);
+});
 </script>
 </body>
 </html>
