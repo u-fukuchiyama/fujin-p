@@ -48,6 +48,7 @@
     P1   検索結果の権限表示・作成者氏名・公開範囲バッジ・next付きログイン誘導・権限モジュール分離
     P2   デッドコード削除・N+1解消・一時ファイル掃除・ログ整理・ZIP名の日本語対応
   2026-09-21  コンテンツのダウンロード（/download/<doc_id>．種類に応じた拡張子で保存）
+  2026-10-10  研修版（nishida4fujinp）と大学版（fujinp）の合流．あわみからの文書登録口（/awami_create_document）
 """
 
 import hmac
@@ -71,6 +72,7 @@ import requests
 from bs4 import BeautifulSoup
 from flask import (Response, flash, jsonify, redirect, render_template,
                    request, send_file, session, url_for)
+from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
 from auth import redirect_to_dashboard
@@ -184,6 +186,10 @@ def verify_csrf_token():
     """POST リクエストのCSRFトークンを検証する"""
     if request.method != 'POST':
         return None
+    # あわみからの文書登録口は，他アプリの画面から JSON で呼ばれるためトークンを持たない．
+    # 代わりに受け口の中で「JSON であること」「同じサイトからの要求であること」を確かめる．
+    if request.endpoint == 'document_archive.awami_create_document':
+        return None
 
     expected = session.get(CSRF_SESSION_KEY)
     submitted = _submitted_csrf_token()
@@ -233,6 +239,32 @@ _PATH_SEGMENT_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]*$')
 # DBカラムの上限（public_documents.file_path は varchar(500)）
 FILE_PATH_MAX_LENGTH = 500
 TITLE_MAX_LENGTH = 255          # public_documents.title は varchar(255)
+
+# アップロードの上限（フォームでも先に検査する）．config.py の ARCHIVE_UPLOAD_MAX_BYTES で変えられる
+UPLOAD_MAX_BYTES = int(getattr(Config, 'ARCHIVE_UPLOAD_MAX_BYTES', 0) or 100 * 1024 * 1024)
+# HTMLをDBの content 列に入れる上限．これを超えるHTMLはバイナリと同じくファイルとして保存する．
+# MySQL の max_allowed_packet を超える1行は送れず，接続ごと切られる
+# （2055: Lost connection ... Broken pipe）ため，十分に小さい値にしておく．
+HTML_DB_MAX_BYTES = int(getattr(Config, 'ARCHIVE_HTML_DB_MAX_BYTES', 0) or 4 * 1024 * 1024)
+
+
+def fmt_bytes(n):
+    """バイト数を 12.3MB のような表記にする"""
+    n = float(n or 0)
+    for unit in ('B', 'KB', 'MB', 'GB'):
+        if n < 1024 or unit == 'GB':
+            return f"{n:.0f}{unit}" if unit == 'B' else f"{n:.1f}{unit}"
+        n /= 1024
+
+
+def friendly_db_error(e):
+    """DBの例外を利用者向けの説明に直す（大きすぎる行で接続が切れた場合など）"""
+    text = str(e)
+    if any(k in text for k in ('2055', '2006', '2013', 'max_allowed_packet', 'Broken pipe', '1153')):
+        return ('データが大きすぎてデータベースに書き込めませんでした'
+                f'（{text[:120]}）．大きな文書はファイルとして保存されるはずなので，'
+                '管理者に設定（ARCHIVE_HTML_DB_MAX_BYTES）を確認してもらってください')
+    return text
 
 
 def storage_path(file_path):
@@ -558,7 +590,7 @@ def save_document_to_db(title, public_description, owner_memo, content,
 
     except Exception as e:
         logger.error(f"保存エラー: {e}", exc_info=True)
-        return False, str(e), None
+        return False, friendly_db_error(e), None
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -1086,7 +1118,9 @@ def new_document():
     if not can_create_document():
         flash('文書作成権限がありません', 'error')
         return redirect(url_for('document_archive.dashboard'))
-    return render_template('document_archive_form.html', groups=get_all_groups())
+    return render_template('document_archive_form.html', groups=get_all_groups(),
+                           upload_max_bytes=UPLOAD_MAX_BYTES,
+                           upload_max_label=fmt_bytes(UPLOAD_MAX_BYTES))
 
 
 @document_archive_bp.route('/edit/<int:doc_id>')
@@ -1104,13 +1138,20 @@ def edit_document(doc_id):
         return redirect(url_for('document_archive.dashboard'))
 
     return render_template('document_archive_form.html',
-                           document=document, groups=get_all_groups())
+                           document=document, groups=get_all_groups(),
+                           upload_max_bytes=UPLOAD_MAX_BYTES,
+                           upload_max_label=fmt_bytes(UPLOAD_MAX_BYTES))
 
 
 @document_archive_bp.route('/save', methods=['POST'])
 @login_required
 def save_document():
     """保存（新規・更新共用）"""
+    # 受け取る前に大きさを見る（フォーム側でも検査しているが，すり抜けた場合の保険）
+    if request.content_length and request.content_length > UPLOAD_MAX_BYTES + 1024 * 1024:
+        flash(f'ファイルが大きすぎます（{fmt_bytes(request.content_length)}）．'
+              f'アップロードできるのは {fmt_bytes(UPLOAD_MAX_BYTES)} までです', 'error')
+        return redirect(request.referrer or url_for('document_archive.dashboard'))
     try:
         raw_id = request.form.get('id')
         doc_id = None
@@ -1202,12 +1243,24 @@ def save_document():
                     # 空のHTMLで既存の内容を消してしまわないよう明示的に弾く
                     flash('アップロードされたHTMLファイルが空です', 'error')
                     return redirect(request.referrer or url_for('document_archive.dashboard'))
-                content = text
-                file_type = None
-                file_path = None
                 upload_applied = True
+                if len(text.encode('utf-8')) > HTML_DB_MAX_BYTES:
+                    # 大きなHTML（画像・動画を埋め込んだプレゼンなど）はDBに入らないので，
+                    # バイナリと同じくファイルとして保存し，プレーン表示でそのまま配信する
+                    unique_name = f"{uuid.uuid4().hex}.html"
+                    with open(storage_path(unique_name), 'w', encoding='utf-8', newline='') as f:
+                        f.write(text)
+                    content = None
+                    file_type = MIME_TYPES['html']
+                    file_path = unique_name
+                    flash(f'HTMLが大きい（{fmt_bytes(len(text.encode("utf-8")))}）ため，'
+                          'ファイルとして保存しました．本文はキーワード検索の対象になりません', 'info')
+                else:
+                    content = text
+                    file_type = None
+                    file_path = None
                 if existing and existing.get('file_path'):
-                    # HTMLで置き換えるので旧バイナリは不要になる
+                    # 新しい内容で置き換えるので旧ファイルは不要になる
                     replaced_file_path = existing.get('file_path')
 
         # ── P0-3: ファイルを差し替えない更新では既存の内容を引き継ぐ ──
@@ -1230,10 +1283,15 @@ def save_document():
 
         if success and replaced_file_path and replaced_file_path != file_path:
             delete_stored_file(replaced_file_path)
+        if not success and upload_applied and file_path and (not existing or file_path != existing.get('file_path')):
+            delete_stored_file(file_path)          # DBに書けなかったので，いま置いたファイルを残さない
 
         flash(msg, 'success' if success else 'error')
         return redirect(url_for('document_archive.dashboard'))
 
+    except RequestEntityTooLarge:
+        flash(f'ファイルが大きすぎます．アップロードできるのは {fmt_bytes(UPLOAD_MAX_BYTES)} までです', 'error')
+        return redirect(request.referrer or url_for('document_archive.dashboard'))
     except Exception as e:
         logger.error(f"保存処理でエラー: {e}", exc_info=True)
         flash("保存中にエラーが発生しました。管理者にお問い合わせください。", 'error')
@@ -1464,3 +1522,74 @@ def export_cleanup(token):
 def return_to_fujin():
     """FUJINダッシュボードに戻る"""
     return redirect_to_dashboard()
+
+
+# ─────────────────────────────────────────────────────────────────
+# あわみからの文書登録口
+#
+# あわみの「📥 JSON取込」でコンテンツ付きJSONを取り込むとき，各ノードの本文（HTML）を
+# 新しい文書として登録する．あわみ側で画像は static/mdimgs/ に保存済み，本文は単独で
+# 開けるHTML文書に仕立て済みで届く．登録した文書の表示URL（/document_archive/plain/<id>）を返す．
+#   {probe: true}                 → 使えるかの確認（作成権限があれば success）
+#   {title, html, access_policy, access_group_ids, source_url, note}
+#                                 → 登録して {success, doc_id, entity_url}
+# CSRF トークンの代わりに，JSON であることと同じサイトからの要求であることを確かめる．
+# ─────────────────────────────────────────────────────────────────
+
+def _same_site_request():
+    """ブラウザが付ける Origin／Sec-Fetch-Site で，同じサイトからの要求かを確かめる"""
+    site = request.headers.get('Sec-Fetch-Site')
+    if site and site not in ('same-origin', 'none'):
+        # same-site は同じ親ドメインの別サイト（他の *.pythonanywhere.com など）を含むので受けない
+        return False
+    origin = request.headers.get('Origin')
+    if origin and urlparse(origin).netloc != request.host:
+        return False
+    return True
+
+
+@document_archive_bp.route('/awami_create_document', methods=['POST'])
+@login_required
+def awami_create_document():
+    if not request.is_json or not _same_site_request():
+        logger.warning(f"[security] あわみ登録口への不正な要求を拒否: user={current_user_id()}")
+        return jsonify({'success': False, 'error': '不正な要求です'}), 400
+    if not can_create_document():
+        return jsonify({'success': False,
+                        'error': '文書アーカイブの文書作成権限がありません'}), 403
+    data = request.get_json(silent=True) or {}
+    if data.get('probe'):
+        return jsonify({'success': True})
+
+    title = (data.get('title') or '').strip()[:TITLE_MAX_LENGTH] or '（無題）'
+    html = data.get('html') or ''
+    if not html.strip():
+        return jsonify({'success': False, 'error': '本文がありません'}), 400
+    access_policy = data.get('access_policy') or 'private'
+    if access_policy not in VALID_ACCESS_POLICIES:
+        access_policy = 'private'
+    group_ids = data.get('access_group_ids') or []
+    if access_policy in GROUP_POLICIES and not group_ids:
+        access_policy = 'private'          # グループ未指定のグループ公開は誰にも見えないので非公開に倒す
+    source_url = (data.get('source_url') or '').strip()
+    note = (data.get('note') or '').strip()
+    owner_memo = 'あわみから取り込み' + ('．出所：' + source_url if source_url else '')
+
+    content, file_type, file_path = html, None, None
+    if len(html.encode('utf-8')) > HTML_DB_MAX_BYTES:
+        # 大きなHTMLは /save と同じくファイルとして保存し，プレーン表示でそのまま配信する
+        file_path = f"{uuid.uuid4().hex}.html"
+        with open(storage_path(file_path), 'w', encoding='utf-8', newline='') as f:
+            f.write(html)
+        content, file_type = None, MIME_TYPES['html']
+
+    ok, msg, doc_id = save_document_to_db(
+        title, note, owner_memo, content, access_policy, group_ids,
+        file_type=file_type, file_path=file_path)
+    if not ok:
+        if file_path:
+            delete_stored_file(file_path)
+        return jsonify({'success': False, 'error': msg}), 500
+    logger.info(f"[awami] 文書を登録: doc={doc_id} user={current_user_id()} src={source_url!r}")
+    return jsonify({'success': True, 'doc_id': doc_id,
+                    'entity_url': url_for('document_archive.plain_view', doc_id=doc_id)})
