@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with FUJIN-P.  If not, see <https://www.gnu.org/licenses/>.
 #
-# Source: https://github.com/u-fukuchiyama/fujin-p
+# Source: https://github.com/nishida-toyoaki/fujin-p
 
 from flask import render_template, request, jsonify, session, url_for, redirect, flash, Response
 from decorators import login_required
@@ -263,33 +263,6 @@ DOWNLOAD_HTML_CSS = """
 # ユーティリティ
 # =============================================================================
 
-# DBエラーの典型的な原因と、画面に添える手当て
-DB_ERROR_HINTS = {
-    1146: 'テーブルがありません。アプシャの tables タブでDDLを適用してください',
-    1054: '列の構成が仕様と違います。アプシャの tables タブのDDLと実物を照合してください',
-    1364: '既定値のない列があります。アプシャの tables タブのDDLと実物を照合してください',
-    1452: 'オーナーIDが users に見つかりません。ログイン中のユーザがusersテーブルに在るか確認してください',
-    1062: '一意制約に反しています',
-    1049: 'データベースがありません。config.py の接続設定を確認してください',
-    1045: 'データベースに接続できません。config.py の接続設定を確認してください',
-}
-
-
-def db_error_text(err):
-    """MySQLのエラーを画面に出せる1行にする。
-
-    原因が画面に出ないと追跡できないので、エラー番号とメッセージをそのまま持ち帰り、
-    よくある原因には短い手当てを添える。
-    """
-    errno = getattr(err, 'errno', None)
-    msg = getattr(err, 'msg', None) or str(err)
-    text = f"[{errno if errno is not None else '-'}] {msg}"
-    hint = DB_ERROR_HINTS.get(errno)
-    if hint:
-        text += f"（{hint}）"
-    return text
-
-
 def get_jst_now():
     """現在日時をJSTのnaive datetimeで返す（DBのDATETIME列にJSTの値として格納する）"""
     return datetime.now(JST).replace(tzinfo=None)
@@ -411,39 +384,11 @@ def _sanitize_svg(data):
 # ユーザーグループ（公開範囲の判定用。コレポと同じ参照規則）
 # =============================================================================
 
-# まいぐる（user_groups）の公開API。構成員の判定はここに任せる。
-# 台帳のルールから作られたグループ（総務課など）は user_group_memberships に
-# 行を持たないため、このテーブルを直接引くと構成員が0人になる。
-# 取り込みは初回の呼び出し時に行う（起動時の読み込み順に左右されないようにするため）。
-_UG_UTILS = None
-
-
-def _ug(name):
-    """まいぐるの utils から関数を取り出す。無ければ None（呼び出し元が従来処理に落ちる）"""
-    global _UG_UTILS
-    if _UG_UTILS is None:
-        try:
-            from fujinp.user_groups import utils as _u
-        except Exception:
-            _u = False
-        _UG_UTILS = _u
-    return getattr(_UG_UTILS, name, None) if _UG_UTILS else None
-
-
 def get_user_active_group_ids(user_id):
     """ユーザーが現在有効に所属しているグループIDのリスト
-
-    まいぐるの get_user_group_ids に委ねる（直接メンバー ∪ 台帳のルール由来 − 除外）。
-    それが使えない環境では、従来どおり user_group_memberships を直接引く
-    （この場合、台帳のルールで作られたグループは効かない）。"""
+    （user_groups / user_group_memberships を参照、有効期間チェック付き）"""
     if not user_id:
         return []
-    _fn = _ug('get_user_group_ids')
-    if _fn is not None:
-        try:
-            return list(_fn(user_id))
-        except Exception as e:
-            print(f"[my_md_notes] user_groups.get_user_group_ids error: {e}")
     try:
         now = get_jst_now()
         with mysql.connector.connect(**DatabaseConfig.default()) as conn:
@@ -752,21 +697,15 @@ def get_user_notes_flat(user_id, category=None):
                     """, (user_id,))
                 return add_display_dates(cursor.fetchall())
     except mysql.connector.Error as e:
-        # 握りつぶすと「ノートがありません」と区別がつかないので、呼び出し元へ渡す
-        print(f"[my_md_notes] get_user_notes_flat error: {e}")
-        raise
+        print(f"データベースエラー: {e}")
+        return []
 
 
 def create_note(user_id, name, sequence=0):
-    """空のノートを1件作成して (note_id, エラー文字列) を返す。公開範囲の初期値は 'private'。
-
-    成功したときは (note_id, None)、失敗したときは (None, 原因) を返す。
-    """
-    conn = None
-    cursor = None
+    """空のノートを1件作成して note_id を返す。公開範囲の初期値は 'private'。"""
+    conn = mysql.connector.connect(**DatabaseConfig.default())
+    cursor = conn.cursor()
     try:
-        conn = mysql.connector.connect(**DatabaseConfig.default())
-        cursor = conn.cursor()
         current_time = get_jst_now()
 
         cursor.execute("""
@@ -781,20 +720,14 @@ def create_note(user_id, name, sequence=0):
         """, (note_id, current_time, current_time))
 
         conn.commit()
-        return note_id, None
+        return note_id
     except Error as e:
-        print(f"[my_md_notes] create_note error: {e}")
-        if conn is not None:
-            try:
-                conn.rollback()
-            except Error:
-                pass
-        return None, db_error_text(e)
+        print(f"Error: {e}")
+        conn.rollback()
+        return None
     finally:
-        if cursor is not None:
-            cursor.close()
-        if conn is not None:
-            conn.close()
+        cursor.close()
+        conn.close()
 
 
 # =============================================================================
@@ -805,11 +738,7 @@ def create_note(user_id, name, sequence=0):
 @login_required
 def index():
     user_category = session.get('user_category')
-    try:
-        notes = get_user_notes_flat(session['user_id'], category=user_category)
-    except Error as e:
-        notes = []
-        flash(f'ノート一覧の取得に失敗しました: {db_error_text(e)}', 'error')
+    notes = get_user_notes_flat(session['user_id'], category=user_category)
     return_to = request.args.get('return_to') or url_for('auth.redirect_to_dashboard')
 
     return render_template('my_notes.html', notes=notes, return_to=return_to,
@@ -820,11 +749,11 @@ def index():
 @login_required
 def create_note_route():
     """新規ノート作成 - 空のノートを作成して編集画面へ"""
-    note_id, error = create_note(session['user_id'], '新規ノート', 0)
+    note_id = create_note(session['user_id'], '新規ノート', 0)
     if note_id:
         return redirect(url_for('my_md_notes.edit_note', note_id=note_id))
 
-    flash(f'ノートの作成に失敗しました: {error}' if error else 'ノートの作成に失敗しました。', 'error')
+    flash('ノートの作成に失敗しました。', 'error')
     return redirect(url_for('my_md_notes.index'))
 
 
