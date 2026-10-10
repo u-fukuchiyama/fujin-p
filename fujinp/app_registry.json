@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-10 18:29:39",
+  "generated_at": "2026-10-10 23:45:40",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -621,14 +621,14 @@
             "admin",
             "guest"
           ],
-          "sort_order": 10,
+          "sort_order": 120,
           "visibility": "group",
           "description": "MDによる手軽なノート",
           "extra_class": ""
         }
       ],
-      "version_id": "v20260917.153259-8165b1",
-      "version_confirmed_at": "2026-09-17 15:33:00"
+      "version_id": "v20260905.103222-bda890",
+      "version_confirmed_at": "2026-09-05 10:32:22"
     },
     {
       "app_name": "colrep",
@@ -1303,8 +1303,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260923.083909-81ea97",
-      "version_confirmed_at": "2026-09-23 08:39:10"
+      "version_id": "v20261010.234533-bd2852",
+      "version_confirmed_at": "2026-10-10 23:45:34"
     },
     {
       "app_name": "fujin_forum",
