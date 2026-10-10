@@ -1349,6 +1349,9 @@ def api_canvas_import(canvas_id):
         conn.commit()
         return jsonify({'success': True,
                         'imported_nodes': n_nodes,
+                        # ファイル内の key（書き出し時のノードID）→ 新ノードID
+                        # （コンテンツの取り込みで使う）
+                        'node_map': {str(k): v for k, v in keymap.items()},
                         'imported_edges': n_edges,
                         'skipped_edges': skipped,
                         'added_connector_types': added_types})
@@ -2723,3 +2726,127 @@ def api_skeleton_prompt():
     except OSError:
         return jsonify({'success': False, 'error': SKELETON_PROMPT_FILE + ' が見つかりません'}), 404
     return jsonify({'success': True, 'text': text})
+
+
+# =========================================================
+# コンテンツ付きJSONの取込（owner専用）
+# 📦 コンテンツ付きJSON の nodes[].content.html を，このサイトの文書として
+# 取り込むための2つの口．文書の登録そのものは文書アーカイブの受け口
+# （POST /document_archive/awami_create_document）をブラウザから呼ぶ．
+#   content_store : html の中の data URL 画像を static/mdimgs/ に新しい
+#                   ファイルとして保存し，参照をその公開URLに書き換え，
+#                   単独で開ける一つのHTML文書に仕立てて返す．
+#                   画像はCoRePo・マイMDノートと同じく，推測されにくい名前の
+#                   公開URL（URLを知る人だけが見られる）で置く．
+#   set_url       : 取り込んだノードの実体URLを，登録した文書のURLに付け替える．
+# =========================================================
+import base64
+import os
+import uuid
+from flask import current_app
+
+CONTENT_IMG_DIR = 'mdimgs'                      # static 配下の置き場（CoRePoと共用）
+CONTENT_IMG_MAX = 8 * 1024 * 1024               # 1枚の上限（デコード後）
+CONTENT_IMG_EXT = {'png': 'png', 'jpeg': 'jpg', 'jpg': 'jpg',
+                   'gif': 'gif', 'webp': 'webp'}  # SVGは保存しない（data URLのまま残す）
+_DATA_IMG_RE = re.compile(
+    r"""(src\s*=\s*)(["'])data:image/([a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)\2""")
+
+
+def _content_full_html(title, body_html):
+    """Shadow DOM 用に読み替えたスタイル（:host）を文書全体に効く形（:root）に戻し，
+    単独で開けるHTML文書に包む。"""
+    body_html = re.sub(r':host(?![\w-])', ':root', body_html)
+    safe_title = (title or '').replace('&', '&amp;').replace('<', '&lt;')
+    return ('<!DOCTYPE html>\n<html lang="ja">\n<head>\n<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+            '<title>' + safe_title + '</title>\n</head>\n<body style="margin:0;">\n' +
+            body_html + '\n</body>\n</html>\n')
+
+
+@our_meeting_bp.route('/api/canvas/<int:canvas_id>/content_store', methods=['POST'])
+@login_required
+def api_content_store(canvas_id):
+    data = request.json or {}
+    html = data.get('html') or ''
+    title = (data.get('title') or '').strip()
+    if not html:
+        return jsonify({'success': False, 'error': '本文がありません'}), 400
+    conn = _connect()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        canvas, err = _require_owner(cursor, canvas_id, session.get('user_id'))
+        if err:
+            return err
+    finally:
+        cursor.close()
+        conn.close()
+
+    root = request.url_root.rstrip('/')
+    stamp = get_jst_now().strftime('%Y%m%d_%H%M%S')
+    st = {'saved': 0, 'skipped': 0, 'cache': {}}
+
+    def repl(m):
+        ext = CONTENT_IMG_EXT.get(m.group(3).lower())
+        if not ext:
+            st['skipped'] += 1
+            return m.group(0)
+        b64 = re.sub(r'\s+', '', m.group(4))
+        if b64 in st['cache']:                  # 同じ画像は1回だけ保存する
+            return m.group(1) + m.group(2) + st['cache'][b64] + m.group(2)
+        try:
+            raw = base64.b64decode(b64, validate=True)
+        except Exception:
+            st['skipped'] += 1
+            return m.group(0)
+        if len(raw) > CONTENT_IMG_MAX:
+            st['skipped'] += 1
+            return m.group(0)
+        img_dir = os.path.join(current_app.static_folder, CONTENT_IMG_DIR)
+        os.makedirs(img_dir, exist_ok=True)
+        fname = '%s_awami_%s_%d.%s' % (uuid.uuid4().hex[:8], stamp, st['saved'] + 1, ext)
+        with open(os.path.join(img_dir, fname), 'wb') as f:
+            f.write(raw)
+        url = root + url_for('static', filename=CONTENT_IMG_DIR + '/' + fname)
+        st['cache'][b64] = url
+        st['saved'] += 1
+        return m.group(1) + m.group(2) + url + m.group(2)
+
+    try:
+        body = _DATA_IMG_RE.sub(repl, html)
+    except Exception as e:
+        logging.error("awami api_content_store error: %s", e)
+        return jsonify({'success': False,
+                        'error': '画像の保存に失敗しました（' + str(e)[:120] + '）'}), 500
+    return jsonify({'success': True, 'html': _content_full_html(title, body),
+                    'images_saved': st['saved'], 'images_skipped': st['skipped']})
+
+
+@our_meeting_bp.route('/api/node/<int:node_id>/set_url', methods=['POST'])
+@login_required
+def api_node_set_url(node_id):
+    url = ((request.json or {}).get('url') or '').strip()
+    if not url:
+        return jsonify({'success': False, 'error': 'URLがありません'}), 400
+    try:
+        conn = _connect()
+        cursor = conn.cursor(dictionary=True)
+        row, err = _node_owner_check(cursor, node_id, session.get('user_id'))
+        if err:
+            return err
+        now = get_jst_now()
+        cursor.execute("UPDATE awami_nodes SET url = %s, updated_at = %s WHERE id = %s",
+                       (url[:500], now, node_id))
+        cursor.execute("UPDATE awami_canvases SET updated_at = %s WHERE id = %s",
+                       (now, row['canvas_id']))
+        conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error("awami api_node_set_url error: %s", e)
+        if 'conn' in locals():
+            conn.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
+            conn.close()
