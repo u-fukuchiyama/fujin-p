@@ -26,11 +26,13 @@ import os
 ts_solvers_bp = Blueprint('ts_solvers', __name__, template_folder='templates')
 
 @ts_solvers_bp.route('/')
+
 # @login_required
 def index():
     return render_template('ts_solver_index.html')
 
 @ts_solvers_bp.route('/plain')
+
 # @login_required
 def plain():
     template_dir = os.path.join(os.path.dirname(__file__), 'templates')
