@@ -35,7 +35,8 @@ from flask import Response, request
 
 from . import all_portal_bp as bp
 from .core import (KINDS, LEVEL_LABEL, ancestors, children_of, descendant_ids, cursor, item_row, item_visible, items_of, level_of, visible_items, mcp_who, portal_row,
-                   portals_for, add_request, save_item, user_active, user_info, write_log)
+                   portals_for, add_request, save_item, user_active, user_info, write_log,
+                   subtree_base, in_subtree, subtree_entries)
 from .oauth import bearer_grant, cors, json_resp, unauthorized
 from . import urldoc
 
@@ -58,6 +59,8 @@ INSTRUCTIONS = (
     'URL 文書（source が url）は，read_item のたびにその URL をたたいて返ってきた HTML をテキストにして返します．'
     '中身の追加や修正を頼みたいときは submit_request でリクエストを出します（リクエスト以上の段が要ります）．'
     'add_item はアクトの段があり，ポータルが AI のアクトを許しているときだけ使えます．'
+    'list_items で subtree が true の行は「入口」で，その URL の配下にある同じサイトのページ（リンク先の詳細やファイルなど）を，'
+    'read_url に URL を渡して読めます．入口の行と同じ公開範囲で読み，入口の配下でない URL は読めません．'
     '回答には，結果に含まれる url（オールの画面へのリンク）を出典として添えてください．'
 )
 
@@ -93,6 +96,12 @@ TOOLS = [
                      'URL はその場で，接続を許可した人の身元でたたく（その人が画面で見るのと同じ中身になる）．'
                      '子ポータルの行は中まで読まず，題名と child_portal_id だけを示す．長いときは offset と max_chars で区切って読む．'),
      'inputSchema': S(dict({'portal_id': {'type': 'integer'}}, **PAGING), ['portal_id']),
+     'annotations': {'readOnlyHint': True}},
+    {'name': 'read_url', 'title': '入口の配下を読む',
+     'description': ('list_items で subtree が true の行（入口）の URL の配下にある，同じサイトのページを読む．'
+                     'url は /app_share/source/finder のようなパスか，同じサイトの https の URL．'
+                     '入口の行が見える人だけが読め，接続を許可した人の身元で URL をたたく．長いときは offset と max_chars で区切って読む．'),
+     'inputSchema': S(dict({'url': {'type': 'string'}}, **PAGING), ['url']),
      'annotations': {'readOnlyHint': True}},
     {'name': 'search_items', 'title': '文書を探す',
      'description': ('使えるポータルの文書の題名と本文を固定文字列で探す．1行が1つのまとまりで，行の中は空白で区切る．'
@@ -198,6 +207,7 @@ def t_list_items(who, args):
             'items': [{'id': r['id'], 'bundle': r['bundle'] or '', 'title': r['title'],
                        'source': r.get('source') or 'text', 'source_url': r['url'] or '',
                        'type': 'portal' if kids.get(r['id']) else 'document',
+                       'subtree': bool(r.get('subtree')) and subtree_base(r['url']) is not None,
                        'child_portal_id': kids[r['id']]['id'] if kids.get(r['id']) else None,
                        'chars': r['chars'] or 0, 'url': link(f"/all_portal/i/{r['id']}")} for r in rows]}
 
@@ -227,6 +237,54 @@ def t_read_item(who, args):
     else:
         body = (it['body'] or '').strip() or '（本文なし．出所の URL を利用者に示してください）'
     return page(head + body, offset, mc, it['title'])
+
+
+def t_read_url(who, args):
+    from urllib.parse import urlsplit
+    raw = (args.get('url') or '').strip()
+    if not raw:
+        raise ToolError('url を指定してください．')
+    parts = urlsplit(raw)
+    if parts.scheme and parts.scheme not in ('http', 'https'):
+        raise ToolError('http(s) の URL か，/ で始まるパスを指定してください．')
+    if parts.netloc and parts.netloc.lower() != request.host.lower():
+        raise ToolError('このサイト（' + request.host + '）のページだけを読めます．')
+    path = parts.path or '/'
+    if not path.startswith('/'):
+        raise ToolError('/ で始まるパスを指定してください．')
+    target = path + ('?' + parts.query if parts.query else '')
+    # 入口：配下に含み，見えるもの．最も深い入口を使う
+    best = None
+    levels = {}
+    for it in subtree_entries():
+        base = subtree_base(it['url'])
+        if not base or not in_subtree(base, path):
+            continue
+        pid = it['portal_id']
+        if pid not in levels:
+            try:
+                levels[pid] = need(who, pid, 1)
+            except ToolError:
+                levels[pid] = None
+        if not levels[pid] or not item_visible(it, who, levels[pid][1]):
+            continue
+        if best is None or len(base) > len(best[1]):
+            best = (it, base, levels[pid][0])
+    if not best:
+        raise ToolError('この URL は，あなたが読める入口（subtree が true の行）の配下にありません．'
+                        'list_items で subtree が true の行を確かめてください．')
+    it, base, p = best
+    try:
+        text, final = urldoc.read_text_final(target, who)
+    except urldoc.FetchError as e:
+        raise ToolError(f'読めませんでした：{e}')
+    fpath = urlsplit(final).path or '/'
+    if not in_subtree(base, fpath):
+        raise ToolError('この URL は入口の配下の外へ転送されたので，返しません．')
+    offset, mc = paging(args)
+    head = (f"入口：{p['kind']}／{p['name']} の「{it['title']}」（{link('/all_portal/i/' + str(it['id']))}）\n"
+            f"出所：{link(target)}\n\n（この本文は今 URL をたたいて得たものです）\n\n")
+    return page(head + (text.strip() or '（URL は空のページを返しました）'), offset, mc, target)
 
 
 def item_text(it, who):
@@ -358,7 +416,7 @@ def t_add_item(who, args):
 
 
 HANDLERS = {'list_portals': t_list_portals, 'list_items': t_list_items, 'read_item': t_read_item,
-            'read_portal': t_read_portal,
+            'read_portal': t_read_portal, 'read_url': t_read_url,
             'search_items': t_search_items, 'submit_request': t_submit_request, 'add_item': t_add_item}
 
 

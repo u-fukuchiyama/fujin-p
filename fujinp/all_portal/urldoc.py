@@ -355,7 +355,16 @@ def html_to_text(html, fragment=''):
 
 def read_text(url, who):
     """URL をたたいてテキストを返す（HTML・PDF・テキスト）"""
+    return read_text_final(url, who)[0]
+
+
+def read_text_final(url, who):
+    """(テキスト, 転送を追ったあとの最後の URL)"""
     data, ctype, cs, final = fetch_raw(url, who)
+    return _to_text(url, data, ctype, cs, final), final
+
+
+def _to_text(url, data, ctype, cs, final):
     kind = _kind(data, ctype, final)
     if kind == 'pdf':
         return pdf_to_text(data)

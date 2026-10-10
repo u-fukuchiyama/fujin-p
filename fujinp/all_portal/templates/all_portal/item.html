@@ -9,7 +9,7 @@
 {% block content %}
 <nav class="small mb-2">{{ p.kind }}{% for c in crumbs %}{{ '／' if loop.first else ' ／ ' }}<a href="{{ c.url }}">{{ c.name }}</a>{% endfor %}{% if p.level >= 3 %} ／ {{ 'URL の編集' if is_admin else 'URL のアクト' }}{% endif %}</nav>
 <div class="card mb-2"><div class="card-body py-2">
-  <div><strong>{{ it.title }}</strong>{% if kid %} <span class="badge text-bg-light border">子ポータル</span>{% endif %}　<span class="text-muted small">ID {{ it.id }}</span></div>
+  <div><strong>{{ it.title }}</strong>{% if kid %} <span class="badge text-bg-light border">子ポータル</span>{% endif %}{% if it.subtree %} <span class="badge text-bg-light border" title="この URL の配下も Claude が MCP の read_url で読める">配下も読める</span>{% endif %}　<span class="text-muted small">ID {{ it.id }}</span></div>
   {% set is_url = it.source == 'url' %}
   {% if it.url %}<div class="small text-break">{{ 'URL：' if is_url else '出所：' }}<a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.url }}</a></div>{% endif %}
   {% if it.note %}<div class="small text-muted" style="white-space:pre-wrap">{{ it.note }}</div>{% endif %}

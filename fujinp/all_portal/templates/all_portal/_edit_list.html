@@ -24,7 +24,7 @@
       <tr>
         {% if editable %}<td><input name="o_{{ it.id }}" class="form-control form-control-sm text-end font-monospace py-0"
              value="{{ '%.2f'|format(it.sort_order) if it.sort_order is not none else '' }}" inputmode="decimal"></td>{% endif %}
-        <td><span class="fw-semibold">{{ it.title }}</span>{% if kid %} <span class="badge text-bg-light border">子ポータル</span>{% endif %}
+        <td><span class="fw-semibold">{{ it.title }}</span>{% if kid %} <span class="badge text-bg-light border">子ポータル</span>{% endif %}{% if it.subtree %} <span class="badge text-bg-light border" title="この URL の配下も Claude が読める">配下も読める</span>{% endif %}
           {% if it.note %}<div class="small text-muted">{{ it.note }}</div>{% endif %}
           <div class="d-md-none small text-break"><a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.url }}</a></div></td>
         <td class="d-none d-md-table-cell small text-break font-monospace"><a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.url }}</a></td>

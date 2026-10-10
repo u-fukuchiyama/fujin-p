@@ -53,6 +53,13 @@
       <div class="form-text small mt-2">ここで選んだ範囲の人（と，その人が接続した Claude）にこの URL が見えます．アクトの人と admin にはいつも見えます．</div>
     </div>
   </div>
+  {% if is_admin %}
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="subtree" value="1" id="subtree"{{ ' checked' if it.subtree|int }}>
+    <label class="form-check-label small" for="subtree">配下も読める（入口にする）</label>
+    <div class="form-text small">この URL の下にある同じサイトのページ（例：<code>/app_share/source/</code> なら <code>/app_share/source/finder</code> や各ファイル）を，一つずつ登録しなくても Claude が MCP の read_url で読めるようにします．公開範囲はこの行と同じです．このサイトの URL で，最上位（/）とオール自身以外のものにだけ付けられます．admin だけが変えられます．</div>
+  </div>
+  {% endif %}
   <div><button class="btn btn-primary btn-sm">保存</button>
     <a class="btn btn-link btn-sm" href="{{ url_for('all_portal.item', iid=it.id) if it.id else home }}">戻る</a></div>
 </form>

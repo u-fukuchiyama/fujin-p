@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-09 23:46:12",
+  "generated_at": "2026-10-10 17:53:34",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -467,8 +467,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261006.012547-0d4ed3",
-      "version_confirmed_at": "2026-10-06 01:25:47"
+      "version_id": "v20261010.003343-0ab4d8",
+      "version_confirmed_at": "2026-10-10 00:33:44"
     },
     {
       "app_name": "table_share",
@@ -771,8 +771,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260930.010535-f9736f",
-      "version_confirmed_at": "2026-09-30 01:05:35"
+      "version_id": "v20261010.002622-cd4d18",
+      "version_confirmed_at": "2026-10-10 00:26:22"
     },
     {
       "app_name": "data_center",
@@ -923,8 +923,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261003.222003-557fc2",
-      "version_confirmed_at": "2026-10-03 22:20:04"
+      "version_id": "v20261003.221934-554e09",
+      "version_confirmed_at": "2026-10-03 22:19:35"
     },
     {
       "app_name": "document_archive",
@@ -961,8 +961,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260917.152156-f4ccc3",
-      "version_confirmed_at": "2026-09-17 15:21:57"
+      "version_id": "v20261010.100144-40642b",
+      "version_confirmed_at": "2026-10-10 10:01:44"
     },
     {
       "app_name": "free_hand_curve",
@@ -1605,8 +1605,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261002.010356-6c767a",
-      "version_confirmed_at": "2026-10-02 01:03:57"
+      "version_id": "v20261010.002110-4f93f7",
+      "version_confirmed_at": "2026-10-10 00:21:11"
     },
     {
       "app_name": "kitare_deliberation",
@@ -1643,8 +1643,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261006.012137-44c883",
-      "version_confirmed_at": "2026-10-06 01:21:37"
+      "version_id": "v20261010.001717-fcf08b",
+      "version_confirmed_at": "2026-10-10 00:17:18"
     },
     {
       "app_name": "ethics_review",
@@ -1719,8 +1719,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261006.012344-5f53be",
-      "version_confirmed_at": "2026-10-06 01:23:44"
+      "version_id": "v20261010.001213-9ff274",
+      "version_confirmed_at": "2026-10-10 00:12:13"
     },
     {
       "app_name": "stl_manager",
@@ -1909,8 +1909,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": null,
-      "version_confirmed_at": null
+      "version_id": "v20261010.000811-170ffa",
+      "version_confirmed_at": "2026-10-10 00:08:11"
     },
     {
       "app_name": "file_container",

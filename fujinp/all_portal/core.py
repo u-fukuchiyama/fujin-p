@@ -88,6 +88,7 @@ DDL = [
     "`access_policy` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'inherit', "
     "`access_groups` text COLLATE utf8mb4_unicode_ci, "
     "`fetched_at` datetime DEFAULT NULL, "
+    "`subtree` tinyint NOT NULL DEFAULT 0, "
     "`sort_order` decimal(10,2) DEFAULT NULL, "
     "`created_by` int DEFAULT NULL, "
     "`created_at` datetime DEFAULT NULL, `updated_at` datetime DEFAULT NULL, "
@@ -144,6 +145,10 @@ def cursor():
                 cur.execute("ALTER TABLE all_items ADD COLUMN `access_policy` varchar(20) COLLATE utf8mb4_unicode_ci "
                             "NOT NULL DEFAULT 'inherit' AFTER `source`, ADD COLUMN `access_groups` text "
                             "COLLATE utf8mb4_unicode_ci AFTER `access_policy`")
+            # 配下も読める（2026-10-10）
+            cur.execute("SHOW COLUMNS FROM all_items LIKE 'subtree'")
+            if not cur.fetchone():
+                cur.execute("ALTER TABLE all_items ADD COLUMN `subtree` tinyint NOT NULL DEFAULT 0 AFTER `fetched_at`")
             conn.commit()
         _ready['ok'] = True
     return get_db_cursor(database=DB)
@@ -339,7 +344,7 @@ def item_row(iid):
 
 def items_of(pid, with_body=False):
     cols = '*' if with_body else ('id, portal_id, bundle, title, url, note, source, fetched_at, sort_order, '
-                                  'access_policy, access_groups, CHAR_LENGTH(body) AS chars')
+                                  'access_policy, access_groups, subtree, CHAR_LENGTH(body) AS chars')
     with cursor() as (cur, conn):
         cur.execute(f"SELECT {cols} FROM all_items WHERE portal_id = %s "
                     "ORDER BY sort_order IS NULL, sort_order, id", (pid,))
@@ -370,6 +375,43 @@ def item_visible(it, who, portal_level):
     grp = bool(who.uid) and bool(set(item_groups(it)) & who.groups)
     return ((pol == 'domestic' and dom) or (pol == 'group' and grp)
             or (pol == 'domestic_group' and (dom or grp)))
+
+
+# ── 配下も読める（2026-10-10） ──
+# URL 文書の行に subtree=1 を付けると，その URL を入口として，同じサイトの配下の URL も
+# その行と同じ公開範囲で読める（MCP の read_url）．入口の配下とは，入口のパスそのもの（問い合わせ部分は
+# 問わない）と，入口のパスに / を付けた接頭辞で始まるパス．サイトの最上位（/）は入口にできない．
+
+def subtree_base(url):
+    """入口になる行の URL からパスの基点を返す（/app_share/source/ → /app_share/source）．
+    外部の URL・最上位・オール自身は None"""
+    from urllib.parse import urlsplit
+    from flask import request
+    u = (url or '').split('#', 1)[0].strip()
+    parts = urlsplit(u)
+    if parts.netloc:
+        host = request.host if request else ''
+        if not host or parts.netloc.lower() != host.lower():
+            return None
+    path = (parts.path or '').rstrip('/')
+    if not path or not path.startswith('/') or path.startswith('/all_portal'):
+        return None
+    return path
+
+
+def in_subtree(base, path):
+    return path == base or path.startswith(base + '/')
+
+
+def subtree_entries():
+    """subtree=1 の行（全ポータル）"""
+    with cursor() as (cur, conn):
+        cur.execute("SELECT id, portal_id, bundle, title, url, note, source, access_policy, access_groups "
+                    "FROM all_items WHERE subtree = 1 AND source = 'url'")
+        rows = cur.fetchall()
+    for r in rows:
+        r['groups_list'] = item_groups(r)
+    return rows
 
 
 def visible_items(pid, who, portal_level, with_body=False):

@@ -30,6 +30,7 @@
 admin 専用の設定ダッシュボード（/admin）に収める．Claude からの接続（OAuth の許可と MCP）も admin だけ．
 子ポータルの編集（URL の追加・並び・写しの更新・リクエストの受付）は，親の行の URL ごとのダッシュボード（/i/<行>）で行う．
 親でアクトの人が子ポータルの画面を開くと，ゲストと同じ読むだけの画面になる（2026-10-09）．
+行に「配下も読める」（subtree）を付けると，その URL の配下の同じサイトのページを Claude が MCP の read_url で読める（2026-10-10，admin だけが設定）．
 """
 
 import json
@@ -45,7 +46,7 @@ from . import all_portal_bp as bp
 from .core import (KINDS, LEVEL_KEYS, LEVEL_KEY_LABEL, LEVEL_LABEL, POLICIES, POLICY_LABEL, add_request,
                    all_group_names, policy_of, policy_rows,
                    ancestors, children_of, descendant_ids, cursor, grants_of, item_row, item_groups, item_visible, items_of, visible_items, ITEM_POLICIES, level_of, now_jst, portal_row, portals_for,
-                   requests_of, save_item, store_copy, user_info, web_who, write_log)
+                   requests_of, save_item, store_copy, subtree_base, user_info, web_who, write_log)
 from . import urldoc
 from .oauth import connections, csrf_ok, csrf_token, issuer, mcp_url, revoke_family
 
@@ -437,6 +438,11 @@ def item_edit(pid=None, iid=None):
                     'sort_order': num(f.get('sort_order'), '順序数')}
             if not vals['title']:
                 raise ValueError('題名を書いてください')
+            # 配下も読める（入口）：admin だけが変えられる．ほかの人の保存では元の値を残す
+            if web_who().admin:
+                vals['subtree'] = 1 if f.get('subtree') else 0
+                if vals['subtree'] and subtree_base(vals['url']) is None:
+                    raise ValueError('「配下も読める」は，このサイトの URL で，最上位（/）とオール自身以外のものにだけ付けられます')
         except ValueError as e:
             flash(str(e), 'error')
             back = dict(it or {}, **request.form.to_dict())
@@ -456,7 +462,7 @@ def item_edit(pid=None, iid=None):
 def _form_item(it):
     """編集画面に渡す行．テンプレートで使う鍵をすべてそろえる（未定義の鍵は StrictUndefined でエラーになる）"""
     base = {'id': None, 'title': '', 'url': '', 'note': '', 'sort_order': None,
-            'access_policy': 'inherit', 'groups_list': []}
+            'access_policy': 'inherit', 'groups_list': [], 'subtree': 0}
     base.update({k: v for k, v in (it or {}).items() if v is not None or k in ('sort_order',)})
     return base
 
