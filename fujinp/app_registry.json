@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-10 18:15:46",
+  "generated_at": "2026-10-10 18:20:20",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -236,8 +236,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260917.153719-d4c320",
-      "version_confirmed_at": "2026-09-17 15:37:19"
+      "version_id": "v20261010.182008-87dfb2",
+      "version_confirmed_at": "2026-10-10 18:20:08"
     },
     {
       "app_name": "sql_saver",
