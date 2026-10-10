@@ -41,3 +41,4 @@ from . import package  # 段階6c：パッケージ輸出入（v3）
 from . import tidy     # 2026-09-17：整形とコードの指紋
 from . import kernel   # 2026-09-23：カーネル取り込み
 from . import source   # 2026-10-10：ソースとテーブルの閲覧（オール経由で Claude も読む）
+from . import ledger   # 2026-10-10：台帳点検（コード・台帳・DB の突き合わせと処置）
