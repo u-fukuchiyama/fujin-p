@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-10 23:47:05",
+  "generated_at": "2026-10-13 09:24:51",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -961,8 +961,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261010.182937-40642b",
-      "version_confirmed_at": "2026-10-10 18:29:38"
+      "version_id": "v20261013.092445-aaf737",
+      "version_confirmed_at": "2026-10-13 09:24:45"
     },
     {
       "app_name": "free_hand_curve",
