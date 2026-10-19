@@ -1,0 +1,189 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slack_port - FUJIN-P</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+         background: #f4f6f9; color: #333; font-size: 14px; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  .header { display: flex; align-items: center; gap: 14px; background: #fff; border-radius: 10px;
+            padding: 14px 20px; margin-bottom: 18px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .header h1 { font-size: 1.25rem; }
+  .spacer { flex: 1; }
+  .admin-badge { background: #dc2626; color: #fff; font-size: .75rem; font-weight: 700; border-radius: 12px; padding: 3px 12px; }
+  .btn-return { display: inline-block; padding: 6px 14px; background: #e74c3c; border-radius: 20px; color: #fff;
+                text-decoration: none; font-size: .82em; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .card { background: #fff; border-radius: 10px; padding: 16px 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .card h2 { font-size: 1.02rem; margin-bottom: 10px; }
+  .muted { color: #64748b; font-size: .82rem; }
+  .err { color: #b91c1c; font-size: .84rem; }
+  .ok { color: #166534; }
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  th { text-align: left; background: #f8fafc; color: #475569; padding: 7px 8px; border-bottom: 1px solid #e2e8f0; }
+  td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .btn { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 5px 12px; font-size: .85rem; cursor: pointer; }
+  .btn:hover { background: #f1f5f9; }
+  .btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .btn-sm { padding: 2px 8px; font-size: .78rem; }
+  a.btn { color: #333; text-decoration: none; display: inline-block; }
+  input, select, textarea { border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 8px; font-size: .88rem; font-family: inherit; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  .pill { display: inline-block; border-radius: 10px; padding: 1px 8px; font-size: .75rem; font-weight: 600; }
+  .in { background: #dcfce7; color: #166534; } .out { background: #fee2e2; color: #991b1b; }
+  .msg { padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
+  .msg .who { font-weight: 700; font-size: .85rem; } .msg .t { color: #94a3b8; font-size: .75rem; margin-left: 6px; }
+  .msg .body p { margin: 2px 0; }
+  #flash { margin-top: 8px; font-size: .86rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>⚓ Slack_port</h1><span class="admin-badge">admin</span>
+    <span class="spacer"></span>
+    <a class="btn-return" href="{{ url_for('slack_port.return_to_fujin') }}">FUJIN-Pに戻る</a>
+  </div>
+
+  <div class="card">
+    <h2>Bot <span class="muted">（config.py の SLACK_BOTS）</span></h2>
+    <table><thead><tr><th>名前</th><th>Slack での表示名</th><th>ワークスペース</th><th>接続</th></tr></thead>
+      <tbody id="bots"><tr><td colspan="4" class="muted">読み込み中…</td></tr></tbody></table>
+    <div class="row"><button class="btn btn-sm" onclick="load(true)">接続を確かめ直す</button>
+      <span class="muted">Bot を足すときは，Slack でアプリを作り，config.py の SLACK_BOTS に名前とトークンを1行足してください．</span></div>
+  </div>
+
+  <div class="card">
+    <h2>チャンネル <span class="muted">（他のアプリは番号で指定します）</span></h2>
+    <table><thead><tr><th>番号</th><th>表示名</th><th>チャンネル ID</th><th>Bot の参加</th><th>内容</th><th></th></tr></thead>
+      <tbody id="chans"></tbody></table>
+    <div class="row">
+      <input id="c-no" type="number" min="1" placeholder="番号" style="width:80px">
+      <input id="c-label" placeholder="表示名（例：練習場）">
+      <input id="c-id" placeholder="チャンネル ID（C…）">
+      <input id="c-note" placeholder="メモ" style="flex:1">
+      <button class="btn btn-primary" onclick="saveCh()">追加・更新</button>
+      <button class="btn" onclick="clearCh()">クリア</button>
+    </div>
+    <div class="row"><button class="btn btn-sm" onclick="load(false, true)">Bot の参加を確かめる</button>
+      <span class="muted">チャンネル ID は，Slack でチャンネル名を右クリック →「リンクをコピー」の末尾の英数字です．</span></div>
+  </div>
+
+  <div class="card">
+    <h2>アプリ <span class="muted">（Slack_port で通知するアプリ．各アプリがプログラムの中で register して名乗ります）</span></h2>
+    <table><thead><tr><th>アプリ</th><th>既定の Bot</th><th>最終利用</th><th>記録</th><th>ログ</th><th></th></tr></thead>
+      <tbody id="apps"><tr><td colspan="6" class="muted">読み込み中…</td></tr></tbody></table>
+    <div class="row"><span class="muted">ログを ON にしたアプリだけ，いつ・どのチャンネルや宛先に・何を投稿したかを記録します（既定は OFF）．</span></div>
+  </div>
+
+  <div class="card">
+    <h2>試し投稿と読み取り</h2>
+    <div class="row">
+      <select id="t-bot"></select>
+      <select id="t-ch"></select>
+      <button class="btn" onclick="peek()">最近のメッセージを読む</button>
+    </div>
+    <div class="row">
+      <input id="t-text" placeholder="投稿する文" style="flex:1">
+      <button class="btn btn-primary" onclick="tryPost()">投稿する</button>
+    </div>
+    <div id="flash"></div>
+    <div id="peek" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<script>
+const BASE = '{{ url_for('slack_port.index') }}';
+let EDIT = null, STATE = null;
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function post(url, body) {
+  const r = await fetch(BASE + url, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'fetch'}, body: JSON.stringify(body || {})});
+  try { return await r.json(); } catch (e) { return {ok: false, error: '通信エラー（' + r.status + '）'}; }
+}
+function flash(t, bad) { const f = document.getElementById('flash'); f.className = bad ? 'err' : 'ok'; f.textContent = t; }
+
+async function load(refresh, check) {
+  const q = new URLSearchParams({refresh: refresh ? '1' : '0', check: check ? '1' : '0'});
+  const j = await (await fetch(BASE + 'api/status?' + q)).json();
+  STATE = j;
+  document.getElementById('bots').innerHTML = j.bots.map(b => `<tr><td>${esc(b.key)}</td><td>${esc(b.name)}</td>
+    <td>${esc(b.team)}</td><td>${b.ok ? '<span class="pill in">接続できる</span>' : '<span class="err">' + esc(b.error) + '</span>'}</td></tr>`).join('')
+    || '<tr><td colspan="4" class="muted">config.py に SLACK_BOTS がありません</td></tr>';
+  document.getElementById('chans').innerHTML = j.channels.map(c => {
+    const mem = Object.keys(c.members).length ? Object.entries(c.members).map(([b, m]) =>
+      m.ok ? `<span class="pill ${m.is_member ? 'in' : 'out'}">${esc(b)}：${m.is_member ? '参加' : '未参加'}</span>`
+           : `<span class="pill out">${esc(b)}：${esc(m.error)}</span>`).join(' ') : '<span class="muted">未確認</span>';
+    return `<tr><td>${c.ch_no}</td><td>${esc(c.label)}${c.slack_name ? ' <span class="muted">#' + esc(c.slack_name) + '</span>' : ''}
+      ${c.note ? '<div class="muted">' + esc(c.note) + '</div>' : ''}</td><td class="muted">${esc(c.channel_id)}</td><td>${mem}</td>
+      <td style="white-space:nowrap"><a class="btn btn-sm" href="${BASE}channel/${c.ch_no}">読む</a>
+      <a class="btn btn-sm" href="${BASE}text/${c.ch_no}" target="_blank" title="Claude 用の目次（この URL をオールに登録します）">Claude 用</a></td>
+      <td style="white-space:nowrap"><button class="btn btn-sm" onclick="editCh(${c.id})">編集</button>
+      <button class="btn btn-sm" onclick="delCh(${c.id})">削除</button></td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="muted">まだありません</td></tr>';
+  document.getElementById('t-bot').innerHTML = j.bots.map(b => `<option value="${esc(b.key)}">${esc(b.key)}${b.name ? '（' + esc(b.name) + '）' : ''}</option>`).join('');
+  document.getElementById('t-ch').innerHTML = j.channels.map(c => `<option value="${c.ch_no}">${c.ch_no} 番：${esc(c.label)}</option>`).join('');
+}
+async function loadApps() {
+  let j;
+  try { j = await (await fetch(BASE + 'api/apps')).json(); } catch (e) { j = {ok: false, error: '通信エラー', apps: []}; }
+  const el = document.getElementById('apps');
+  if (!j.ok) { el.innerHTML = '<tr><td colspan="6" class="err">' + esc(j.error) + '</td></tr>'; return; }
+  el.innerHTML = j.apps.map(a => `<tr>
+    <td><strong>${esc(a.display_name)}</strong> <span class="muted">${esc(a.app_name)}</span>
+      ${a.loaded ? '' : '<div class="muted">このサーバの処理ではまだ読み込まれていません</div>'}</td>
+    <td>${esc(a.default_bot) || '<span class="muted">なし（投稿ごとに指定）</span>'}</td>
+    <td class="muted">${esc(a.last_used_at) || '—'}</td>
+    <td class="muted">チャンネル ${a.n_log} 件<br>DM ${a.n_dm} 件</td>
+    <td><button class="btn btn-sm" style="${a.log_on ? 'background:#dcfce7;border-color:#86efac;color:#166534;font-weight:700' : ''}"
+      onclick="toggleLog('${esc(a.app_name)}', ${!a.log_on})">${a.log_on ? '✓ ON' : 'OFF'}</button></td>
+    <td><a class="btn btn-sm" href="${BASE}apps/${encodeURIComponent(a.app_name)}">記録を見る</a></td></tr>`).join('')
+    || '<tr><td colspan="6" class="muted">まだ登録されたアプリはありません</td></tr>';
+}
+async function toggleLog(app, on) {
+  const j = await post('api/apps/' + encodeURIComponent(app) + '/log', {on: on});
+  if (!j.ok) { alert(j.error); return; }
+  loadApps();
+}
+function editCh(id) {
+  const c = STATE.channels.find(x => x.id === id); EDIT = id;
+  document.getElementById('c-no').value = c.ch_no; document.getElementById('c-label').value = c.label;
+  document.getElementById('c-id').value = c.channel_id; document.getElementById('c-note').value = c.note || '';
+}
+function clearCh() { EDIT = null; ['c-no', 'c-label', 'c-id', 'c-note'].forEach(i => document.getElementById(i).value = ''); }
+async function saveCh() {
+  const j = await post('api/channels/save', {id: EDIT, ch_no: document.getElementById('c-no').value,
+    label: document.getElementById('c-label').value, channel_id: document.getElementById('c-id').value,
+    note: document.getElementById('c-note').value});
+  if (!j.ok) { alert(j.error); return; }
+  clearCh(); load();
+}
+async function delCh(id) {
+  if (!confirm('このチャンネルを登録から外しますか．（Slack のチャンネル自体は消えません）')) return;
+  await post('api/channels/' + id + '/delete'); load();
+}
+async function tryPost() {
+  const j = await post('api/try_post', {bot: document.getElementById('t-bot').value,
+    ch_no: document.getElementById('t-ch').value, text: document.getElementById('t-text').value});
+  flash(j.ok ? '投稿しました．' : j.error, !j.ok);
+  if (j.ok) { document.getElementById('t-text').value = ''; peek(); }
+}
+async function peek() {
+  const q = new URLSearchParams({bot: document.getElementById('t-bot').value, ch_no: document.getElementById('t-ch').value});
+  const j = await (await fetch(BASE + 'api/peek?' + q)).json();
+  if (!j.ok) { flash(j.error, true); document.getElementById('peek').innerHTML = ''; return; }
+  document.getElementById('peek').innerHTML = j.messages.map(m => `<div class="msg"><span class="who">${esc(m.name)}${m.is_bot ? ' 🤖' : ''}</span>
+    <span class="t">${esc(m.time)}</span><div class="body">${m.html}</div></div>`).join('') || '<p class="muted">メッセージはありません</p>';
+}
+load();
+loadApps();
+</script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+
+  Claude 用のテキストページ（目次・月・スレッド）．
+  オールの URL 文書は HTML をテキストにして渡すので，飾りは置かず，
+  見出し・段落・引用だけで組み（CSS も置かない），次に読む URL は本文に完全な形で書き出す．
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ ch.label }}{% if kind == 'month' %} {{ ym }}{% elif kind == 'thread' %} スレッド{% endif %} - Slack_port</title>
+</head>
+<body>
+
+{% macro message(m, mark='') -%}
+<div>
+<p><b>{{ mark }}{{ m.name }}</b>{% if m.is_bot %}（Bot）{% endif %}　{{ m.datetime }}{% if m.edited %}（編集済み）{% endif %}<br>
+{{ body(m) }}</p>
+{% for f in m.files %}<p>添付：{{ f.name }}{% if f.url %}（{{ f.url }}）{% endif %}</p>{% endfor %}
+</div>
+{%- endmacro %}
+
+{% if kind == 'index' %}
+<h1>Slack チャンネル「{{ ch.label }}」の目次（Slack_port {{ ch.ch_no }} 番）</h1>
+{% if meta and meta.ok %}
+<p>Slack 上の名前：#{{ meta.name }}{% if meta.created %}　作成：{{ meta.created }}{% endif %}</p>
+{% if meta.purpose %}<p>目的：{{ meta.purpose }}</p>{% endif %}
+{% if meta.topic %}<p>話題：{{ meta.topic }}</p>{% endif %}
+{% endif %}
+{% if ch.note %}<p>メモ：{{ ch.note }}</p>{% endif %}
+<p>読み取り：{{ now }}（Bot：{{ bot or 'なし' }}）</p>
+
+{% if scan %}
+<p>全 {{ scan.total }} 件（ほかにスレッドの返信 {{ scan.months | sum(attribute='replies') }} 件）{% if scan.months %}，{{ scan.months[0].ym }} 〜 {{ scan.months[-1].ym }}{% endif %}．</p>
+<p>読み方：このページは目次です．各月のページには，その月の発言とスレッドの返信が，日付ごとに古い順で全部載っています．
+チャンネルの経緯を通して知るには，下の各月の URL を古い順に読んでください．
+月のページの読み取りには，件数に応じて数秒から1分程度かかります．</p>
+{% if not scan.complete %}<p>注意：目次は途中までしか作れていません{% if error %}（{{ error }}）{% endif %}．以下にない古い月がある可能性があります．</p>{% endif %}
+
+<h2>月ごとのページ</h2>
+{% for d in scan.months %}
+<p>{{ d.ym }}：{{ d.count }} 件{% if d.threads %}（スレッド {{ d.threads }} 本，返信 {{ d.replies }} 件）{% endif %}<br>
+<a href="{{ d.url }}">{{ d.url }}</a></p>
+{% else %}
+<p>メッセージはありません．</p>
+{% endfor %}
+{% endif %}
+
+{% elif kind == 'month' %}
+<h1>Slack チャンネル「{{ ch.label }}」 {{ ym }}（Slack_port {{ ch.ch_no }} 番）</h1>
+<p>読み取り：{{ now }}（Bot：{{ bot or 'なし' }}）<br>
+目次：<a href="{{ index_url }}">{{ index_url }}</a><br>
+前の月：<a href="{{ prev_url }}">{{ prev_url }}</a><br>
+次の月：<a href="{{ next_url }}">{{ next_url }}</a><br>
+（前後の月に発言があるかどうかは目次で確かめてください）</p>
+{% if res %}
+{% set n_rep = res.messages | map(attribute='replies', default=[]) | map('length') | sum %}
+<p>この月の発言 {{ res.messages | length }} 件，スレッドの返信 {{ n_rep }} 件．発言は古い順で，返信は「↳」を付けて親の発言の下に入れています．</p>
+{% if not res.complete %}<p>注意：この月は全部を読み切れていません{% if error %}（{{ error }}）{% endif %}．{% if pending %}次のスレッドの返信は，それぞれの URL で読んでください．{% endif %}</p>
+{% for u in pending %}<p><a href="{{ u }}">{{ u }}</a></p>{% endfor %}
+{% endif %}
+{% set ns = namespace(day='') %}
+{% for m in res.messages %}
+{% if m.datetime[:10] != ns.day %}{% set ns.day = m.datetime[:10] %}<h2>{{ ns.day }}</h2>{% endif %}
+{{ message(m) }}
+{% if m.replies %}<blockquote>{% for r in m.replies %}{{ message(r, '↳ ') }}{% endfor %}</blockquote>{% endif %}
+{% else %}
+<p>この月の発言はありません．</p>
+{% endfor %}
+{% endif %}
+
+{% elif kind == 'thread' %}
+<h1>Slack チャンネル「{{ ch.label }}」のスレッド（Slack_port {{ ch.ch_no }} 番）</h1>
+<p>読み取り：{{ now }}（Bot：{{ bot or 'なし' }}）<br>
+目次：<a href="{{ index_url }}">{{ index_url }}</a></p>
+{% if res %}
+{% if not res.complete %}<p>注意：スレッドを全部は読み切れていません{% if error %}（{{ error }}）{% endif %}．</p>{% endif %}
+{% for m in res.messages %}{{ message(m, '' if loop.first else '↳ ') }}{% endfor %}
+{% endif %}
+{% endif %}
+
+{% if error and not (scan or res) %}<p>読み取れませんでした：{{ error }}</p>{% endif %}
+</body>
+</html>

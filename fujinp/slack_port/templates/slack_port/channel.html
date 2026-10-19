@@ -1,0 +1,228 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ ch.ch_no }} 番：{{ ch.label }} - Slack_port</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+         background: #f4f6f9; color: #333; font-size: 14px; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  .header { display: flex; align-items: center; gap: 14px; background: #fff; border-radius: 10px;
+            padding: 14px 20px; margin-bottom: 18px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .header h1 { font-size: 1.2rem; }
+  .spacer { flex: 1; }
+  .admin-badge { background: #dc2626; color: #fff; font-size: .75rem; font-weight: 700; border-radius: 12px; padding: 3px 12px; }
+  .btn-back { display: inline-block; padding: 6px 14px; background: #64748b; border-radius: 20px; color: #fff;
+              text-decoration: none; font-size: .82em; font-weight: 700; }
+  .card { background: #fff; border-radius: 10px; padding: 16px 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .card h2 { font-size: 1.02rem; margin-bottom: 10px; }
+  .muted { color: #64748b; font-size: .82rem; }
+  .err { color: #b91c1c; }
+  .ok { color: #166534; }
+  .btn { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 5px 12px; font-size: .85rem; cursor: pointer; }
+  .btn:hover { background: #f1f5f9; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  input, select { border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 8px; font-size: .88rem; font-family: inherit; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  label { display: inline-flex; align-items: center; gap: 4px; }
+  #progress { margin-top: 10px; font-size: .88rem; min-height: 1.4em; }
+  .msg { padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
+  .msg .who { font-weight: 700; font-size: .85rem; } .msg .t { color: #94a3b8; font-size: .75rem; margin-left: 6px; }
+  .msg .body p { margin: 2px 0; }
+  .msg .files { font-size: .8rem; color: #475569; }
+  .reply { margin-left: 24px; border-left: 3px solid #e2e8f0; padding-left: 10px; }
+  .day { font-weight: 700; color: #475569; margin: 12px 0 4px; font-size: .9rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>⚓ {{ ch.ch_no }} 番：{{ ch.label }}</h1><span class="admin-badge">admin</span>
+    <span class="spacer"></span>
+    <a class="btn-back" href="{{ url_for('slack_port.index') }}">Slack_port に戻る</a>
+  </div>
+
+  <div class="card">
+    <h2>チャンネルの内容を読み取る</h2>
+    {% if not bots %}
+      <p class="err">接続できる Bot がありません．Slack_port の画面で Bot の接続を確かめてください．</p>
+    {% else %}
+    <div class="row">
+      <label>Bot <select id="bot">{% for b in bots %}<option value="{{ b.key }}">{{ b.key }}{% if b.name %}（{{ b.name }}）{% endif %}</option>{% endfor %}</select></label>
+      <label>期間 <input type="date" id="from"> 〜 <input type="date" id="to"></label>
+      <span class="muted">（空欄なら全期間）</span>
+      <label><input type="checkbox" id="threads" checked> スレッドの返信も読む</label>
+    </div>
+    <div class="row">
+      <button class="btn btn-primary" id="b-start" onclick="start()">読み取りを始める</button>
+      <button class="btn" id="b-stop" onclick="STOP = true" disabled>止める</button>
+      <button class="btn" id="b-md" onclick="dlMd()" disabled>Markdown でダウンロード</button>
+      <button class="btn" id="b-json" onclick="dlJson()" disabled>JSON でダウンロード</button>
+    </div>
+    <div id="progress" class="muted">Bot がこのチャンネルに参加している必要があります．</div>
+    <p class="muted" style="margin-top:10px">Claude に読ませるときは，次の目次の URL をオールに URL 文書（入口）として登録します：
+      <a href="{{ url_for('slack_port.text_index', ch_no=ch.ch_no) }}" target="_blank">{{ request.host_url.rstrip('/') }}{{ url_for('slack_port.text_index', ch_no=ch.ch_no) }}</a></p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>読み取った内容 <span class="muted" id="shown"></span></h2>
+    <div id="list"><p class="muted">まだ読み取っていません．</p></div>
+  </div>
+</div>
+
+<script>
+const BASE = '{{ url_for('slack_port.index') }}';
+const CH = {{ {'no': ch.ch_no, 'label': ch.label, 'channel_id': ch.channel_id} | tojson }};
+const PACE_MS = 1300;          // Slack の回数制限（毎分50回程度）に収まるよう，呼び出しの間を空ける
+const SHOW_MAX = 300;          // 画面に並べる上限（ダウンロードは全件）
+let MSGS = [], META = null, STOP = false;
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function prog(t, cls) { const p = document.getElementById('progress'); p.className = cls || 'muted'; p.textContent = t; }
+function btns(running) {
+  document.getElementById('b-start').disabled = running;
+  document.getElementById('b-stop').disabled = !running;
+  document.getElementById('b-md').disabled = running || !MSGS.length;
+  document.getElementById('b-json').disabled = running || !MSGS.length;
+}
+
+// 1回分の API 呼び出し．回数制限なら指定秒数待ってやり直す
+async function call(path, params, label) {
+  for (;;) {
+    if (STOP) return null;
+    let j;
+    try {
+      const r = await fetch(BASE + path + '?' + new URLSearchParams(params));
+      j = await r.json();
+    } catch (e) { return {ok: false, error: '通信エラー（' + e + '）'}; }
+    if (j.ok || !j.retry_after) return j;
+    for (let s = j.retry_after + 1; s > 0 && !STOP; s--) {
+      prog(label + '：Slack の回数制限のため待っています（あと ' + s + ' 秒）');
+      await sleep(1000);
+    }
+  }
+}
+
+async function start() {
+  const bot = document.getElementById('bot').value;
+  const from = document.getElementById('from').value, to = document.getElementById('to').value;
+  const withThreads = document.getElementById('threads').checked;
+  STOP = false; MSGS = []; btns(true);
+  META = {bot, from, to, withThreads, started: new Date(), stopped: false, error: null};
+
+  // 1) 履歴をページ送りで読む
+  let cursor = '', page = 0;
+  do {
+    page++;
+    prog('履歴を読んでいます：' + page + ' ページ目（ここまで ' + MSGS.length + ' 件）');
+    const j = await call('api/history', {bot, ch_no: CH.no, cursor, from, to, limit: 200}, '履歴 ' + page + ' ページ目');
+    if (!j) break;
+    if (!j.ok) { META.error = j.error; break; }
+    MSGS.push(...j.messages);
+    cursor = j.next_cursor || '';
+    if (cursor) await sleep(PACE_MS);
+  } while (cursor && !STOP);
+
+  // 2) スレッドの返信を読む
+  if (withThreads && !META.error && !STOP) {
+    const parents = MSGS.filter(m => m.reply_count > 0 && m.thread_ts === m.ts);
+    for (let i = 0; i < parents.length && !STOP && !META.error; i++) {
+      const p = parents[i]; p.replies = [];
+      let rc = '';
+      do {
+        await sleep(PACE_MS);
+        prog('スレッドの返信を読んでいます：' + (i + 1) + ' / ' + parents.length);
+        const j = await call('api/replies', {bot, ch_no: CH.no, thread_ts: p.ts, cursor: rc}, 'スレッド ' + (i + 1));
+        if (!j) break;
+        if (!j.ok) { META.error = j.error; break; }
+        p.replies.push(...j.messages);
+        rc = j.next_cursor || '';
+      } while (rc && !STOP);
+    }
+  }
+
+  MSGS.sort((a, b) => parseFloat(a.ts) - parseFloat(b.ts));
+  META.stopped = STOP; META.finished = new Date();
+  const nRep = MSGS.reduce((n, m) => n + (m.replies ? m.replies.length : 0), 0);
+  const summary = MSGS.length + ' 件' + (META.withThreads ? '（ほかに返信 ' + nRep + ' 件）' : '');
+  if (META.error) prog('途中で失敗しました：' + META.error + '．読めた分（' + summary + '）はダウンロードできます．', 'err');
+  else if (STOP) prog('止めました．読めた分（' + summary + '）はダウンロードできます．');
+  else prog('読み取りが終わりました：' + summary + '．', 'ok');
+  render(); btns(false);
+}
+
+function render() {
+  const list = document.getElementById('list');
+  if (!MSGS.length) { list.innerHTML = '<p class="muted">メッセージはありません．</p>'; document.getElementById('shown').textContent = ''; return; }
+  const view = MSGS.slice(-SHOW_MAX);
+  document.getElementById('shown').textContent = MSGS.length > SHOW_MAX ? '（新しい ' + SHOW_MAX + ' 件だけを表示．ダウンロードには全件が入ります）' : '';
+  let day = '', html = '';
+  const one = (m, cls) => `<div class="msg ${cls || ''}"><span class="who">${esc(m.name)}${m.is_bot ? ' 🤖' : ''}</span>
+    <span class="t">${esc(m.datetime)}</span><div class="body">${m.html}</div>
+    ${m.files && m.files.length ? '<div class="files">📎 ' + m.files.map(f => esc(f.name)).join('，') + '</div>' : ''}</div>`;
+  for (const m of view) {
+    const d = m.datetime.slice(0, 10);
+    if (d !== day) { day = d; html += `<div class="day">${d}</div>`; }
+    html += one(m);
+    for (const r of (m.replies || [])) html += one(r, 'reply');
+  }
+  list.innerHTML = html;
+}
+
+function pad(n) { return String(n).padStart(2, '0'); }
+function stamp(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+function fname(ext) {
+  const d = META.finished;
+  const safe = CH.label.replace(/[\\/:*?"<>|\s]+/g, '_');
+  return `slack_${CH.no}_${safe}_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.${ext}`;
+}
+function save(text, name, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type}));
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function period() { return (META.from || '最初') + ' 〜 ' + (META.to || '最新'); }
+
+function dlMd() {
+  const L = [`# ${CH.label}（Slack_port ${CH.no} 番）`, '',
+    `- 読み取り：${stamp(META.finished)}（Bot：${META.bot}）`,
+    `- 期間：${period()}`,
+    `- 件数：${MSGS.length} 件` + (META.withThreads ? `（ほかに返信 ${MSGS.reduce((n, m) => n + (m.replies ? m.replies.length : 0), 0)} 件）` : '（スレッドの返信は含まない）')];
+  if (META.stopped || META.error) L.push(`- 注意：読み取りは途中で終わっています${META.error ? '（' + META.error + '）' : ''}`);
+  let day = '';
+  const block = (m, head) => {
+    L.push('', `${head} ${m.name}${m.is_bot ? '（Bot）' : ''}　${m.datetime.slice(11)}`, '', m.md || '');
+    for (const f of (m.files || [])) L.push('', `- 添付：${f.url ? '[' + f.name + '](' + f.url + ')' : f.name}`);
+  };
+  for (const m of MSGS) {
+    const d = m.datetime.slice(0, 10);
+    if (d !== day) { day = d; L.push('', `## ${d}`); }
+    block(m, '###');
+    for (const r of (m.replies || [])) block(r, '#### ↳');
+  }
+  save(L.join('\n') + '\n', fname('md'), 'text/markdown;charset=utf-8');
+}
+
+function dlJson() {
+  const strip = m => { const o = {...m}; delete o.html; if (o.replies) o.replies = o.replies.map(strip); return o; };
+  const data = {channel: CH, bot: META.bot, fetched_at: stamp(META.finished),
+    period: {from: META.from || null, to: META.to || null}, with_threads: META.withThreads,
+    complete: !(META.stopped || META.error), error: META.error, messages: MSGS.map(strip)};
+  save(JSON.stringify(data, null, 1), fname('json'), 'application/json;charset=utf-8');
+}
+</script>
+</body>
+</html>
