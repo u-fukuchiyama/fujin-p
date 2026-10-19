@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-13 09:24:51",
+  "generated_at": "2026-10-19 17:42:04",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -1643,8 +1643,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261010.001717-fcf08b",
-      "version_confirmed_at": "2026-10-10 00:17:18"
+      "version_id": "v20261019.174154-4e54b0",
+      "version_confirmed_at": "2026-10-19 17:41:55"
     },
     {
       "app_name": "ethics_review",
@@ -1681,8 +1681,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261006.012215-2ab934",
-      "version_confirmed_at": "2026-10-06 01:22:15"
+      "version_id": "v20261019.004549-252270",
+      "version_confirmed_at": null
     },
     {
       "app_name": "ext_engagement",
@@ -1719,8 +1719,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261010.001213-9ff274",
-      "version_confirmed_at": "2026-10-10 00:12:13"
+      "version_id": "v20261019.013000-897ec9",
+      "version_confirmed_at": null
     },
     {
       "app_name": "stl_manager",
@@ -1909,8 +1909,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261010.180301-9d8fb6",
-      "version_confirmed_at": "2026-10-10 18:03:02"
+      "version_id": "v20261018.222544-8ecdee",
+      "version_confirmed_at": null
     },
     {
       "app_name": "file_container",
@@ -1948,6 +1948,80 @@
       ],
       "version_id": "v20261008.215448-1b5b8b",
       "version_confirmed_at": "2026-10-08 21:54:48"
+    },
+    {
+      "app_name": "slack_avatar",
+      "display_name": "Slack_avatar",
+      "icon": "🧑‍💻",
+      "description": "Slack につなぎ込んだ端末（練習版）．アバターの Bot としてチャンネルを読み，投稿する",
+      "sort_order": 610.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "slack_avatar_bp",
+          "name": "slack_avatar",
+          "module": "fujinp.slack_avatar",
+          "url_prefix": "/slack_avatar"
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "🧑‍💻",
+          "label": "Slack_avatar",
+          "groups": [],
+          "params": "",
+          "section": "system",
+          "endpoint": "slack_avatar.index",
+          "dashboards": [
+            "admin"
+          ],
+          "sort_order": 77,
+          "visibility": "private",
+          "description": "Slack につなぎ込んだ端末（練習版）．アバターの Bot としてチャンネルを読み，投稿する",
+          "extra_class": ""
+        }
+      ],
+      "version_id": "v20261018.234722-15f4c7",
+      "version_confirmed_at": null
+    },
+    {
+      "app_name": "slack_port",
+      "display_name": "Slack_port",
+      "icon": "⚓",
+      "description": "FUJIN-P の Slack 窓口．傘下のチャンネルを番号で預かり，他のアプリに投稿と読み取りの口を貸す．チャンネルの内容を人が読んでダウンロードする画面と，Claude が読むためのテキストページを持つ",
+      "sort_order": 620.0,
+      "kind": "app",
+      "enabled": true,
+      "disclosed": true,
+      "blueprints": [
+        {
+          "attr": "slack_port_bp",
+          "name": "slack_port",
+          "module": "fujinp.slack_port",
+          "url_prefix": "/slack_port"
+        }
+      ],
+      "launchers": [
+        {
+          "icon": "⚓",
+          "label": "Slack_port",
+          "groups": [],
+          "params": "",
+          "section": "system",
+          "endpoint": "slack_port.index",
+          "dashboards": [
+            "admin"
+          ],
+          "sort_order": 76,
+          "visibility": "private",
+          "description": "FUJIN-P の Slack 窓口．傘下のチャンネルを番号で預かり，他のアプリに投稿と読み取りの口を貸す．チャンネルの内容を人が読んでダウンロードする画面と，Claude が読むためのテキストページを持つ",
+          "extra_class": ""
+        }
+      ],
+      "version_id": "v20261019.002358-ea4f7f",
+      "version_confirmed_at": null
     }
   ],
   "sections": [

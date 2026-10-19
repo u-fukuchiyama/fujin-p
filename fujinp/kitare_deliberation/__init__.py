@@ -23,3 +23,13 @@ kitare_deliberation_bp = Blueprint(
 from . import routes  # noqa: E402,F401
 # データ移行（fujinpshowcase → fujinp）の書き出し・取り込み（admin専用）
 from . import migration  # noqa: E402,F401
+
+# 設定の画面（Slack 通知の出力チャンネルと Bot．admin だけ．2026-10-19）
+from . import settings  # noqa: E402,F401
+
+# 通知一覧（Slack_port から送った通知の記録．業務会議だけ．2026-10-19）
+from . import notifications  # noqa: E402,F401
+
+# Slack 通知は Slack_port 経由（2026-10-19）．読み込み時に Slack_port へ登録する
+from .slack_notifier import register_to_slack_port  # noqa: E402
+register_to_slack_port()

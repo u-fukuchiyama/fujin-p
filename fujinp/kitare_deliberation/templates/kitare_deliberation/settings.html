@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>設定 - キターレオンライン審議</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh; padding: 15px;
+        }
+        .container { max-width: 760px; margin: 0 auto; }
+        .header {
+            background: white; padding: 16px 24px; border-radius: 10px;
+            margin-bottom: 14px; display: flex; align-items: center;
+            gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { flex: 1; font-size: 1.2rem; color: #4a3a7a; min-width: 200px; }
+        .nav-btn {
+            padding: 9px 16px; background: #94a3b8; color: white; border: none;
+            border-radius: 6px; cursor: pointer; text-decoration: none;
+            font-size: 0.88rem; font-weight: 600; white-space: nowrap;
+        }
+        .nav-btn.danger { background: #ef4444; }
+        .nav-btn.primary { background: #6d5fb8; }
+        .nav-btn:hover { opacity: 0.9; }
+        .card {
+            background: white; border-radius: 10px; padding: 20px 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 14px;
+        }
+        .card h2 {
+            font-size: 1rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 14px;
+        }
+        .note { font-size: 0.84rem; color: #64748b; line-height: 1.7; margin-bottom: 12px; }
+        .err { color: #b91c1c; font-size: 0.86rem; }
+        .ok { color: #166534; font-size: 0.86rem; }
+        .row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+        .row label { width: 8em; font-weight: 600; font-size: 0.9rem; color: #334155; }
+        select { padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; min-width: 18em; }
+        .current { font-size: 0.86rem; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0;
+                   border-radius: 6px; padding: 8px 12px; margin-bottom: 14px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>⚙️ 設定 <span style="font-size:.8rem;color:#64748b;font-weight:400">admin</span></h1>
+        <a href="{{ url_for('kitare_deliberation.index') }}" class="nav-btn">審議のトップに戻る</a>
+        <a href="{{ url_for('kitare_deliberation.return_to_fujin') }}" class="nav-btn danger">🏠 ダッシュボードに戻る</a>
+    </div>
+
+    <div class="card">
+        <h2>Slack 通知の送り先</h2>
+        <p class="note">申請・審議開始・議決・審議期日・重要発言の通知を投稿するチャンネルと，投稿に使う Bot を選びます．
+            委員長への申請の DM も，ここで選んだ Bot から送ります．
+            候補は Slack_port に登録されたチャンネルと Bot です．選んだ Bot をそのチャンネルに招待しておいてください．</p>
+        {% if error %}<p class="err" style="margin-bottom:12px">{{ error }}</p>{% endif %}
+        <div class="current">いまの送り先：{{ ch_no }} 番{% for c in chans if c.no == ch_no %}（{{ c.label }}）{% endfor %}，Bot {{ bot }}
+            <span style="color:#94a3b8">（既定は {{ default_ch }} 番・{{ default_bot }}）</span></div>
+        <div class="row">
+            <label for="ch">チャンネル</label>
+            <select id="ch">
+                {% for c in chans %}<option value="{{ c.no }}"{{ ' selected' if c.no == ch_no }}>{{ c.no }} 番：{{ c.label }}</option>{% endfor %}
+                {% if not chans %}<option value="">Slack_port にチャンネルがありません</option>{% endif %}
+            </select>
+        </div>
+        <div class="row">
+            <label for="bot">Bot</label>
+            <select id="bot">
+                {% for b in bots %}<option value="{{ b.key }}"{{ ' selected' if b.key == bot }}>{{ b.key }}{% if b.name %}（{{ b.name }}）{% endif %}{% if not b.ok %}　※接続できません{% endif %}</option>{% endfor %}
+                {% if not bots %}<option value="">Slack_port に Bot がありません</option>{% endif %}
+            </select>
+        </div>
+        <div class="row">
+            <button class="nav-btn primary" onclick="save()">保存</button>
+            <button class="nav-btn" onclick="tryPost()">いまの送り先へ試し送信</button>
+            <span id="msg"></span>
+        </div>
+    </div>
+</div>
+<script>
+const BASE = '{{ url_for('kitare_deliberation.index') }}';
+function msg(t, bad) { const m = document.getElementById('msg'); m.className = bad ? 'err' : 'ok'; m.textContent = t; }
+async function call(url, body) {
+    const r = await fetch(BASE + url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
+    try { return await r.json(); } catch (e) { return {success: false, error: '通信エラー（' + r.status + '）'}; }
+}
+async function save() {
+    const j = await call('api/settings/slack', {ch_no: document.getElementById('ch').value, bot: document.getElementById('bot').value});
+    if (!j.success) { msg(j.error, true); return; }
+    location.reload();
+}
+async function tryPost() {
+    msg('送っています…');
+    const j = await call('api/settings/slack/test');
+    msg(j.success ? `${j.ch_no} 番へ ${j.bot} として送りました．Slack で確かめてください．` : j.error, !j.success);
+}
+</script>
+</body>
+</html>

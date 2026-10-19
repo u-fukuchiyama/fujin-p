@@ -118,6 +118,9 @@
             <button type="button" class="nav-btn" style="background:#6d5fb8;color:white;" onclick="document.getElementById('kitareMigrationFile').click();">📥 移行データ取り込み</button>
         </form>
         {% endif %}
+        {% if is_admin %}
+        <a href="{{ url_for('kitare_deliberation.settings_page') }}" class="nav-btn" style="background:#475569;color:white;">⚙️ 設定</a>
+        {% endif %}
         <a href="{{ url_for('kitare_deliberation.return_to_fujin') }}" class="nav-btn danger">🏠 ダッシュボードに戻る</a>
     </div>
 
@@ -154,12 +157,13 @@
     <!-- 業務会議タブ -->
     <div class="card tab-panel" id="panel-business" style="display:none">
         <h2>業務会議</h2>
-        {% if can_manage_categories %}
         <div class="panel-toolbar">
+            {% if can_manage_categories %}
             <a href="{{ url_for('kitare_deliberation.categories_admin') }}" class="tool-btn">🏷 カテゴリー管理</a>
+            {% endif %}
+            <a href="{{ url_for('kitare_deliberation.notifications_list') }}" class="tool-btn">📨 通知一覧</a>
             {# 今後、業務会議向けのボタンをここに追加する #}
         </div>
-        {% endif %}
         <div class="tab-desc">
             委員長・事務局による協議の場です。申請を受け取り、附議するか（受理判断）を
             決め、書類を整え、審議を開始します。「申請受付」の案件は受理判断が必要です。

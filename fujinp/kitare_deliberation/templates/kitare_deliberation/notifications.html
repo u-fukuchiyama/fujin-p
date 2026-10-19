@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>通知一覧 - キターレオンライン審議</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
+            background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
+            min-height: 100vh; padding: 15px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            background: white; padding: 16px 24px; border-radius: 10px;
+            margin-bottom: 14px; display: flex; align-items: center;
+            gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { flex: 1; font-size: 1.3rem; color: #4a3a7a; min-width: 160px; }
+        .nav-btn {
+            padding: 9px 16px; background: #94a3b8; color: white; border: none;
+            border-radius: 6px; cursor: pointer; text-decoration: none;
+            font-size: 0.88rem; font-weight: 600; white-space: nowrap;
+        }
+        .nav-btn.danger { background: #ef4444; }
+        .nav-btn.primary { background: #6d5fb8; }
+        .nav-btn:hover { opacity: 0.9; }
+        .card {
+            background: white; border-radius: 10px; padding: 20px 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 14px;
+        }
+        .card h2 {
+            font-size: 1rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 14px;
+        }
+        .note { font-size: 0.83rem; color: #6b7280; background: #f8fafc; border-radius: 6px;
+                padding: 9px 13px; margin-bottom: 12px; line-height: 1.6; }
+        .ctrl-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+                    font-size: 0.86rem; margin-bottom: 12px; }
+        .ctrl-bar select { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.86rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+        th, td { padding: 8px 9px; text-align: left; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+        th { background: #f8fafc; color: #6b7280; font-weight: 600; font-size: 0.76rem; white-space: nowrap; }
+        td.when { white-space: nowrap; color: #374151; }
+        .case-id { font-family: monospace; font-weight: 600; color: #6d5fb8; text-decoration: none; white-space: nowrap; }
+        .case-title { display: block; font-size: 0.76rem; color: #6b7280; }
+        .kind { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem;
+                font-weight: 700; background: #ede9fe; color: #5b21b6; white-space: nowrap; }
+        .kind.dm { background: #e0f2fe; color: #075985; }
+        .res-ok { color: #065f46; font-weight: 700; white-space: nowrap; }
+        .res-ng { color: #991b1b; font-weight: 700; white-space: nowrap; }
+        .err { color: #991b1b; font-size: 0.76rem; display: block; margin-top: 2px; }
+        details summary { cursor: pointer; color: #4a3a7a; font-size: 0.8rem; }
+        .body { white-space: pre-wrap; word-break: break-word; background: #f8fafc; border: 1px solid #e5e7eb;
+                border-radius: 6px; padding: 8px 10px; margin-top: 6px; font-size: 0.82rem; color: #374151; }
+        .empty-msg { text-align: center; color: #9ca3af; padding: 28px; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📨 通知一覧 — キターレオンライン審議</h1>
+        <a href="{{ url_for('kitare_deliberation.index') }}" class="nav-btn">← トップへ</a>
+        <a href="{{ url_for('kitare_deliberation.return_to_fujin') }}" class="nav-btn danger">🏠 ダッシュボードに戻る</a>
+    </div>
+
+    <div class="card">
+        <h2>Slack に送った通知</h2>
+        <div class="note">
+            このアプリが Slack_port を通して送った通知を，新しい順に並べています（2026年10月19日の改修より後の分）．
+            「本文」を開くと送った文面が見られます．送れなかった通知も理由とともに残ります．
+        </div>
+        <form class="ctrl-bar" method="get" action="{{ url_for('kitare_deliberation.notifications_list') }}">
+            <span>案件：
+                <select name="case" onchange="this.form.submit()">
+                    <option value="">すべて</option>
+                    {% for c in cases %}<option value="{{ c }}"{{ ' selected' if c == f_case }}>{{ c }}</option>{% endfor %}
+                </select>
+            </span>
+            <span>種類：
+                <select name="kind" onchange="this.form.submit()">
+                    <option value="">すべて</option>
+                    {% for k in kinds %}<option value="{{ k }}"{{ ' selected' if k == f_kind }}>{{ k }}</option>{% endfor %}
+                </select>
+            </span>
+            <span>宛先：
+                <select name="route" onchange="this.form.submit()">
+                    <option value="">すべて</option>
+                    <option value="channel"{{ ' selected' if f_route == 'channel' }}>チャンネル</option>
+                    <option value="dm"{{ ' selected' if f_route == 'dm' }}>DM</option>
+                </select>
+            </span>
+            <label><input type="checkbox" name="failed" value="1"{{ ' checked' if f_failed }} onchange="this.form.submit()"> 送れなかったものだけ</label>
+            <span style="color:#6b7280">{{ total }} 件{% if total > limit %}（新しい {{ limit }} 件を表示）{% endif %}</span>
+        </form>
+
+        {% if error %}
+        <div class="empty-msg" style="color:#ef4444">{{ error }}</div>
+        {% elif not rows %}
+        <div class="empty-msg">記録された通知はありません</div>
+        {% else %}
+        <div style="overflow-x:auto">
+        <table>
+            <thead><tr>
+                <th>送った時刻</th><th>種類</th><th>宛先</th><th>案件</th>
+                <th>本文</th><th>結果</th><th>操作した人</th>
+            </tr></thead>
+            <tbody>
+            {% for r in rows %}
+            <tr>
+                <td class="when">{{ r.sent_at }}</td>
+                <td><span class="kind{{ ' dm' if r.route == 'dm' }}">{{ r.kind }}</span></td>
+                <td>{{ r.to }}{% if r.bot %}<span class="case-title">Bot：{{ r.bot }}</span>{% endif %}</td>
+                <td>
+                    {% if r.case_id %}<a class="case-id" href="{{ url_for('kitare_deliberation.case_detail', case_id=r.case_id) }}">{{ r.case_display_id }}</a>
+                    {% elif r.case_display_id %}<span class="case-id">{{ r.case_display_id }}</span>
+                    {% else %}—{% endif %}
+                    {% if r.case_title %}<span class="case-title">{{ r.case_title }}</span>{% endif %}
+                </td>
+                <td style="min-width:16em"><details><summary>本文</summary><div class="body">{{ r.body }}</div></details></td>
+                <td>{% if r.ok %}<span class="res-ok">送信済み</span>{% else %}<span class="res-ng">送れず</span><span class="err">{{ r.error }}</span>{% endif %}</td>
+                <td style="white-space:nowrap">{{ r.sender }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% endif %}
+    </div>
+</div>
+</body>
+</html>
