@@ -1,0 +1,117 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ a.name }} - Slack_avatar</title>
+{% include 'slack_avatar/_style.html' %}
+<style>
+  .term { display: flex; flex-direction: column; height: calc(100vh - 110px); min-height: 420px;
+          background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.08); overflow: hidden; }
+  .bar { display: flex; gap: 10px; align-items: center; padding: 8px 14px; border-bottom: 1px solid #e2e8f0;
+         background: #f8fafc; font-size: .85rem; flex-wrap: wrap; }
+  #log { flex: 1; overflow-y: auto; padding: 12px 14px; }
+  .m { display: flex; gap: 10px; margin-bottom: 10px; }
+  .m .av { width: 32px; height: 32px; border-radius: 6px; background: #cbd5e1; color: #fff; font-weight: 700;
+           display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: .85rem; }
+  .m.mine .av { background: #2563eb; }
+  .m .who { font-weight: 700; font-size: .86rem; }
+  .m .t { color: #94a3b8; font-size: .74rem; margin-left: 6px; font-weight: 400; }
+  .m .body { font-size: .92rem; line-height: 1.5; word-break: break-word; }
+  .m .body p { margin: 0 0 2px; }
+  .m .body pre { background: #f1f5f9; padding: 6px 8px; border-radius: 6px; white-space: pre-wrap; }
+  .m.mine .body { color: #1e3a8a; }
+  .m .th { color: #2563eb; font-size: .76rem; }
+  .compose { border-top: 1px solid #e2e8f0; padding: 10px 14px; display: flex; gap: 8px; align-items: flex-end; }
+  .compose textarea { flex: 1; resize: vertical; min-height: 44px; max-height: 200px; }
+  #status { font-size: .8rem; }
+  .dm { border-top: 1px dashed #e2e8f0; padding: 8px 14px 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+        background: #fafaf9; font-size: .85rem; }
+  .dm input[type=email] { width: 240px; }
+  .dm input[type=text] { flex: 1; min-width: 200px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🧑‍💻 {{ a.name }}</h1>
+    <span class="muted">Bot：{{ a.bot_key }}{% if bot_name %}（{{ bot_name }}）{% endif %}　／　チャンネル {{ a.ch_no }} 番{% if ch_label %}：{{ ch_label }}{% endif %}</span>
+    <span class="spacer"></span>
+    <a class="btn btn-sm" href="{{ url_for('slack_avatar.index') }}">アバターの一覧</a>
+    <a class="btn-return" href="{{ url_for('slack_avatar.return_to_fujin') }}">FUJIN-Pに戻る</a>
+  </div>
+  <div class="term">
+    <div class="bar">
+      <button class="btn btn-sm" onclick="refresh()">読み直す</button>
+      <label><input type="checkbox" id="auto" checked onchange="setAuto()"> 15秒ごとに読み直す</label>
+      <span id="status" class="muted"></span>
+    </div>
+    <div id="log"><p class="muted">読み込み中…</p></div>
+    <div class="compose">
+      <textarea id="text" placeholder="{{ a.name }} として投稿（Ctrl+Enter でも送れます）"></textarea>
+      <button class="btn btn-primary" id="send" onclick="send()">送る</button>
+    </div>
+    <div class="dm">
+      <span class="muted">DM</span>
+      <input type="email" id="dm-to" placeholder="宛先のメールアドレス">
+      <input type="text" id="dm-text" placeholder="{{ a.name }} として DM を送る">
+      <button class="btn" id="dm-send" onclick="sendDm()">DM を送る</button>
+    </div>
+  </div>
+</div>
+<script>
+const API = '{{ url_for('slack_avatar.index') }}api/a/{{ a.id }}/';
+let timer = null, lastTs = null;
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function status(t, bad) { const s = document.getElementById('status'); s.className = bad ? 'err' : 'muted'; s.textContent = t; }
+async function refresh() {
+  let j;
+  try { j = await (await fetch(API + 'messages')).json(); } catch (e) { status('読み取りに失敗しました', true); return; }
+  if (!j.ok) { status(j.error, true); return; }
+  const log = document.getElementById('log');
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  const newest = j.messages.length ? j.messages[j.messages.length - 1].ts : null;
+  log.innerHTML = j.messages.map(m => `<div class="m ${m.mine ? 'mine' : ''}">
+      <div class="av">${esc((m.name || '?').slice(0, 1))}</div>
+      <div><div class="who">${esc(m.name)}${m.is_bot ? ' 🤖' : ''}<span class="t">${esc(m.time)}</span></div>
+      <div class="body">${m.html}</div>
+      ${m.reply_count ? `<div class="th">スレッドに返信 ${m.reply_count} 件（この版では表示しません）</div>` : ''}</div></div>`).join('')
+    || '<p class="muted">まだメッセージがありません．最初の発言をどうぞ．</p>';
+  if (atBottom || newest !== lastTs) log.scrollTop = log.scrollHeight;
+  lastTs = newest;
+  status('最終読み取り ' + new Date().toLocaleTimeString('ja-JP'));
+}
+async function send() {
+  const t = document.getElementById('text'), b = document.getElementById('send');
+  if (!t.value.trim()) return;
+  b.disabled = true;
+  const r = await fetch(API + 'post', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'fetch'},
+                                       body: JSON.stringify({text: t.value})});
+  let j; try { j = await r.json(); } catch (e) { j = {ok: false, error: '通信エラー（' + r.status + '）'}; }
+  b.disabled = false;
+  if (!j.ok) { status(j.error, true); return; }
+  t.value = ''; refresh();
+}
+async function sendDm() {
+  const to = document.getElementById('dm-to'), t = document.getElementById('dm-text'), b = document.getElementById('dm-send');
+  if (!to.value.trim() || !t.value.trim()) { status('DM の宛先と本文を入れてください', true); return; }
+  b.disabled = true;
+  const r = await fetch(API + 'dm', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'fetch'},
+                                     body: JSON.stringify({email: to.value, text: t.value})});
+  let j; try { j = await r.json(); } catch (e) { j = {ok: false, error: '通信エラー（' + r.status + '）'}; }
+  b.disabled = false;
+  if (!j.ok) { status('DM：' + j.error, true); return; }
+  t.value = ''; status('DM を送りました' + (j.slack_user ? '（' + j.slack_user + ' さんへ）' : ''));
+}
+function setAuto() { clearInterval(timer); if (document.getElementById('auto').checked) timer = setInterval(refresh, 15000); }
+document.getElementById('text').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } });
+refresh(); setAuto();
+</script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slack_avatar - FUJIN-P</title>
+{% include 'slack_avatar/_style.html' %}
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🧑‍💻 Slack_avatar</h1><span class="admin-badge">admin</span>
+    <span class="spacer"></span>
+    <a class="btn-return" href="{{ url_for('slack_avatar.return_to_fujin') }}">FUJIN-Pに戻る</a>
+  </div>
+  {% if not has_port %}<div class="card err">Slack_port が導入されていません．先に Slack_port を取り込んでください．</div>{% endif %}
+
+  <div class="card">
+    <h2>アバター</h2>
+    <p class="muted" style="margin-bottom:8px">アバターは「名前・Bot・チャンネル」の組です．「開く」で端末が開きます．別のアバターを別のタブで開けば，同じチャンネルで会話させられます．</p>
+    <table><thead><tr><th>名前</th><th>Bot</th><th>チャンネル</th><th></th></tr></thead>
+      <tbody id="list"><tr><td colspan="4" class="muted">読み込み中…</td></tr></tbody></table>
+  </div>
+
+  <div class="card">
+    <h2 id="form-title">アバターを足す</h2>
+    <div class="row">
+      <input id="f-name" placeholder="名前（例：時空管理くん）">
+      <select id="f-bot"></select>
+      <select id="f-ch"></select>
+      <input id="f-order" type="number" placeholder="並び順" style="width:80px">
+      <input id="f-note" placeholder="メモ" style="flex:1">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn btn-primary" onclick="save()">保存</button>
+      <button class="btn" onclick="clearForm()">クリア</button>
+      <span id="msg" class="err"></span>
+    </div>
+  </div>
+</div>
+<script>
+const BASE = '{{ url_for('slack_avatar.index') }}';
+let S = null, EDIT = null;
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function post(url, body) {
+  const r = await fetch(BASE + url, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'fetch'}, body: JSON.stringify(body || {})});
+  try { return await r.json(); } catch (e) { return {ok: false, error: '通信エラー（' + r.status + '）'}; }
+}
+async function load() {
+  S = await (await fetch(BASE + 'api/avatars')).json();
+  const bot = Object.fromEntries(S.bots.map(b => [b.key, b])), ch = Object.fromEntries(S.channels.map(c => [c.no, c]));
+  document.getElementById('list').innerHTML = S.avatars.map(a => `<tr>
+    <td><strong>${esc(a.name)}</strong>${a.note ? '<div class="muted">' + esc(a.note) + '</div>' : ''}</td>
+    <td>${esc(a.bot_key)}${bot[a.bot_key] ? (bot[a.bot_key].ok ? ' <span class="muted">（' + esc(bot[a.bot_key].name) + '）</span>' : ' <span class="err">' + esc(bot[a.bot_key].error) + '</span>') : ' <span class="err">config に無い Bot</span>'}</td>
+    <td>${a.ch_no} 番${ch[a.ch_no] ? '：' + esc(ch[a.ch_no].label) : ' <span class="err">未登録</span>'}</td>
+    <td style="white-space:nowrap"><a class="btn btn-sm btn-primary" href="${BASE}a/${a.id}" target="_blank">開く</a>
+      <button class="btn btn-sm" onclick="edit(${a.id})">編集</button>
+      <button class="btn btn-sm" onclick="del(${a.id})">削除</button></td></tr>`).join('')
+    || '<tr><td colspan="4" class="muted">まだありません．下で足してください．</td></tr>';
+  document.getElementById('f-bot').innerHTML = S.bots.map(b => `<option value="${esc(b.key)}">${esc(b.key)}${b.name ? '（' + esc(b.name) + '）' : ''}</option>`).join('');
+  document.getElementById('f-ch').innerHTML = S.channels.map(c => `<option value="${c.no}">${c.no} 番：${esc(c.label)}</option>`).join('');
+  if (S.error) document.getElementById('msg').textContent = S.error;
+}
+function edit(id) {
+  const a = S.avatars.find(x => x.id === id); EDIT = id;
+  document.getElementById('form-title').textContent = 'アバターを直す';
+  document.getElementById('f-name').value = a.name; document.getElementById('f-bot').value = a.bot_key;
+  document.getElementById('f-ch').value = a.ch_no; document.getElementById('f-order').value = a.sort_order;
+  document.getElementById('f-note').value = a.note || '';
+}
+function clearForm() { EDIT = null; document.getElementById('form-title').textContent = 'アバターを足す';
+  ['f-name', 'f-order', 'f-note'].forEach(i => document.getElementById(i).value = ''); document.getElementById('msg').textContent = ''; }
+async function save() {
+  const j = await post('api/avatars/save', {id: EDIT, name: document.getElementById('f-name').value,
+    bot_key: document.getElementById('f-bot').value, ch_no: document.getElementById('f-ch').value,
+    sort_order: document.getElementById('f-order').value, note: document.getElementById('f-note').value});
+  if (!j.ok) { document.getElementById('msg').textContent = j.error; return; }
+  clearForm(); load();
+}
+async function del(id) { if (!confirm('このアバターを削除しますか．（Slack の投稿は消えません）')) return; await post('api/avatars/' + id + '/delete'); load(); }
+load();
+</script>
+</body>
+</html>
