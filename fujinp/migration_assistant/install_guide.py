@@ -28,7 +28,7 @@
   install_overview.md        全体マニュアル（2段階の見取り図）
   install_stage1.md          第1段階マニュアル（種の立ち上げ）
   fujinp_kernel_install.py   第1段階で使う導入スクリプト（配布物）
-  install_stage2.md          第2段階マニュアル（アプシャでの取り込み）
+  install_stage2.md          第2段階マニュアル（版をそろえ，全アプリを取り込む）
   legacy_docs_202607.md      まいあしの旧文書（保存用）
 
 導入スクリプトは build_installer.py で，いま動いているサイトのカーネルから作り直す．
@@ -50,11 +50,11 @@ INSTALLER_NAME = 'fujinp_kernel_install.py'
 # key: (ファイル名, 表題, 一行の説明)
 DOCS = {
     'overview': ('install_overview.md', '全体マニュアル',
-                 '2つの段階と，手で行う4つの設定の見取り図．最初にこれを読む．'),
+                 '用意する4つのファイルと config.py，2つの段階，手で行う4つの設定の見取り図．最初にこれを読む．'),
     'stage1': ('install_stage1.md', '第1段階マニュアル',
-               'カーネルとアプシャだけの「種」を立ち上げる．ファイル展開からログインまで．'),
+               'カーネルの JSON から導入スクリプトを取り出し，カーネルとアプシャだけの「種」を立ち上げる．ログインまで．'),
     'stage2': ('install_stage2.md', '第2段階マニュアル',
-               '立ち上がったアプシャで，アプリのパッケージを1本ずつ取り込む．'),
+               'アプシャ・カーネル・admin を元のサイトと同じ版にそろえ，全アプリパッケージから全アプリを取り込む．'),
     'legacy': ('legacy_docs_202607.md', 'まいあし 旧文書（2026年7月版）',
                '正本化より前のユーザマニュアルと技術仕様書．控えとして残してある．'),
 }
@@ -161,10 +161,12 @@ _INDEX_HTML = """<!DOCTYPE html>
 
   <div class="panel">
     <div class="lead">
+      元のサイトのアプシャで書き出した4つのファイル（カーネル・アプシャ・admin・全アプリパッケージ）と
+      <code>config.py</code> から，新しいサイトを立ち上げます．
       作業は2つの段階に分かれます．第1段階でカーネルとアプシャだけの「種」を立ち上げ，
-      第2段階でそのアプシャを使ってアプリを1本ずつ取り込みます．
-      間に挟まる手作業は，データベースの作成・<code>config.py</code> の記入・WSGI の設定・
-      最初の admin の登録の4つだけです．
+      第2段階でアプシャ・カーネル・admin を元のサイトと同じ版にそろえてから全アプリを取り込みます．
+      間に挟まる手作業は，データベースの作成・<code>config.py</code> の用意・WSGI の設定・
+      最初の admin の登録の4つだけです．テーブルの中身（データ）は別の手順で戻します．
     </div>
 
     <div class="steps">
@@ -187,9 +189,11 @@ _INDEX_HTML = """<!DOCTYPE html>
         <span class="no">＊</span><h2>導入スクリプト（{{ installer_name }}）</h2>
         <p>
           カーネルとアプシャの全ファイルを抱えた1本のスクリプトです．
+          カーネルの JSON の中にも入っているので，ふつうはそこから取り出して使います（第1段階マニュアルの手順1）．
           立ち上げ先のホームディレクトリに置き，<code>--files</code> で展開し，
-          <code>config.py</code> を書いてから <code>--schema</code> でテーブルを作ります．
-          <code>config.py</code> は入っていません．
+          <code>config.py</code> を置いてから <code>--schema</code> でテーブルを作ります．
+          <code>config.py</code> は入っていません．中のカーネルとアプシャはスクリプトを作った日の版で，
+          元のサイトと同じ版にそろえるのは第2段階で行います．
         </p>
         {% if installer %}
         <a class="btn dl" href="{{ url_for('migration_assistant.install_guide_download', key='installer') }}">⬇ ダウンロード</a>
