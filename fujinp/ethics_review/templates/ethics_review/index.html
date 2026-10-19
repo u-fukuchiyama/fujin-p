@@ -250,6 +250,9 @@
         {% if is_secretariat %}
         <a href="{{ url_for('ethics_review.report') }}" class="nav-btn secondary">年度報告</a>
         {% endif %}
+        {% if is_admin %}
+        <a href="{{ url_for('ethics_review.settings_page') }}" class="nav-btn" style="background:#475569;">⚙️ 設定</a>
+        {% endif %}
         <a href="{{ url_for('ethics_review.return_to_fujin') }}" class="btn-return">🏠 FUJIN-Pダッシュボードに戻る</a>
     </div>
 

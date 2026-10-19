@@ -896,6 +896,13 @@ def can_assign_reviewers(user_id, case_id):
     return False
 
 
+def can_view_notifications(user_id):
+    """通知一覧（Slack_port から送った通知の記録）を見られるか。
+       任命を担う３者（委員長プール／事務局／admin）。代理委員長は除く
+       （他の案件の通知も並ぶため）。2026-10-19"""
+    return is_secretariat(user_id) or is_chair_pool(user_id)
+
+
 def can_view_secretariat_panel(user_id):
     """体制運営パネルの閲覧権限。
        任命を担う３者（委員長プール／事務局／admin）に加え、
@@ -1251,6 +1258,7 @@ def secretariat_panel():
         is_secretariat=is_secretariat(user_id),
         is_chair_pool=is_chair_pool(user_id),
         is_acting_chair=is_acting_chair_anywhere(user_id),
+        can_view_notifications=can_view_notifications(user_id),
     )
 # ════════════════════════════════════════════
 # API
@@ -2814,7 +2822,8 @@ def api_decide(case_id):
                 from .slack_notifier import send_dm_by_email
                 dm_result = send_dm_by_email(
                     applicant_email, '\n'.join(dm_lines),
-                    log_label='判断結果の申請者DM')
+                    log_label='判断結果の申請者DM',
+                    case_display_id=case.get('case_display_id'))
                 if dm_result.get('ok'):
                     applicant_dm = {'status': 'sent', 'message': ''}
                 else:

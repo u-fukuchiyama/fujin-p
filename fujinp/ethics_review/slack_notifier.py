@@ -1,111 +1,271 @@
 """
 slack_notifier.py
-ethics_review（研究倫理審査）用 Slack 通知モジュール — 最小構成。
+ethics_review（研究倫理審査）用 Slack 通知モジュール（2026-10-19 から Slack_port 経由）。
 
 配置：
-    ethics_review/slack_notifier.py
-    （routes.py と同じディレクトリ。ethics_review アプリ内で完結し、
-     他の Blueprint には依存しない＝FUJIN-P のアプリ独立性原則を守る）
+    ethics_review/slack_notifier.py（routes.py と同じディレクトリ）
 
-今回の対象：
-    申請があったとき、実験用プライベートチャンネルへ通知を投稿するだけ。
-    DM・宛先解決・名簿などは扱わない。
+送信の経路（2026-10-19）：
+    Slack とのやりとりはすべて Slack_port（fujinp/slack_port）に頼む。
+    このアプリはトークンもチャンネル ID も持たず，Slack_port のチャンネル番号と Bot の名前だけを使う。
+    チャンネル通知は port.notify，個人宛 DM は port.notify_dm。
+    Slack_port への登録（register）は __init__.py の読み込み時に行う（register_to_slack_port）。
+    以前の config の SLACK_BOT_TOKEN・ETHICS_SLACK_*_CHANNEL_ID はもう読まない。
+    通知の記録は，このアプリの表 ethics_notifications にすべて残し，体制運営パネルの「通知一覧」で見る（2026-10-19）。
+
+送り先：
+    admin がトップの「設定」の画面で選び，表 ethics_settings に入る。
+      slack_ch_no            … 既定のチャンネル番号（すべての通知の送り先）
+      slack_business_ch_no   … 業務会議（事務局）向けの通知の送り先．空なら既定
+      slack_committee_ch_no  … 委員会向けの通知の送り先．空なら既定
+      slack_bot              … 投稿と DM に使う Bot（config.py の SLACK_BOTS の鍵）
+    設定が無いときは SLACK_PORT_CH_NO・SLACK_PORT_BOT の既定値を使う。
+    DM には Bot に users:read.email と im:write のスコープが要る。
 
 設計原則：
     この関数は「失敗しても呼び出し元を巻き込まない」ことを最優先とする。
     Slack への送信が失敗しても例外を投げず、{'ok': False, ...} を返すだけ。
-    審査申請という本処理は、通知の成否に関わらず成立させる。
-
-事前準備（Slack 側）：
-    1. Slack アプリ（Bot）を用意し、Bot Token (xoxb-...) を取得する
-    2. Bot Token のスコープに 'chat:write' を付与する
-    3. 投稿先の実験用プライベートチャンネルを作る
-    4. そのチャンネルに Bot を /invite で招待しておく
-       （プライベートチャンネルは招待必須。これを忘れると not_in_channel エラー）
-    5. チャンネル ID（C... で始まる文字列）を控える
-       チャンネル名のメニュー →「チャンネル詳細」最下部に ID が表示される
-
-設定（config 経由で渡す。コードに直書きしない）：
-    SLACK_BOT_TOKEN              : xoxb-...
-    ETHICS_SLACK_CHANNEL_ID      : C...（実験用プライベートチャンネル）
+    審査という本処理は、通知の成否に関わらず成立させる。
 """
 import logging
 
-try:
-    # PythonAnywhere では slack_sdk を pip install しておく
-    from slack_sdk import WebClient
-    from slack_sdk.errors import SlackApiError
-    _SLACK_SDK_AVAILABLE = True
-except ImportError:
-    # slack_sdk 未インストールでもアプリ全体は落とさない
-    _SLACK_SDK_AVAILABLE = False
-    logging.warning("slack_notifier: slack_sdk が見つかりません。"
-                     "Slack 通知は無効化されます（pip install slack_sdk）。")
+SLACK_PORT_APP = 'ethics_review'
+SLACK_PORT_DISPLAY = '研究倫理審査'
+SLACK_PORT_CH_NO = 6            # 既定のチャンネル番号（Slack_port の 6 番）
+SLACK_PORT_BOT = 'FujinpBot'    # 既定の Bot（config.py の SLACK_BOTS の鍵）
+
+SETTINGS_DDL = (
+    "CREATE TABLE IF NOT EXISTS `ethics_settings` ("
+    "`name` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '設定の名前', "
+    "`value` text COLLATE utf8mb4_unicode_ci COMMENT '値', "
+    "`updated_at` datetime DEFAULT NULL, "
+    "`updated_by` int DEFAULT NULL COMMENT '変えた人の user_id', "
+    "PRIMARY KEY (`name`)"
+    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")
+_settings_ready = {'ok': False}
+_KEYS = ('slack_ch_no', 'slack_business_ch_no', 'slack_committee_ch_no', 'slack_bot')
+
+NO_PORT = 'Slack_port が導入されていません（Slack 通知は送れません）'
 
 
-# Slack API のエラーコード → 日本語の説明
-_ERROR_JA = {
-    'channel_not_found': 'チャンネルが見つかりません（チャンネルIDを確認してください）',
-    'not_in_channel':    'Bot がそのチャンネルに参加していません（/invite で招待してください）',
-    'is_archived':       'そのチャンネルはアーカイブ済みです',
-    'invalid_auth':      'トークンが無効です（SLACK_BOT_TOKEN を確認してください）',
-    'token_revoked':     'トークンが失効しています',
-    'missing_scope':     'トークンに chat:write スコープがありません',
-    'account_inactive':  'Bot アカウントが無効化されています',
-    'ratelimited':       'レート制限中です（しばらく待って再試行してください）',
-}
-
-
-def post_to_channel(token, channel_id, text):
-    """
-    指定したチャンネルにメッセージを 1 件投稿する。
-
-    Args:
-        token      : Slack Bot Token (xoxb-...)
-        channel_id : 投稿先チャンネル ID（C... で始まる文字列）
-        text       : 投稿本文。@channel メンションを含めたい場合は
-                     呼び出し側で本文に '<!channel>' を埋め込む
-                     （build_application_message がそれを行う）
-
-    Returns:
-        成功: {'ok': True,  'ts': '1234567890.123456', 'channel': 'C...'}
-        失敗: {'ok': False, 'error': '日本語のエラーメッセージ'}
-
-    この関数は例外を投げない。失敗は必ず戻り値で表現する。
-    """
-    if not _SLACK_SDK_AVAILABLE:
-        return {'ok': False, 'error': 'slack_sdk が未インストールです'}
-    if not token:
-        return {'ok': False, 'error': 'SLACK_BOT_TOKEN が設定されていません'}
-    if not channel_id:
-        return {'ok': False, 'error': '投稿先チャンネルIDが設定されていません'}
-    if not text:
-        return {'ok': False, 'error': '投稿本文が空です'}
-
+def _port():
+    """Slack_port の api．無ければ None"""
     try:
-        client = WebClient(token=token)
-        resp = client.chat_postMessage(
-            channel=channel_id,
-            text=text,
-            # link_names は @channel/@here の特殊メンションには不要だが、
-            # 将来 @username を使う場合に備えて True にしておく
-            link_names=True,
-        )
-        return {
-            'ok':      True,
-            'ts':      resp.get('ts', ''),
-            'channel': resp.get('channel', ''),
-        }
-    except SlackApiError as e:
-        err = e.response.get('error', str(e)) if e.response else str(e)
-        msg = _ERROR_JA.get(err, f'Slack APIエラー: {err}')
-        logging.error("slack_notifier.post_to_channel error: %s (channel=%s)",
-                      err, channel_id)
-        return {'ok': False, 'error': msg}
+        from ..slack_port import api
+        return api
+    except Exception:
+        try:
+            from fujinp.slack_port import api
+            return api
+        except Exception:
+            return None
+
+
+def _db():
+    import mysql.connector
+    from db import DatabaseConfig
+    conn = mysql.connector.connect(**DatabaseConfig.default())
+    if not _settings_ready['ok']:
+        cur = conn.cursor()
+        cur.execute(SETTINGS_DDL)
+        conn.commit()
+        cur.close()
+        _settings_ready['ok'] = True
+    return conn
+
+
+def get_slack_settings():
+    """送り先の設定 {'ch_no', 'business_ch_no', 'committee_ch_no', 'bot'}．
+       業務会議・委員会は未設定なら None（既定のチャンネルを使う）．例外は投げない"""
+    out = {'ch_no': SLACK_PORT_CH_NO, 'business_ch_no': None, 'committee_ch_no': None, 'bot': SLACK_PORT_BOT}
+    try:
+        conn = _db()
+        try:
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT name, value FROM ethics_settings WHERE name IN (%s,%s,%s,%s)", _KEYS)
+            vals = {r['name']: r['value'] for r in cur.fetchall()}
+            cur.close()
+        finally:
+            conn.close()
+        if vals.get('slack_ch_no'):
+            out['ch_no'] = int(vals['slack_ch_no'])
+        if vals.get('slack_business_ch_no'):
+            out['business_ch_no'] = int(vals['slack_business_ch_no'])
+        if vals.get('slack_committee_ch_no'):
+            out['committee_ch_no'] = int(vals['slack_committee_ch_no'])
+        if vals.get('slack_bot'):
+            out['bot'] = vals['slack_bot']
     except Exception as e:
-        # ネットワーク障害など SlackApiError 以外
-        logging.error("slack_notifier.post_to_channel unexpected error: %s", e)
-        return {'ok': False, 'error': f'通知送信に失敗しました: {e}'}
+        logging.warning("slack_notifier(ethics): 設定を読めません（既定値を使います）: %s", e)
+    return out
+
+
+def save_slack_settings(ch_no, business_ch_no, committee_ch_no, bot, user_id=None):
+    """送り先を保存する（admin の設定画面から）．業務会議・委員会は None で「既定と同じ」"""
+    import datetime
+    now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).replace(tzinfo=None)
+    vals = (('slack_ch_no', str(int(ch_no))),
+            ('slack_business_ch_no', str(int(business_ch_no)) if business_ch_no else ''),
+            ('slack_committee_ch_no', str(int(committee_ch_no)) if committee_ch_no else ''),
+            ('slack_bot', bot))
+    conn = _db()
+    try:
+        cur = conn.cursor()
+        for name, value in vals:
+            cur.execute("INSERT INTO ethics_settings (name, value, updated_at, updated_by) VALUES (%s,%s,%s,%s) "
+                        "ON DUPLICATE KEY UPDATE value=VALUES(value), updated_at=VALUES(updated_at), "
+                        "updated_by=VALUES(updated_by)", (name, value, now, user_id))
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+    register_to_slack_port()
+
+
+def channel_for(purpose=None, settings=None):
+    """用途別の送り先のチャンネル番号．'business' / 'committee' / None（既定）"""
+    st = settings or get_slack_settings()
+    if purpose == 'business' and st['business_ch_no']:
+        return st['business_ch_no']
+    if purpose == 'committee' and st['committee_ch_no']:
+        return st['committee_ch_no']
+    return st['ch_no']
+
+
+def register_to_slack_port():
+    """Slack_port にこのアプリを登録する（__init__.py から読み込み時に呼ぶ）。例外は投げない。"""
+    port = _port()
+    if port is None:
+        logging.warning("slack_notifier(ethics): %s", NO_PORT)
+        return {'ok': False, 'error': NO_PORT}
+    try:
+        return port.register(SLACK_PORT_APP, SLACK_PORT_DISPLAY, bot=get_slack_settings()['bot'])
+    except Exception as e:
+        logging.warning("slack_notifier(ethics): Slack_port への登録に失敗: %s", e)
+        return {'ok': False, 'error': str(e)}
+
+
+# ════════════════════════════════════════════════════════════════
+# 通知の記録（2026-10-19）
+#   Slack_port へ頼んだ通知は，成否にかかわらず 1 件ずつ ethics_notifications に残す．
+#   いつ・だれ宛て（チャンネルか DM の相手）・どの種類・どの案件・本文・成否・発送の操作者．
+#   体制運営パネルの「通知一覧」で見る．記録に失敗しても通知と本処理は止めない．
+# ════════════════════════════════════════════════════════════════
+
+NOTIFICATIONS_DDL = (
+    "CREATE TABLE IF NOT EXISTS `ethics_notifications` ("
+    "`id` int NOT NULL AUTO_INCREMENT, "
+    "`sent_at` datetime NOT NULL COMMENT '送った時刻（JST）', "
+    "`kind` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '通知の種類（申請通知・担当委員依頼通知・審査開始通知・判断通知・アラート発言通知・申請者連絡通知・書類追加通知・審査再開通知・判断結果の申請者DM・試し送信）', "
+    "`route` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'channel か dm', "
+    "`ch_no` int DEFAULT NULL COMMENT 'Slack_port のチャンネル番号（channel のとき）', `purpose` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '送り先の用途（空＝既定，business，committee）', "
+    "`ch_label` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'チャンネルの名前（送ったときのもの）', "
+    "`recipient_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'DM の宛先メール', "
+    "`recipient_user_id` int DEFAULT NULL COMMENT 'DM の宛先の users.id（メールで引けたとき）', "
+    "`recipient_name` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'DM の宛先の氏名（送ったときのもの）', "
+    "`bot` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '使った Bot', "
+    "`case_id` int DEFAULT NULL, "
+    "`case_display_id` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL, "
+    "`body` text COLLATE utf8mb4_unicode_ci COMMENT '送った本文', "
+    "`ok` tinyint(1) NOT NULL DEFAULT '0' COMMENT '送れたか', "
+    "`error` text COLLATE utf8mb4_unicode_ci COMMENT '送れなかったときの理由', "
+    "`sent_by_user_id` int DEFAULT NULL COMMENT '通知のもとになった操作をした人', "
+    "PRIMARY KEY (`id`), "
+    "KEY `idx_ethics_notif_sent` (`sent_at`), "
+    "KEY `idx_ethics_notif_case` (`case_display_id`, `sent_at`)"
+    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")
+_notif_ready = {'ok': False}
+
+
+def _jst_now():
+    import datetime
+    return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).replace(tzinfo=None)
+
+
+def _operator_id():
+    """いまの操作者の user_id（ログイン中の画面操作から）．バッチなどでは None"""
+    try:
+        from flask import session, has_request_context
+        if has_request_context():
+            return session.get('user_id')
+    except Exception:
+        pass
+    return None
+
+
+def _channel_label(port, ch_no):
+    try:
+        for c in port.channels():
+            if c.get('no') == ch_no:
+                return c.get('label')
+    except Exception:
+        pass
+    return None
+
+
+def _record(kind, route, body, result, *, ch_no=None, ch_label=None, email=None, bot=None,
+            case_display_id=None, purpose=None):
+    """通知 1 件を ethics_notifications に残す．例外は投げない"""
+    try:
+        conn = _db()
+        try:
+            cur = conn.cursor()
+            if not _notif_ready['ok']:
+                cur.execute(NOTIFICATIONS_DDL)
+                _notif_ready['ok'] = True
+            case_id = None
+            if case_display_id:
+                cur.execute("SELECT id FROM ethics_cases WHERE case_display_id = %s", (case_display_id,))
+                row = cur.fetchone()
+                case_id = row[0] if row else None
+            r_uid = r_name = None
+            if email:
+                cur.execute("SELECT id, full_name FROM users WHERE LOWER(email) = LOWER(%s) LIMIT 1",
+                            (email.strip(),))
+                row = cur.fetchone()
+                if row:
+                    r_uid, r_name = row[0], row[1]
+            ok = bool((result or {}).get('ok'))
+            cur.execute(
+                "INSERT INTO ethics_notifications (sent_at, kind, route, ch_no, purpose, ch_label, recipient_email, "
+                "recipient_user_id, recipient_name, bot, case_id, case_display_id, body, ok, error, "
+                "sent_by_user_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (_jst_now(), kind, route, ch_no, purpose or None, ch_label, email, r_uid, r_name, bot, case_id,
+                 case_display_id, body, 1 if ok else 0,
+                 None if ok else str((result or {}).get('error') or ''), _operator_id()))
+            conn.commit()
+            cur.close()
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.warning("slack_notifier(ethics): 通知の記録に失敗: %s", e)
+
+
+def _send(text, log_label, purpose=None, case_display_id=None):
+    """
+    設定の送り先へ text を投稿する内部共通処理。成否にかかわらず ethics_notifications に記録する。
+    log_label … 通知の種類名（例 '担当委員依頼通知'）。記録の種類にもなる。
+    purpose   … 宛先チャンネルの用途。'business' / 'committee' / None。
+                専用の送り先が未設定なら既定のチャンネル。
+    """
+    port = _port()
+    st = get_slack_settings()
+    ch_no = channel_for(purpose, st)
+    ch_label = None
+    if port is None:
+        result = {'ok': False, 'error': NO_PORT}
+    else:
+        ch_label = _channel_label(port, ch_no)
+        try:
+            result = port.notify(SLACK_PORT_APP, ch_no, text, bot=st['bot'])
+        except Exception as e:
+            result = {'ok': False, 'error': f'通知送信に失敗しました: {e}'}
+    if not result.get('ok'):
+        logging.warning("slack_notifier(ethics): %s の送信に失敗 — %s",
+                        log_label, result.get('error'))
+    _record(log_label, 'channel', text, result, ch_no=ch_no, ch_label=ch_label, bot=st['bot'],
+            case_display_id=case_display_id, purpose=purpose)
+    return result
 
 
 def build_application_message(case_display_id, title, applicant_name=None,
@@ -145,25 +305,9 @@ def build_application_message(case_display_id, title, applicant_name=None,
 def notify_application_submitted(case_display_id, title,
                                  applicant_name=None, case_url=None):
     """
-    申請受付を実験用チャンネルへ通知する高レベル関数。
-    routes.py の api_submit から呼ぶのはこれ一本。
-
-    config から SLACK_BOT_TOKEN と ETHICS_SLACK_CHANNEL_ID を読み、
-    本文を組み立てて投稿する。
-
-    Returns:
-        {'ok': True/False, ...}（呼び出し元はログ目的で見るだけでよい）
-
-    例外は投げない。設定が無い・SDK が無い場合も静かに {'ok': False} を返す。
+    申請受付を既定のチャンネルへ通知する高レベル関数。
+    routes.py の api_submit から呼ぶ。例外は投げない。
     """
-    try:
-        from config import Config
-        token      = getattr(Config, 'SLACK_BOT_TOKEN', None)
-        channel_id = getattr(Config, 'ETHICS_SLACK_CHANNEL_ID', None)
-    except Exception as e:
-        logging.error("slack_notifier: config 読み込み失敗: %s", e)
-        return {'ok': False, 'error': 'config が読み込めません'}
-
     text = build_application_message(
         case_display_id=case_display_id,
         title=title,
@@ -171,99 +315,12 @@ def notify_application_submitted(case_display_id, title,
         case_url=case_url,
         mention_channel=True,
     )
-    result = post_to_channel(token, channel_id, text)
-
-    if not result.get('ok'):
-        # 通知失敗はログに残すだけ。呼び出し元（申請処理）は止めない。
-        logging.warning("slack_notifier: 申請通知の送信に失敗 — %s",
-                         result.get('error'))
-    return result
+    return _send(text, '申請通知', case_display_id=case_display_id)
 
 
 # ════════════════════════════════════════════════════════════════
-# 追加分：審査の節目イベントの通知（2・3・7番）
-#
-# いずれもチャンネルへの一括通知。個人メンション（@委員長など）は
-# 委員 Slack ID 対応表が必要なため、ここには含めない（次段階）。
-#
-# 共通方針：
-#   - config から token と channel_id を読む（_load_slack_config）
-#   - 本文を組み立てて post_to_channel に渡すだけ
-#   - 例外は投げない。失敗は {'ok': False} とログのみ
+# 審査の節目イベントの通知（2・3・7番ほか）．いずれもチャンネルへの一括通知
 # ════════════════════════════════════════════════════════════════
-
-def _load_slack_config():
-    """
-    config から SLACK_BOT_TOKEN と ETHICS_SLACK_CHANNEL_ID を読む。
-    Returns:
-        (token, channel_id) … 読めなければ (None, None)
-    """
-    try:
-        from config import Config
-        token      = getattr(Config, 'SLACK_BOT_TOKEN', None)
-        channel_id = getattr(Config, 'ETHICS_SLACK_CHANNEL_ID', None)
-        return token, channel_id
-    except Exception as e:
-        logging.error("slack_notifier: config 読み込み失敗: %s", e)
-        return None, None
-
-
-def _resolve_channel(purpose):
-    """
-    通知の宛先チャンネルIDを用途別に解決する。
-
-    purpose:
-        'business'  … 業務会議（事務局）向け。
-                      ETHICS_SLACK_BUSINESS_CHANNEL_ID を優先。
-        'committee' … 委員会向け。
-                      ETHICS_SLACK_COMMITTEE_CHANNEL_ID を優先。
-        その他      … 既定チャンネルのみ。
-
-    いずれも、専用チャンネルIDが config に無ければ、既定の
-    ETHICS_SLACK_CHANNEL_ID にフォールバックする。
-    これにより、今は Slack が1チャンネルしかなくても全通知が
-    既定チャンネルに届き、将来 config に専用キーを足すだけで
-    業務会議用・委員会用へ自動的に分かれる。
-
-    Returns:
-        (token, channel_id)
-    """
-    token = None
-    default_channel = None
-    specific_channel = None
-    try:
-        from config import Config
-        token           = getattr(Config, 'SLACK_BOT_TOKEN', None)
-        default_channel = getattr(Config, 'ETHICS_SLACK_CHANNEL_ID', None)
-        if purpose == 'business':
-            specific_channel = getattr(
-                Config, 'ETHICS_SLACK_BUSINESS_CHANNEL_ID', None)
-        elif purpose == 'committee':
-            specific_channel = getattr(
-                Config, 'ETHICS_SLACK_COMMITTEE_CHANNEL_ID', None)
-    except Exception as e:
-        logging.error("slack_notifier: config 読み込み失敗: %s", e)
-        return None, None
-    return token, (specific_channel or default_channel)
-
-
-def _send(text, log_label, purpose=None):
-    """
-    channel へ text を投稿する内部共通処理。
-    log_label … 失敗ログに出す通知の種類名（例 '担当委員依頼通知'）。
-    purpose   … 宛先チャンネルの用途。'business' / 'committee' / None。
-                None なら既定チャンネル（従来どおり）。
-    """
-    if purpose:
-        token, channel_id = _resolve_channel(purpose)
-    else:
-        token, channel_id = _load_slack_config()
-    result = post_to_channel(token, channel_id, text)
-    if not result.get('ok'):
-        logging.warning("slack_notifier: %s の送信に失敗 — %s",
-                         log_label, result.get('error'))
-    return result
-
 
 def notify_reviewers_assigned(case_display_id, title, case_url=None):
     """
@@ -287,7 +344,7 @@ def notify_reviewers_assigned(case_display_id, title, case_url=None):
     if case_url:
         lines.append('')
         lines.append(f'案件ページ：{case_url}')
-    return _send('\n'.join(lines), '担当委員依頼通知')
+    return _send('\n'.join(lines), '担当委員依頼通知', case_display_id=case_display_id)
 
 
 def notify_review_started(case_display_id, title, case_url=None):
@@ -309,7 +366,7 @@ def notify_review_started(case_display_id, title, case_url=None):
     if case_url:
         lines.append('')
         lines.append(f'案件ページ：{case_url}')
-    return _send('\n'.join(lines), '審査開始通知')
+    return _send('\n'.join(lines), '審査開始通知', case_display_id=case_display_id)
 
 
 def notify_decision(case_display_id, title, decision_label,
@@ -339,7 +396,7 @@ def notify_decision(case_display_id, title, decision_label,
     if case_url:
         lines.append('')
         lines.append(f'案件ページ：{case_url}')
-    return _send('\n'.join(lines), '判断通知')
+    return _send('\n'.join(lines), '判断通知', case_display_id=case_display_id)
 
 def notify_alert_message(case_display_id, title, case_url=None):
     """
@@ -368,7 +425,7 @@ def notify_alert_message(case_display_id, title, case_url=None):
     if case_url:
         lines.append('')
         lines.append(f'案件ページ：{case_url}')
-    return _send('\n'.join(lines), 'アラート発言通知')
+    return _send('\n'.join(lines), 'アラート発言通知', case_display_id=case_display_id)
 
 
 def notify_applicant_message(case_display_id, title,
@@ -401,7 +458,7 @@ def notify_applicant_message(case_display_id, title,
     if case_url:
         lines.append('')
         lines.append(f'案件ページ：{case_url}')
-    return _send('\n'.join(lines), '申請者連絡通知', purpose='business')
+    return _send('\n'.join(lines), '申請者連絡通知', purpose='business', case_display_id=case_display_id)
 
 
 def notify_document_added(case_display_id, title,
@@ -433,7 +490,7 @@ def notify_document_added(case_display_id, title,
     if case_url:
         lines.append('')
         lines.append(f'案件ページ：{case_url}')
-    return _send('\n'.join(lines), '書類追加通知', purpose='committee')
+    return _send('\n'.join(lines), '書類追加通知', purpose='committee', case_display_id=case_display_id)
 
 
 def notify_review_resumed(case_display_id, title,
@@ -461,142 +518,33 @@ def notify_review_resumed(case_display_id, title,
     if case_url:
         lines.append('')
         lines.append(f'案件ページ：{case_url}')
-    return _send('\n'.join(lines), '審査再開通知', purpose='committee')
+    return _send('\n'.join(lines), '審査再開通知', purpose='committee', case_display_id=case_display_id)
 
 # ════════════════════════════════════════════════════════════════
-# 追加分：個人宛 DM（メールアドレス照合方式）
-#
-#   FUJIN-P 側のメールアドレスから Slack ユーザーを引き当て、
-#   その人と Bot の DM を開いてメッセージを送る。
-#   名簿テーブルは持たない。FUJIN-P と Slack で同じメールアドレスを
-#   使っている人にのみ届く（食い違う人には届かない＝後述の戻り値で判別）。
-#
-#   必要スコープ：users:read.email（メール→ユーザー検索）、
-#                 im:write（DM チャンネルを開く）、chat:write（投稿）
+# 個人宛 DM（メールアドレス照合方式．Slack_port の notify_dm）
+#   FUJIN-P 側のメールアドレスから Slack ユーザーを引き当てて DM を送る。
+#   FUJIN-P と Slack で同じメールアドレスを使っている人にのみ届く。
 # ════════════════════════════════════════════════════════════════
 
-def lookup_slack_user_id_by_email(email):
+def send_dm_by_email(email, text, log_label='DM', case_display_id=None):
     """
-    メールアドレスから Slack ユーザー ID（U... で始まる文字列）を引く。
-
-    Returns:
-        成功: {'ok': True,  'user_id': 'U...'}
-        失敗: {'ok': False, 'error': '日本語のエラーメッセージ'}
-
-    例外は投げない。失敗は必ず戻り値で表現する。
-    照合できない（Slack に同じメールのユーザーがいない）場合も
-    {'ok': False} を返すだけで、呼び出し元は止めない。
+    メールアドレスの人へ DM を送る。routes.py からはこれ一本を呼べばよい。
+    例外は投げない。メール照合に失敗した場合も {'ok': False} を返すだけ。
+    成否にかかわらず ethics_notifications に記録する。
     """
-    if not _SLACK_SDK_AVAILABLE:
-        return {'ok': False, 'error': 'slack_sdk が未インストールです'}
     if not email:
         return {'ok': False, 'error': 'メールアドレスが空です'}
-
-    token, _channel = _load_slack_config()
-    if not token:
-        return {'ok': False, 'error': 'SLACK_BOT_TOKEN が設定されていません'}
-
-    try:
-        client = WebClient(token=token)
-        resp = client.users_lookupByEmail(email=email)
-        user = resp.get('user') or {}
-        uid = user.get('id')
-        if not uid:
-            return {'ok': False, 'error': 'ユーザーIDを取得できませんでした'}
-        return {'ok': True, 'user_id': uid}
-    except SlackApiError as e:
-        err = e.response.get('error', str(e)) if e.response else str(e)
-        if err == 'users_not_found':
-            msg = f'このメールアドレスのSlackユーザーが見つかりません（{email}）'
-        else:
-            msg = _ERROR_JA.get(err, f'Slack APIエラー: {err}')
-        logging.warning("slack_notifier.lookup_slack_user_id_by_email: %s", err)
-        return {'ok': False, 'error': msg}
-    except Exception as e:
-        logging.error("slack_notifier.lookup_slack_user_id_by_email "
-                      "unexpected error: %s", e)
-        return {'ok': False, 'error': f'ユーザー検索に失敗しました: {e}'}
-
-
-def post_dm_to_user(slack_user_id, text):
-    """
-    指定した Slack ユーザーへ DM を 1 件送る。
-
-    conversations.open で Bot とそのユーザーの DM チャンネルを開き、
-    そのチャンネルへ chat_postMessage する。
-
-    Args:
-        slack_user_id : 送り先の Slack ユーザー ID（U... で始まる）
-        text          : 本文
-
-    Returns:
-        成功: {'ok': True,  'ts': '...', 'channel': 'D...'}
-        失敗: {'ok': False, 'error': '日本語のエラーメッセージ'}
-
-    この関数は例外を投げない。
-    """
-    if not _SLACK_SDK_AVAILABLE:
-        return {'ok': False, 'error': 'slack_sdk が未インストールです'}
-    if not slack_user_id:
-        return {'ok': False, 'error': '送り先のSlackユーザーIDがありません'}
-    if not text:
-        return {'ok': False, 'error': '投稿本文が空です'}
-
-    token, _channel = _load_slack_config()
-    if not token:
-        return {'ok': False, 'error': 'SLACK_BOT_TOKEN が設定されていません'}
-
-    try:
-        client = WebClient(token=token)
-        # DM チャンネルを開く
-        open_resp = client.conversations_open(users=slack_user_id)
-        dm_channel = (open_resp.get('channel') or {}).get('id')
-        if not dm_channel:
-            return {'ok': False, 'error': 'DMチャンネルを開けませんでした'}
-        # DM チャンネルへ投稿
-        resp = client.chat_postMessage(channel=dm_channel, text=text)
-        return {
-            'ok':      True,
-            'ts':      resp.get('ts', ''),
-            'channel': resp.get('channel', ''),
-        }
-    except SlackApiError as e:
-        err = e.response.get('error', str(e)) if e.response else str(e)
-        msg = _ERROR_JA.get(err, f'Slack APIエラー: {err}')
-        logging.error("slack_notifier.post_dm_to_user error: %s "
-                      "(user=%s)", err, slack_user_id)
-        return {'ok': False, 'error': msg}
-    except Exception as e:
-        logging.error("slack_notifier.post_dm_to_user unexpected error: %s", e)
-        return {'ok': False, 'error': f'DM送信に失敗しました: {e}'}
-
-
-def send_dm_by_email(email, text, log_label='DM'):
-    """
-    メールアドレスから Slack ユーザーを引き当て、その人へ DM を送る。
-    lookup_slack_user_id_by_email と post_dm_to_user をつないだ高レベル関数。
-
-    routes.py からはこれ一本を呼べばよい。
-
-    Args:
-        email     : 送り先の人の（FUJIN-P 上の）メールアドレス
-        text      : 本文
-        log_label : 失敗ログに出す通知の種類名（例 '期限設定依頼DM'）
-
-    Returns:
-        {'ok': True/False, ...}
-
-    例外は投げない。メール照合に失敗（食い違い）した場合も
-    {'ok': False} を返すだけ。呼び出し元の本処理は止めない。
-    """
-    look = lookup_slack_user_id_by_email(email)
-    if not look.get('ok'):
-        logging.warning("slack_notifier: %s — メール照合に失敗 — %s",
-                         log_label, look.get('error'))
-        return {'ok': False, 'error': look.get('error')}
-
-    result = post_dm_to_user(look['user_id'], text)
+    port = _port()
+    bot = get_slack_settings()['bot']
+    if port is None:
+        result = {'ok': False, 'error': NO_PORT}
+    else:
+        try:
+            result = port.notify_dm(SLACK_PORT_APP, email, text, bot=bot)
+        except Exception as e:
+            result = {'ok': False, 'error': f'DM送信に失敗しました: {e}'}
     if not result.get('ok'):
-        logging.warning("slack_notifier: %s の送信に失敗 — %s",
-                         log_label, result.get('error'))
+        logging.warning("slack_notifier(ethics): %s の送信に失敗 — %s",
+                        log_label, result.get('error'))
+    _record(log_label, 'dm', text, result, email=email, bot=bot, case_display_id=case_display_id)
     return result
