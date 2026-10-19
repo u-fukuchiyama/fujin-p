@@ -283,8 +283,37 @@ def _cell(el):
     return re.sub(r'\s+', ' ', el.get_text(' ', strip=True))
 
 
-def html_to_text(html, fragment=''):
-    """見出し・段落・表・箇条を保ってテキストにする．fragment があればその id の要素だけ"""
+def _same_site_path(href, page_url):
+    """リンクの href がページと同じサイトを指すなら，そのパス（問い合わせ部分つき）を返す．違えば None"""
+    href = (href or '').strip()
+    if not href or href.startswith(('#', 'javascript:', 'mailto:', 'tel:', 'data:')):
+        return None
+    u = urlsplit(urljoin(page_url, href))
+    if u.scheme not in ('http', 'https') or u.netloc.lower() != urlsplit(page_url).netloc.lower():
+        return None
+    path = (u.path or '/') + ('?' + u.query if u.query else '')
+    return path
+
+
+def _keep_link_paths(root, page_url):
+    """同じサイトへのリンクの後ろに「（/パス）」を足す（2026-10-18）．
+    文字にするとリンク先が消えるので，Claude が一覧から個々のページへたどれるように本文に残す"""
+    from bs4 import NavigableString
+    seen_page = urlsplit(page_url)
+    here = (seen_page.path or '/') + ('?' + seen_page.query if seen_page.query else '')
+    for a in root.find_all('a', href=True):
+        path = _same_site_path(a['href'], page_url)
+        if not path or path == here:
+            continue
+        text = a.get_text(' ', strip=True)
+        if not text or path in text:
+            continue
+        a.append(NavigableString(f'（{path}）'))
+
+
+def html_to_text(html, fragment='', page_url=None):
+    """見出し・段落・表・箇条を保ってテキストにする．fragment があればその id の要素だけ．
+    page_url（このサイトのページのとき）を渡すと，同じサイトへのリンク先のパスを本文に残す"""
     from bs4 import BeautifulSoup, NavigableString
     soup = BeautifulSoup(html or '', 'html.parser')
     root = soup
@@ -303,6 +332,8 @@ def html_to_text(html, fragment=''):
         root = soup.body or soup
         for t in root.find_all(['head', 'title', 'meta', 'link']):
             t.decompose()
+    if page_url:
+        _keep_link_paths(root, page_url)
 
     out = []
 
@@ -373,4 +404,5 @@ def _to_text(url, data, ctype, cs, final):
     if kind != 'html':
         raise FetchError(f'読める形式ではありません（{ctype or "形式不明"}）')
     _, frag = split_fragment(url)
-    return html_to_text(_decode(data, cs), frag)
+    page_url = final if final.startswith(('http://', 'https://')) and is_internal(final) else None
+    return html_to_text(_decode(data, cs), frag, page_url)

@@ -24,7 +24,7 @@
       <tr>
         {% if editable %}<td><input name="o_{{ it.id }}" class="form-control form-control-sm text-end font-monospace py-0"
              value="{{ '%.2f'|format(it.sort_order) if it.sort_order is not none else '' }}" inputmode="decimal"></td>{% endif %}
-        <td><span class="fw-semibold">{{ it.title }}</span>{% if kid %} <span class="badge text-bg-light border">子ポータル</span>{% endif %}{% if it.subtree %} <span class="badge text-bg-light border" title="この URL の配下も Claude が読める">配下も読める</span>{% endif %}
+        <td><span class="fw-semibold">{{ it.title }}</span>{% if kid %} <span class="badge text-bg-light border">子ポータル</span>{% endif %}{% if it.subtree and not (editable and is_admin) %} <span class="badge text-bg-light border" title="この URL の配下も Claude が読める">配下も読める</span>{% endif %}
           {% if it.note %}<div class="small text-muted">{{ it.note }}</div>{% endif %}
           <div class="d-md-none small text-break"><a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.url }}</a></div></td>
         <td class="d-none d-md-table-cell small text-break font-monospace"><a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.url }}</a></td>
@@ -34,6 +34,9 @@
         {% endif %}
         <td class="text-end text-nowrap">
           {% if kid and not editable %}<a class="btn btn-outline-primary btn-sm py-0" href="{{ url_for('all_portal.portal', pid=kid.id) }}">子ポータルを開く</a>{% endif %}
+          {% if editable and is_admin and it.source == 'url' and (it.subtree or subtree_ok(it.url)) %}<button class="btn btn-sm py-0 {{ 'btn-success' if it.subtree else 'btn-outline-success' }}"
+            formaction="{{ url_for('all_portal.item_subtree', iid=it.id) }}" name="back" value="{{ request.path }}"
+            title="{{ '入口になっています．押すと配下を読めないようにします' if it.subtree else '押すと入口になり，この URL の配下の同じサイトのページを Claude が読めるようになります' }}">{{ '✓ 配下も読める' if it.subtree else '配下も読める' }}</button>{% endif %}
           {% if editable %}<a class="btn btn-outline-secondary btn-sm py-0" href="{{ url_for('all_portal.item', iid=it.id) }}">{{ ('子ポータルの編集' if kid else '編集') if is_admin else 'アクト' }}</a>
           <button class="btn btn-outline-danger btn-sm py-0" formaction="{{ url_for('all_portal.item_delete', iid=it.id) }}" name="back" value="{{ request.path }}"
             onclick='return confirm({{ ("「" ~ it.title ~ "」をこの一覧から外します．"

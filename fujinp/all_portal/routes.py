@@ -85,7 +85,8 @@ def edit_home(p):
 @bp.context_processor
 def inject():
     return {'csrf_token': csrf_token, 'is_admin': web_who().admin, 'LEVEL_LABEL': LEVEL_LABEL,
-            'logged_in': bool(web_who().uid), 'POLICY_LABEL': POLICY_LABEL, 'edit_home': edit_home}
+            'logged_in': bool(web_who().uid), 'POLICY_LABEL': POLICY_LABEL, 'edit_home': edit_home,
+            'subtree_ok': lambda url: subtree_base(url) is not None}
 
 
 def portal_or_404(pid, min_level=1):
@@ -492,6 +493,27 @@ def item_refetch(iid):
     if refetch_copy(iid, it['url']):
         write_log(web_who(), '写しの読み直し', p['id'], iid, {'url': it['url']})
     return redirect(url_for('all_portal.item', iid=iid))
+
+
+@bp.route('/i/<int:iid>/subtree', methods=['POST'])
+def item_subtree(iid):
+    """一覧の行の「配下も読める」（入口）を切り替える（admin だけ，2026-10-18）"""
+    require_admin()
+    it = item_row(iid)
+    if not it:
+        abort(404)
+    p = portal_or_404(it['portal_id'], 3)
+    on = 0 if it.get('subtree') else 1
+    if on and (it.get('source') != 'url' or subtree_base(it.get('url')) is None):
+        flash('「配下も読める」は，このサイトの URL で，最上位（/）とオール自身以外のものにだけ付けられます', 'error')
+    else:
+        with cursor() as (cur, conn):
+            cur.execute("UPDATE all_items SET subtree = %s, updated_at = %s WHERE id = %s", (on, now_jst(), iid))
+            conn.commit()
+        write_log(web_who(), '文書の編集', p['id'], iid, {'title': it['title'], 'subtree': on})
+        flash(f'「{it["title"]}」の配下を' + ('読めるようにしました' if on else '読めないようにしました'), 'success')
+    back = request.form.get('back') or ''
+    return redirect(back if back.startswith('/') and not back.startswith('//') else edit_home(p))
 
 
 @bp.route('/i/<int:iid>/delete', methods=['POST'])
