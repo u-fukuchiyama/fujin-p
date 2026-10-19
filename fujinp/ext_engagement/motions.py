@@ -468,7 +468,7 @@ def api_motion_create(case_id):
         if notify:
             try:
                 text   = build_motion_proposed_message(case, motion, chair_name)
-                result = slack_notifier.notify_motion(text)
+                result = slack_notifier.notify_motion(text, case_id)
                 slack_ok = bool(result.get('ok'))
                 notify_log.record(
                     conn, case_id, round_no, notify_log.KIND_MOTION_PROPOSED,
@@ -616,7 +616,7 @@ def api_motion_close(case_id, motion_id):
         if notify:
             try:
                 text   = build_motion_closed_message(case, motion, chair_name, action, note)
-                result = slack_notifier.notify_motion(text)
+                result = slack_notifier.notify_motion(text, case_id)
                 slack_ok = bool(result.get('ok'))
                 notify_log.record(
                     conn, case_id, case.get('review_round') or 1,

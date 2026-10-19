@@ -162,7 +162,7 @@ import slack_notifier
 import notify_log
 
 
-def send_chair_dm(email, text):
+def send_chair_dm(email, text, case_id=None):
     """
     委員長へDMを送る。メールアドレス照合方式（slack_notifier 経由）。
     (ok, message) を返す。
@@ -170,7 +170,8 @@ def send_chair_dm(email, text):
     if not email:
         return False, 'メールアドレスが未登録です'
     result = slack_notifier.send_dm_by_email(email, text,
-                                             log_label='委員長リマインドDM')
+                                             log_label='委員長リマインドDM',
+                                             case_id=case_id)
     if result.get('ok'):
         return True, result
     return False, result.get('error', 'DM送信に失敗しました')
@@ -479,7 +480,7 @@ def main():
                     case_id, round_no, nl_kind, f'委員長 {chair_name}',
                     False, 'メールアドレス未登録', nl_summary)
                 continue
-            ok, res = send_chair_dm(email, text)
+            ok, res = send_chair_dm(email, text, case_id)
             _record_reminder_log(
                 case_id, round_no, nl_kind, f'委員長 {chair_name}',
                 ok, (None if ok else res), nl_summary)

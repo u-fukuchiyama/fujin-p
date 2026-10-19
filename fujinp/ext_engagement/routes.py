@@ -238,6 +238,12 @@ def can_access_review(user_id, case_id):
     return False
 
 
+def can_view_notifications(user_id):
+    """通知一覧（Slack_port から送った通知の記録）を見られるか。
+       事務局（連携審査_管理者，admin を含む）と委員長プール。2026-10-19"""
+    return is_engagement_admin(user_id) or user_is_in_group(user_id, GROUP_CHAIR)
+
+
 def can_view_concluded(user_id):
     return get_user_category(user_id) in ('admin', 'regular')
 
@@ -526,26 +532,26 @@ from . import slack_notifier
 from . import notify_log
 
 
-def post_to_engagement_channel(text):
+def post_to_engagement_channel(text, case_id=None):
     """
     連携審査委員会のプライベートチャンネルへ投稿する。
     slack_notifier.notify_conclusion を呼ぶだけの薄いラッパ。
     成功可否を (bool, message) で返す。呼び出し側は失敗しても処理を継続してよい。
     """
-    result = slack_notifier.notify_conclusion(text)
+    result = slack_notifier.notify_conclusion(text, case_id)
     if result.get('ok'):
         return True, result
     return False, result.get('error', 'Slack投稿に失敗しました')
 
 
-def send_dm_by_email(email, text, log_label='委員長リマインドDM'):
+def send_dm_by_email(email, text, log_label='委員長リマインドDM', case_id=None):
     """
     メールアドレスから Slack ユーザーを引き当ててDMを送る。
     slack_notifier.send_dm_by_email を呼ぶだけの薄いラッパ。
     users.slack_user_id カラムは参照しない（メアド照合方式）。
     成功可否を (bool, message) で返す。
     """
-    result = slack_notifier.send_dm_by_email(email, text, log_label=log_label)
+    result = slack_notifier.send_dm_by_email(email, text, log_label=log_label, case_id=case_id)
     if result.get('ok'):
         return True, result
     return False, result.get('error', 'DM送信に失敗しました')
@@ -878,6 +884,8 @@ def index():
         # 年度報告：事務局は管理者用，regular 以上はゲスト用（承認案件のみ）
         can_view_report=(is_engagement_admin(user_id) or can_view_concluded(user_id)),
         can_view_stats=True,   # ここまで来られた人は Stats 表示可
+        # 通知一覧（Slack_port から送った通知の記録）：事務局・委員長（2026-10-19）
+        can_view_notifications=can_view_notifications(user_id),
         current_fy=get_current_fiscal_year(),
         type_labels=TYPE_LABELS,
         status_labels=STATUS_LABELS,
@@ -1235,7 +1243,8 @@ def api_case_new():
                                     new_case_id)
                 for email in chair_emails:
                     ok, res = send_dm_by_email(
-                        email, dm_text, log_label='案件登録通知DM')
+                        email, dm_text, log_label='案件登録通知DM',
+                        case_id=new_case_id)
                     notify_log.record(
                         conn, new_case_id, new_case.get('review_round', 1),
                         notify_log.KIND_CASE_REGISTERED, notify_log.TARGET_DM,
@@ -1474,7 +1483,7 @@ def api_send_to_review(case_id):
                     text = build_review_started_message(
                         started, chair_message=chair_message,
                         is_rereview=is_rereview)
-                    result = slack_notifier.notify_review_started(text)
+                    result = slack_notifier.notify_review_started(text, case_id)
                     slack_ok = bool(result.get('ok'))
                     if not slack_ok:
                         slack_error = str(result.get('error', ''))
@@ -1657,7 +1666,7 @@ def api_case_conclude(case_id):
             cur2.close()
             if concluded:
                 text = build_conclusion_message(concluded)
-                slack_ok, slack_res = post_to_engagement_channel(text)
+                slack_ok, slack_res = post_to_engagement_channel(text, case_id)
                 record_slack_result(case_id, slack_ok, slack_res)
                 status_label = STATUS_LABELS.get(concluded.get('status', ''), '')
                 notify_log.record(
@@ -1756,7 +1765,7 @@ def api_comment_post(case_id):
                 if case_row:
                     text = build_review_comment_message(
                         case_row, author_name, comment_type, content)
-                    result = slack_notifier.notify_review_comment(text)
+                    result = slack_notifier.notify_review_comment(text, case_id)
                     slack_ok = bool(result.get('ok'))
                     if not slack_ok:
                         logging.warning("api_comment_post: 審議コメント通知の"
@@ -1979,7 +1988,7 @@ def api_notify_slack(case_id):
             return jsonify({'success': False, 'error': '結論が出ている案件のみ投稿できます'}), 400
 
         text    = build_conclusion_message(case)
-        ok, res = post_to_engagement_channel(text)
+        ok, res = post_to_engagement_channel(text, case_id)
         record_slack_result(case_id, ok, res)
         status_label = STATUS_LABELS.get(case.get('status', ''), '')
         notify_log.record(

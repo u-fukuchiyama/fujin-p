@@ -1,376 +1,343 @@
 """
 slack_notifier.py
-ext_engagement（連携申請審査）用 Slack 通知モジュール。
+ext_engagement（連携申請審査）用 Slack 通知モジュール（2026-10-19 から Slack_port 経由）。
 
 配置：
-    ext_engagement/slack_notifier.py
-    （routes.py と同じディレクトリ。ext_engagement アプリ内で完結し、
-     他の Blueprint には依存しない＝FUJIN-P のアプリ独立性原則を守る）
-
-ethics_review の slack_notifier.py と同じ構造・同じ方式で作ってある。
-連携審査用にカスタマイズした点は次の2つだけ：
-  - 読み込む config 定数が EXT_ENGAGEMENT_SLACK_CHANNEL_ID
-  - 通知本文が連携審査の文面（結論通知・委員長リマインド）
+    ext_engagement/slack_notifier.py（routes.py と同じディレクトリ）
+    期日チェックのスクリプト check_deadlines.py からも，同じディレクトリの
+    モジュールとして import される（Flask の外で動く）。
 
 この連携審査アプリで使う通知：
-  1. チャンネル投稿（連携審査委員会のプライベートチャンネルへ）
-     - 審議開始宣言：委員長または事務局が審議開始を宣言したとき
-       （初回の宣言／委員構成を変更しての再宣言の両方）
-     - 審議コメント通知：委員が審議コメントを投稿し「委員会全員に
-       通知を発出」を選んだとき（opt in）。<!channel> 付き。
-     - 結論通知：委員長が結論を宣言したとき。<!channel> 付き。
-  2. 個人宛 DM（メールアドレス照合方式）
-     - 案件登録通知：事務局が新しい案件を登録したとき、委員長へ
-     - 委員長リマインド：期日チェック（check_deadlines.py）が委員長へ
+  1. チャンネル投稿（連携審査委員会のチャンネルへ）
+     - 審議開始宣言（notify_review_started）
+     - 審議コメント通知（notify_review_comment．opt in）
+     - 結論通知（notify_conclusion）
+     - 委員長提案の起案・採択・取り下げ（notify_motion）
+  2. 個人宛 DM（メールアドレス照合方式．send_dm_by_email）
+     - 案件登録通知（委員長へ），委員長リマインド（check_deadlines.py から）
 
-設計原則（ethics_review と同じ）：
+送信の経路（2026-10-19）：
+    Slack とのやりとりはすべて Slack_port（fujinp/slack_port）に頼む。
+    このアプリはトークンもチャンネル ID も持たず，Slack_port のチャンネル番号と Bot の名前だけを使う。
+    チャンネル通知は port.notify，DM は port.notify_dm。
+    Slack_port への登録（register）は，__init__.py の読み込み時と，送信の前（そのプロセスで
+    まだ登録していなければ）に行う。check_deadlines.py のように Flask の外で動くときも登録される。
+    以前の config の SLACK_BOT_TOKEN はもう読まない。
+    送った通知は，成否にかかわらず表 ext_engagement_notifications に本文ごと残し，
+    トップ画面の「通知一覧」で見る（2026-10-19）。
+
+送り先：
+    admin がトップの「設定」の画面で選び，表 ext_engagement_settings に入る。
+      slack_ch_no … 通知を投稿する Slack_port のチャンネル番号
+      slack_bot   … 投稿と DM に使う Bot（config.py の SLACK_BOTS の鍵）
+    チャンネル番号を一度も保存していないときは，Slack_port の登録のうち，チャンネル ID が
+    config の EXT_ENGAGEMENT_SLACK_CHANNEL_ID と同じものを使う（これまでの送り先を引き継ぐため）。
+    見つからなければ送らず，誤りを返す。Bot の既定は SLACK_PORT_BOT。
+    DM には Bot に users:read.email と im:write のスコープが要る。
+
+設計原則：
     この関数群は「失敗しても呼び出し元を巻き込まない」ことを最優先とする。
     Slack への送信が失敗しても例外を投げず、{'ok': False, ...} を返すだけ。
-    結論宣言・期日チェックという本処理は、通知の成否に関わらず成立させる。
-
-事前準備（Slack 側）：
-    1. Slack アプリ（Bot）を用意し、Bot Token (xoxb-...) を取得する
-       ※ ethics_review と同じ Bot・同じ Token を流用してよい
-    2. Bot Token のスコープに以下を付与する：
-         chat:write        … メッセージ投稿
-         users:read.email  … メールアドレスからユーザー検索（DM用）
-         im:write          … DM チャンネルを開く（DM用）
-       ※ ethics_review がチャンネル投稿のみで DM を使っていない場合、
-         users:read.email と im:write が未付与の可能性がある。
-         その場合は Slack App 設定で追加し、ワークスペースへ再インストール。
-    3. 投稿先の連携審査委員会プライベートチャンネルを作る
-    4. そのチャンネルに Bot を /invite で招待しておく
-       （プライベートチャンネルは招待必須。忘れると not_in_channel エラー）
-    5. チャンネル ID（C... で始まる文字列）を控える
-
-設定（config 経由で渡す。コードに直書きしない）：
-    SLACK_BOT_TOKEN                  : xoxb-...（ethics_review と共通でよい）
-    EXT_ENGAGEMENT_SLACK_CHANNEL_ID  : C...（連携審査委員会チャンネル）
 """
 import logging
 
-try:
-    # PythonAnywhere では slack_sdk を pip install しておく
-    # （ethics_review が既に使っているため、追加インストール不要のはず）
-    from slack_sdk import WebClient
-    from slack_sdk.errors import SlackApiError
-    _SLACK_SDK_AVAILABLE = True
-except ImportError:
-    # slack_sdk 未インストールでもアプリ全体は落とさない
-    _SLACK_SDK_AVAILABLE = False
-    logging.warning("slack_notifier(ext_engagement): slack_sdk が見つかりません。"
-                     "Slack 通知は無効化されます（pip install slack_sdk）。")
+SLACK_PORT_APP = 'ext_engagement'
+SLACK_PORT_DISPLAY = '連携申請審査'
+SLACK_PORT_BOT = 'FujinpBot'    # 既定の Bot（config.py の SLACK_BOTS の鍵）
+
+SETTINGS_DDL = (
+    "CREATE TABLE IF NOT EXISTS `ext_engagement_settings` ("
+    "`name` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '設定の名前', "
+    "`value` text COLLATE utf8mb4_unicode_ci COMMENT '値', "
+    "`updated_at` datetime DEFAULT NULL, "
+    "`updated_by` int DEFAULT NULL COMMENT '変えた人の user_id', "
+    "PRIMARY KEY (`name`)"
+    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")
+_state = {'ready': False, 'registered': False}
+
+NO_PORT = 'Slack_port が導入されていません（Slack 通知は送れません）'
+NO_CHANNEL = ('Slack 通知の送り先のチャンネルが決まっていません'
+              '（連携申請審査の「設定」でチャンネルを選んでください）')
 
 
-# Slack API のエラーコード → 日本語の説明
-_ERROR_JA = {
-    'channel_not_found': 'チャンネルが見つかりません（チャンネルIDを確認してください）',
-    'not_in_channel':    'Bot がそのチャンネルに参加していません（/invite で招待してください）',
-    'is_archived':       'そのチャンネルはアーカイブ済みです',
-    'invalid_auth':      'トークンが無効です（SLACK_BOT_TOKEN を確認してください）',
-    'token_revoked':     'トークンが失効しています',
-    'missing_scope':     'トークンに必要なスコープがありません'
-                         '（chat:write / users:read.email / im:write を確認）',
-    'account_inactive':  'Bot アカウントが無効化されています',
-    'ratelimited':       'レート制限中です（しばらく待って再試行してください）',
-    'users_not_found':   'このメールアドレスのSlackユーザーが見つかりません',
-}
+def _port():
+    """Slack_port の api．無ければ None（アプリの中でも，check_deadlines.py からでも探す）"""
+    try:
+        from ..slack_port import api
+        return api
+    except Exception:
+        try:
+            from fujinp.slack_port import api
+            return api
+        except Exception:
+            return None
 
 
-# ════════════════════════════════════════════════════════════════
-# config 読み込み
-# ════════════════════════════════════════════════════════════════
+def _db():
+    import mysql.connector
+    from db import DatabaseConfig
+    conn = mysql.connector.connect(**DatabaseConfig.default())
+    if not _state['ready']:
+        cur = conn.cursor()
+        cur.execute(SETTINGS_DDL)
+        conn.commit()
+        cur.close()
+        _state['ready'] = True
+    return conn
 
-def _load_slack_config():
-    """
-    config から SLACK_BOT_TOKEN と EXT_ENGAGEMENT_SLACK_CHANNEL_ID を読む。
-    Returns:
-        (token, channel_id) … 読めなければ (None, None)
-    """
+
+def _legacy_ch_no(port):
+    """config の EXT_ENGAGEMENT_SLACK_CHANNEL_ID と同じチャンネル ID を持つ Slack_port の番号．無ければ None"""
     try:
         from config import Config
-        token      = getattr(Config, 'SLACK_BOT_TOKEN', None)
-        channel_id = getattr(Config, 'EXT_ENGAGEMENT_SLACK_CHANNEL_ID', None)
-        return token, channel_id
+        cid = getattr(Config, 'EXT_ENGAGEMENT_SLACK_CHANNEL_ID', None)
+        if not cid or port is None:
+            return None
+        for r in port._channel_rows():
+            if r.get('channel_id') == cid:
+                return r['ch_no']
     except Exception as e:
-        logging.error("slack_notifier(ext_engagement): config 読み込み失敗: %s", e)
-        return None, None
+        logging.warning("slack_notifier(ext_engagement): 以前の送り先を探せません: %s", e)
+    return None
 
 
-# ════════════════════════════════════════════════════════════════
-# チャンネル投稿（結論通知）
-# ════════════════════════════════════════════════════════════════
-
-def post_to_channel(token, channel_id, text):
-    """
-    指定したチャンネルにメッセージを 1 件投稿する。
-
-    Args:
-        token      : Slack Bot Token (xoxb-...)
-        channel_id : 投稿先チャンネル ID（C... で始まる文字列）
-        text       : 投稿本文。@channel メンションを含めたい場合は
-                     呼び出し側で本文に '<!channel>' を埋め込む
-
-    Returns:
-        成功: {'ok': True,  'ts': '...', 'channel': 'C...'}
-        失敗: {'ok': False, 'error': '日本語のエラーメッセージ'}
-
-    この関数は例外を投げない。失敗は必ず戻り値で表現する。
-    """
-    if not _SLACK_SDK_AVAILABLE:
-        return {'ok': False, 'error': 'slack_sdk が未インストールです'}
-    if not token:
-        return {'ok': False, 'error': 'SLACK_BOT_TOKEN が設定されていません'}
-    if not channel_id:
-        return {'ok': False, 'error': '投稿先チャンネルIDが設定されていません'}
-    if not text:
-        return {'ok': False, 'error': '投稿本文が空です'}
-
+def get_slack_settings(port=None):
+    """送り先 {'ch_no', 'bot', 'ch_from'}．ch_from は 'saved'（設定）/ 'legacy'（以前の config から）/ None（未定）．
+       例外は投げない"""
+    out = {'ch_no': None, 'bot': SLACK_PORT_BOT, 'ch_from': None}
     try:
-        client = WebClient(token=token)
-        resp = client.chat_postMessage(
-            channel=channel_id,
-            text=text,
-            link_names=True,
-        )
-        return {
-            'ok':      True,
-            'ts':      resp.get('ts', ''),
-            'channel': resp.get('channel', ''),
-        }
-    except SlackApiError as e:
-        err = e.response.get('error', str(e)) if e.response else str(e)
-        msg = _ERROR_JA.get(err, f'Slack APIエラー: {err}')
-        logging.error("slack_notifier(ext_engagement).post_to_channel error: "
-                      "%s (channel=%s)", err, channel_id)
-        return {'ok': False, 'error': msg}
+        conn = _db()
+        try:
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT name, value FROM ext_engagement_settings WHERE name IN ('slack_ch_no', 'slack_bot')")
+            vals = {r['name']: r['value'] for r in cur.fetchall()}
+            cur.close()
+        finally:
+            conn.close()
+        if vals.get('slack_ch_no'):
+            out['ch_no'], out['ch_from'] = int(vals['slack_ch_no']), 'saved'
+        if vals.get('slack_bot'):
+            out['bot'] = vals['slack_bot']
     except Exception as e:
-        logging.error("slack_notifier(ext_engagement).post_to_channel "
-                      "unexpected error: %s", e)
-        return {'ok': False, 'error': f'通知送信に失敗しました: {e}'}
+        logging.warning("slack_notifier(ext_engagement): 設定を読めません: %s", e)
+    if out['ch_no'] is None:
+        n = _legacy_ch_no(port if port is not None else _port())
+        if n is not None:
+            out['ch_no'], out['ch_from'] = n, 'legacy'
+    return out
 
 
-def notify_conclusion(text):
-    """
-    結論宣言を連携審査委員会チャンネルへ投稿する高レベル関数。
-    routes.py の api_case_conclude / api_notify_slack から呼ぶのはこれ一本。
-
-    Args:
-        text : 投稿本文（呼び出し側が build_conclusion_message で組み立てる。
-               冒頭に <!channel> を含む）
-
-    Returns:
-        {'ok': True/False, ...}（呼び出し元はログ目的で見るだけでよい）
-
-    例外は投げない。設定が無い・SDK が無い場合も静かに {'ok': False} を返す。
-    """
-    token, channel_id = _load_slack_config()
-    result = post_to_channel(token, channel_id, text)
-    if not result.get('ok'):
-        logging.warning("slack_notifier(ext_engagement): 結論通知の送信に失敗 — %s",
-                         result.get('error'))
-    return result
+def save_slack_settings(ch_no, bot, user_id=None):
+    """送り先を保存する（admin の設定画面から）"""
+    import datetime
+    now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).replace(tzinfo=None)
+    conn = _db()
+    try:
+        cur = conn.cursor()
+        for name, value in (('slack_ch_no', str(int(ch_no))), ('slack_bot', bot)):
+            cur.execute("INSERT INTO ext_engagement_settings (name, value, updated_at, updated_by) "
+                        "VALUES (%s,%s,%s,%s) ON DUPLICATE KEY UPDATE value=VALUES(value), "
+                        "updated_at=VALUES(updated_at), updated_by=VALUES(updated_by)",
+                        (name, value, now, user_id))
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+    _state['registered'] = False
+    register_to_slack_port()
 
 
-def notify_review_started(text):
-    """
-    審議開始宣言を連携審査委員会チャンネルへ投稿する高レベル関数。
-    routes.py の api_send_to_review（審議開始宣言）から呼ぶ。
-
-    初回の宣言と、委員構成を変更しての再宣言の両方で使う。
-    本文（冒頭の <!channel> を含む）は呼び出し側で組み立てて渡す。
-
-    Args:
-        text : 投稿本文
-
-    Returns:
-        {'ok': True/False, ...}
-
-    例外は投げない。
-    """
-    token, channel_id = _load_slack_config()
-    result = post_to_channel(token, channel_id, text)
-    if not result.get('ok'):
-        logging.warning("slack_notifier(ext_engagement): "
-                        "審議開始通知の送信に失敗 — %s", result.get('error'))
-    return result
+def register_to_slack_port():
+    """Slack_port にこのアプリを登録する。例外は投げない。"""
+    port = _port()
+    if port is None:
+        logging.warning("slack_notifier(ext_engagement): %s", NO_PORT)
+        return {'ok': False, 'error': NO_PORT}
+    try:
+        r = port.register(SLACK_PORT_APP, SLACK_PORT_DISPLAY, bot=get_slack_settings(port)['bot'])
+        _state['registered'] = True
+        return r
+    except Exception as e:
+        logging.warning("slack_notifier(ext_engagement): Slack_port への登録に失敗: %s", e)
+        return {'ok': False, 'error': str(e)}
 
 
-def notify_review_comment(text):
-    """
-    審議コメントの投稿を連携審査委員会チャンネルへ通知する高レベル関数。
-    routes.py の api_comment_post から、投稿者が「委員会全員に通知を発出」を
-    選んだとき（opt in）にのみ呼ぶ。
-
-    本文（冒頭の <!channel> を含む）は呼び出し側で組み立てて渡す。
-    通知には案件番号・課題名（どの案件かのリファレンス）、投稿した委員名、
-    コメント本文を載せる。
-
-    Args:
-        text : 投稿本文
-
-    Returns:
-        {'ok': True/False, ...}
-
-    例外は投げない。
-    """
-    token, channel_id = _load_slack_config()
-    result = post_to_channel(token, channel_id, text)
-    if not result.get('ok'):
-        logging.warning("slack_notifier(ext_engagement): "
-                        "審議コメント通知の送信に失敗 — %s", result.get('error'))
-    return result
-
-
-def notify_motion(text):
-    """
-    委員長提案（起案・採択・取り下げ）を連携審査委員会チャンネルへ通知する。
-    motions.py から呼ぶ。本文（冒頭の <!channel> を含む）は呼び出し側で組み立てる。
-    例外は投げない。
-    """
-    token, channel_id = _load_slack_config()
-    result = post_to_channel(token, channel_id, text)
-    if not result.get('ok'):
-        logging.warning("slack_notifier(ext_engagement): "
-                        "委員長提案通知の送信に失敗 — %s", result.get('error'))
-    return result
+def _ready_port():
+    """(port, None) または (None, エラー文)．このプロセスで未登録なら登録してから渡す"""
+    port = _port()
+    if port is None:
+        return None, NO_PORT
+    if not _state['registered']:
+        register_to_slack_port()
+    return port, None
 
 
 # ════════════════════════════════════════════════════════════════
-# 個人宛 DM（メールアドレス照合方式）
-#
-#   FUJIN-P 側のメールアドレスから Slack ユーザーを引き当て、
-#   その人と Bot の DM を開いてメッセージを送る。
-#   名簿テーブル（users.slack_user_id）は使わない。
-#   FUJIN-P と Slack で同じメールアドレスを使っている人にのみ届く。
-#
-#   必要スコープ：users:read.email（メール→ユーザー検索）、
-#                 im:write（DM チャンネルを開く）、chat:write（投稿）
+# 通知の記録（2026-10-19）
+#   Slack_port へ頼んだ通知は，成否にかかわらず 1 件ずつ ext_engagement_notifications に残す．
+#   いつ・だれ宛て（チャンネルか DM の相手）・どの種類・どの案件・本文・成否・発送の操作者．
+#   トップ画面の「通知一覧」で見る．記録に失敗しても通知と本処理は止めない．
 # ════════════════════════════════════════════════════════════════
 
-def lookup_slack_user_id_by_email(email):
-    """
-    メールアドレスから Slack ユーザー ID（U... で始まる文字列）を引く。
+NOTIFICATIONS_DDL = (
+    "CREATE TABLE IF NOT EXISTS `ext_engagement_notifications` ("
+    "`id` int NOT NULL AUTO_INCREMENT, "
+    "`sent_at` datetime NOT NULL COMMENT '送った時刻（JST）', "
+    "`kind` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '通知の種類（案件登録通知DM・審議開始通知・審議コメント通知・結論通知・委員長提案通知・委員長リマインドDM・試し送信）', "
+    "`route` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'channel か dm', "
+    "`ch_no` int DEFAULT NULL COMMENT 'Slack_port のチャンネル番号（channel のとき）', "
+    "`ch_label` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'チャンネルの名前（送ったときのもの）', "
+    "`recipient_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'DM の宛先メール', "
+    "`recipient_user_id` int DEFAULT NULL COMMENT 'DM の宛先の users.id（メールで引けたとき）', "
+    "`recipient_name` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'DM の宛先の氏名（送ったときのもの）', "
+    "`bot` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '使った Bot', "
+    "`case_id` int DEFAULT NULL, "
+    "`body` text COLLATE utf8mb4_unicode_ci COMMENT '送った本文', "
+    "`ok` tinyint(1) NOT NULL DEFAULT '0' COMMENT '送れたか', "
+    "`error` text COLLATE utf8mb4_unicode_ci COMMENT '送れなかったときの理由', "
+    "`sent_by_user_id` int DEFAULT NULL COMMENT '通知のもとになった操作をした人（期日チェックの自動送信は NULL）', "
+    "PRIMARY KEY (`id`), "
+    "KEY `idx_ext_notif_sent` (`sent_at`), "
+    "KEY `idx_ext_notif_case` (`case_id`, `sent_at`)"
+    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")
+_notif_ready = {'ok': False}
 
-    Returns:
-        成功: {'ok': True,  'user_id': 'U...'}
-        失敗: {'ok': False, 'error': '日本語のエラーメッセージ'}
 
-    例外は投げない。照合できない（Slack に同じメールのユーザーがいない）
-    場合も {'ok': False} を返すだけで、呼び出し元は止めない。
-    """
-    if not _SLACK_SDK_AVAILABLE:
-        return {'ok': False, 'error': 'slack_sdk が未インストールです'}
-    if not email:
-        return {'ok': False, 'error': 'メールアドレスが空です'}
+def _jst_now():
+    import datetime
+    return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).replace(tzinfo=None)
 
-    token, _channel = _load_slack_config()
-    if not token:
-        return {'ok': False, 'error': 'SLACK_BOT_TOKEN が設定されていません'}
 
+def _operator_id():
+    """いまの操作者の user_id（ログイン中の画面操作から）．バッチなどでは None"""
     try:
-        client = WebClient(token=token)
-        resp = client.users_lookupByEmail(email=email)
-        user = resp.get('user') or {}
-        uid = user.get('id')
-        if not uid:
-            return {'ok': False, 'error': 'ユーザーIDを取得できませんでした'}
-        return {'ok': True, 'user_id': uid}
-    except SlackApiError as e:
-        err = e.response.get('error', str(e)) if e.response else str(e)
-        if err == 'users_not_found':
-            msg = f'このメールアドレスのSlackユーザーが見つかりません（{email}）'
-        else:
-            msg = _ERROR_JA.get(err, f'Slack APIエラー: {err}')
-        logging.warning("slack_notifier(ext_engagement)."
-                        "lookup_slack_user_id_by_email: %s", err)
-        return {'ok': False, 'error': msg}
-    except Exception as e:
-        logging.error("slack_notifier(ext_engagement)."
-                      "lookup_slack_user_id_by_email unexpected error: %s", e)
-        return {'ok': False, 'error': f'ユーザー検索に失敗しました: {e}'}
+        from flask import session, has_request_context
+        if has_request_context():
+            return session.get('user_id')
+    except Exception:
+        pass
+    return None
 
 
-def post_dm_to_user(slack_user_id, text):
-    """
-    指定した Slack ユーザーへ DM を 1 件送る。
-
-    conversations.open で Bot とそのユーザーの DM チャンネルを開き、
-    そのチャンネルへ chat_postMessage する。
-
-    Args:
-        slack_user_id : 送り先の Slack ユーザー ID（U... で始まる）
-        text          : 本文
-
-    Returns:
-        成功: {'ok': True,  'ts': '...', 'channel': 'D...'}
-        失敗: {'ok': False, 'error': '日本語のエラーメッセージ'}
-
-    この関数は例外を投げない。
-    """
-    if not _SLACK_SDK_AVAILABLE:
-        return {'ok': False, 'error': 'slack_sdk が未インストールです'}
-    if not slack_user_id:
-        return {'ok': False, 'error': '送り先のSlackユーザーIDがありません'}
-    if not text:
-        return {'ok': False, 'error': '投稿本文が空です'}
-
-    token, _channel = _load_slack_config()
-    if not token:
-        return {'ok': False, 'error': 'SLACK_BOT_TOKEN が設定されていません'}
-
+def _channel_label(port, ch_no):
     try:
-        client = WebClient(token=token)
-        # DM チャンネルを開く
-        open_resp = client.conversations_open(users=slack_user_id)
-        dm_channel = (open_resp.get('channel') or {}).get('id')
-        if not dm_channel:
-            return {'ok': False, 'error': 'DMチャンネルを開けませんでした'}
-        # DM チャンネルへ投稿
-        resp = client.chat_postMessage(channel=dm_channel, text=text)
-        return {
-            'ok':      True,
-            'ts':      resp.get('ts', ''),
-            'channel': resp.get('channel', ''),
-        }
-    except SlackApiError as e:
-        err = e.response.get('error', str(e)) if e.response else str(e)
-        msg = _ERROR_JA.get(err, f'Slack APIエラー: {err}')
-        logging.error("slack_notifier(ext_engagement).post_dm_to_user error: "
-                      "%s (user=%s)", err, slack_user_id)
-        return {'ok': False, 'error': msg}
+        for c in port.channels():
+            if c.get('no') == ch_no:
+                return c.get('label')
+    except Exception:
+        pass
+    return None
+
+
+def _record(kind, route, body, result, *, ch_no=None, ch_label=None, email=None, bot=None,
+            case_id=None):
+    """通知 1 件を ext_engagement_notifications に残す．例外は投げない．
+       check_deadlines.py（Flask の外）から呼ばれたときも動く"""
+    try:
+        conn = _db()
+        try:
+            cur = conn.cursor()
+            if not _notif_ready['ok']:
+                cur.execute(NOTIFICATIONS_DDL)
+                _notif_ready['ok'] = True
+            r_uid = r_name = None
+            if email:
+                cur.execute("SELECT id, full_name FROM users WHERE LOWER(email) = LOWER(%s) LIMIT 1",
+                            (email.strip(),))
+                row = cur.fetchone()
+                if row:
+                    r_uid, r_name = row[0], row[1]
+            ok = bool((result or {}).get('ok'))
+            cur.execute(
+                "INSERT INTO ext_engagement_notifications (sent_at, kind, route, ch_no, ch_label, "
+                "recipient_email, recipient_user_id, recipient_name, bot, case_id, body, ok, error, "
+                "sent_by_user_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (_jst_now(), kind, route, ch_no, ch_label, email, r_uid, r_name, bot, case_id,
+                 body, 1 if ok else 0,
+                 None if ok else str((result or {}).get('error') or ''), _operator_id()))
+            conn.commit()
+            cur.close()
+        finally:
+            conn.close()
     except Exception as e:
-        logging.error("slack_notifier(ext_engagement).post_dm_to_user "
-                      "unexpected error: %s", e)
-        return {'ok': False, 'error': f'DM送信に失敗しました: {e}'}
+        logging.warning("slack_notifier(ext_engagement): 通知の記録に失敗: %s", e)
 
 
-def send_dm_by_email(email, text, log_label='DM'):
-    """
-    メールアドレスから Slack ユーザーを引き当て、その人へ DM を送る。
-    lookup_slack_user_id_by_email と post_dm_to_user をつないだ高レベル関数。
-
-    routes.py / check_deadlines.py からはこれ一本を呼べばよい。
-
-    Args:
-        email     : 送り先の人の（FUJIN-P 上の）メールアドレス
-        text      : 本文
-        log_label : 失敗ログに出す通知の種類名（例 '委員長リマインドDM'）
-
-    Returns:
-        {'ok': True/False, ...}
-
-    例外は投げない。メール照合に失敗（FUJIN-P と Slack でメールが
-    食い違う）場合も {'ok': False} を返すだけ。呼び出し元の本処理は止めない。
-    """
-    look = lookup_slack_user_id_by_email(email)
-    if not look.get('ok'):
-        logging.warning("slack_notifier(ext_engagement): %s — メール照合に失敗 — %s",
-                         log_label, look.get('error'))
-        return {'ok': False, 'error': look.get('error')}
-
-    result = post_dm_to_user(look['user_id'], text)
+def _send(text, log_label, case_id=None):
+    """設定の送り先のチャンネルへ text を投稿する内部共通処理。
+       成否にかかわらず ext_engagement_notifications に記録する（2026-10-19）。"""
+    port, err = _ready_port()
+    ch_no = ch_label = None
+    bot = None
+    if err:
+        result = {'ok': False, 'error': err}
+    else:
+        try:
+            st = get_slack_settings(port)
+            ch_no, bot = st['ch_no'], st['bot']
+            if ch_no is None:
+                result = {'ok': False, 'error': NO_CHANNEL}
+            else:
+                ch_label = _channel_label(port, ch_no)
+                result = port.notify(SLACK_PORT_APP, ch_no, text, bot=bot)
+        except Exception as e:
+            result = {'ok': False, 'error': f'通知送信に失敗しました: {e}'}
     if not result.get('ok'):
         logging.warning("slack_notifier(ext_engagement): %s の送信に失敗 — %s",
-                         log_label, result.get('error'))
+                        log_label, result.get('error'))
+    _record(log_label, 'channel', text, result, ch_no=ch_no, ch_label=ch_label, bot=bot,
+            case_id=case_id)
+    return result
+
+
+def notify_conclusion(text, case_id=None):
+    """結論宣言を連携審査委員会チャンネルへ投稿する（routes.py の api_case_conclude / api_notify_slack から）。
+       本文は呼び出し側が build_conclusion_message で組み立てる。例外は投げない。"""
+    return _send(text, '結論通知', case_id)
+
+
+def notify_review_started(text, case_id=None):
+    """審議開始宣言を連携審査委員会チャンネルへ投稿する（routes.py の api_send_to_review から）。
+       初回の宣言と，委員構成を変更しての再宣言の両方で使う。例外は投げない。"""
+    return _send(text, '審議開始通知', case_id)
+
+
+def notify_review_comment(text, case_id=None):
+    """審議コメントの投稿を連携審査委員会チャンネルへ通知する（routes.py の api_comment_post から．opt in）。
+       例外は投げない。"""
+    return _send(text, '審議コメント通知', case_id)
+
+
+def notify_motion(text, case_id=None):
+    """委員長提案（起案・採択・取り下げ）を連携審査委員会チャンネルへ通知する（motions.py から）。
+       例外は投げない。"""
+    return _send(text, '委員長提案通知', case_id)
+
+
+# ════════════════════════════════════════════════════════════════
+# 個人宛 DM（メールアドレス照合方式．Slack_port の notify_dm）
+#   FUJIN-P 側のメールアドレスから Slack ユーザーを引き当てて DM を送る。
+#   FUJIN-P と Slack で同じメールアドレスを使っている人にのみ届く。
+# ════════════════════════════════════════════════════════════════
+
+def send_dm_by_email(email, text, log_label='DM', case_id=None):
+    """メールアドレスの人へ DM を送る。routes.py・check_deadlines.py から呼ぶ。
+       例外は投げない。メール照合に失敗した場合も {'ok': False} を返すだけ。
+       成否にかかわらず ext_engagement_notifications に記録する。"""
+    if not email:
+        return {'ok': False, 'error': 'メールアドレスが空です'}
+    port, err = _ready_port()
+    bot = None
+    if err:
+        result = {'ok': False, 'error': err}
+    else:
+        try:
+            bot = get_slack_settings(port)['bot']
+            result = port.notify_dm(SLACK_PORT_APP, email, text, bot=bot)
+        except Exception as e:
+            result = {'ok': False, 'error': f'DM送信に失敗しました: {e}'}
+    if not result.get('ok'):
+        logging.warning("slack_notifier(ext_engagement): %s の送信に失敗 — %s",
+                        log_label, result.get('error'))
+    _record(log_label, 'dm', text, result, email=email, bot=bot, case_id=case_id)
     return result

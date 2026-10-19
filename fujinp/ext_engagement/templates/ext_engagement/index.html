@@ -465,6 +465,9 @@
         <button class="committee-btn" id="btn-committee">👥 委員会構成</button>
         {% endif %}
         <button class="stats-btn" id="btn-stats">📈 Stats</button>
+        {% if can_view_notifications %}
+        <a href="{{ url_for('ext_engagement.notifications_list') }}" class="report-btn" style="background:#0f766e;">📨 通知一覧</a>
+        {% endif %}
         {% if is_admin %}
         <button class="new-btn" id="btn-new-case">＋ 新規登録</button>
         {% endif %}
@@ -476,6 +479,9 @@
             <input type="file" name="package" id="extMigrationFile" accept=".zip" style="display:none" onchange="if(this.files.length){this.form.submit();}">
             <button type="button" class="report-btn" style="background:#6d5fb8;" onclick="document.getElementById('extMigrationFile').click();">📥 移行データ取り込み</button>
         </form>
+        {% endif %}
+        {% if is_site_admin %}
+        <a href="{{ url_for('ext_engagement.settings_page') }}" class="report-btn" style="background:#475569;">⚙️ 設定</a>
         {% endif %}
         <a href="{{ url_for('ext_engagement.return_to_fujin') }}" class="btn-return">🏠 FUJIN-Pダッシュボードに戻る</a>
         </div>
