@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-19 18:53:38",
+  "generated_at": "2026-10-20 16:37:43",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -102,7 +102,7 @@
       "app_name": "user_groups",
       "display_name": "ユーザとグループ",
       "icon": "👥",
-      "description": "ユーザーをグループに分類・管理するためのWebアプリケーション。グループの階層構造（サブグループ）、メンバーの有効期間管理、権限委譲（総管理者・グローバル管理者・グループ管理者）に対応。 2026-09-07：発令台帳（単位×役割×人×期間）と大表ビュー・Excel入出力を追加（段階1・試作）． 名寄せ（別名表・自動名寄せ）を追加． アカウント名簿（ug_persons→approved_users 発行）を追加． 種別「グループ」（管理者が作るグループ＝所有者／メンバー）を追加． 名簿発行に「users まで作る」を追加，名寄せに充て職除外・guest優先・括弧無視を追加． 名簿からパスワード設定メール送信を追加． 名簿にメール未記入の人を保持し，画面で入力できるように． 台帳が正：名簿の追加・修正・削除を users に直ちに反映，登録申請の承認・却下・ブラックリストを台帳で管理． 名寄せを「紐づけ／対象外」の2択に整理し，姓だけの先頭一致を廃止． グループを台帳から導く（ルール・候補生成・回帰照合）． 「台帳に合わせる」で user_groups を台帳から一括生成（冪等）． 名簿に「台帳未登録」のアカウントを表示し台帳登録できるように，Excel取込で外来の admin を regular に格下げ． 永続IDは元帳優先に：取込は既存の users・user_groups への付与だけとし，作成・所属追加をやめて所属は照合報告のみ．相手のない永続IDは控え，台帳の反映時に付け直す．",
+      "description": "ユーザーをグループに分類・管理するためのWebアプリケーション。グループの階層構造（サブグループ）、メンバーの有効期間管理、権限委譲（総管理者・グローバル管理者・グループ管理者）に対応。 2026-09-07：発令台帳（単位×役割×人×期間）と大表ビュー・Excel入出力を追加（段階1・試作）． 名寄せ（別名表・自動名寄せ）を追加． アカウント名簿（ug_persons→approved_users 発行）を追加． 種別「グループ」（管理者が作るグループ＝所有者／メンバー）を追加． 名簿発行に「users まで作る」を追加，名寄せに充て職除外・guest優先・括弧無視を追加． 名簿からパスワード設定メール送信を追加． 名簿にメール未記入の人を保持し，画面で入力できるように． 台帳が正：名簿の追加・修正・削除を users に直ちに反映，登録申請の承認・却下・ブラックリストを台帳で管理． 名寄せを「紐づけ／対象外」の2択に整理し，姓だけの先頭一致を廃止． グループを台帳から導く（ルール・候補生成・回帰照合）． 「台帳に合わせる」で user_groups を台帳から一括生成（冪等）． 名簿に「台帳未登録」のアカウントを表示し台帳登録できるように，Excel取込で外来の admin を regular に格下げ． 永続IDは元帳優先に：取込は既存の users・user_groups への付与だけとし，作成・所属追加をやめて所属は照合報告のみ．相手のない永続IDは控え，台帳の反映時に付け直す． 2026-10-20：まいぐる（旧画面と書き込みAPI）を廃止．グループの分散管理を追加（admin がグループ管理統括を任命，統括がグループの改廃と管理者の任命，管理者がメンバーの出入り．いずれも台帳の発令で任期なし）．画面を ユーザ管理（admin）・グループ管理統括・グループ管理 の三つに分けた．種別グループの user_groups の番号を単位に対して不変にした．単位の削除でルールが残る不具合を直した． 同日：閲覧を全員に開く（グループ構成と表示名．メールアドレスは admin だけ）．入口は全員に出す1本のランチャとし，権限のない操作のボタンと画面の入口は表示しない． 閲覧は admin・regular に限る（guest と未登録者は不可．統括・管理者の任命も regular 以上）． メンバーをテーブル表示にし，表示順（順位）を付けられるようにした（ug_appointments.sort_order，台帳Excelの「順位」列）．メンバーの編集は admin・統括・管理者． admin の画面を 組織情報管理（台帳）・ユーザ管理（名簿・名寄せ・申請とブラックリスト）・システム管理（Excel入出力・永続ID・統括の任命）の三つに分けた． 画面を上のタブ（ユーザ管理・グループ管理・組織情報管理・管理）でつないだ．グループ管理に統括の機能と「組織・会議体から導かれたグループ」（閲覧のみ）を統合し，グループの表示順を admin が決められるようにした（user_groups.sort_order）．組織情報管理を統括にも開き，「グループとの対応表」・年度の選択・年度の引き継ぎを加えた． 組織情報管理を組織ツリー（ノード・親子・メンバーシップを分離，親子は共有可・期間つき，ug_unit_links）とノードごとのメンバーシップ表に作り替えた．ノードとシステムグループを1対1に対応させ，構成員はノードと配下（その時点の親子でたどる）のメンバー． 組織ツリーから種別（組織・会議体）をなくし立場の一覧を一つにまとめた．「グループとの対応表」タブを廃し，反映は「管理」へ移した． 反映で組織・会議体のグループを自動で作るのをやめ，ノードを作るときに同名のグループを作って1対1に対応付けるようにした．ノードの対応表示を「対応あり／対応なし」と操作（外す・別のグループと対応付ける）に整理した． ノードとシステムグループの対応付けの変更を admin 専用にして「管理」の例外管理へ移し，組織情報管理では表示だけにした．ツリーに「移動」（記録の書き換え／日付を区切った移動）を加えた． ノードの詳細に「下位ノード」（表示・期間の編集・外す・既存ノードを複数まとめて子として足す）と「構成員（自動計算）」（配下を含めた人と，どこで・どの立場か）を加えた． 組織情報管理の「編集」切替をやめて常に編集可能にし，ツリーの行には「編集」だけ，＋子・移動は右の欄に置いた．下位ノードは全ノードの一覧に印を付けて選ぶ形にした．",
       "sort_order": 40.0,
       "kind": "app",
       "enabled": true,
@@ -117,48 +117,18 @@
       ],
       "launchers": [
         {
-          "icon": "🗄",
-          "label": "ユーザとグループ",
-          "groups": [],
-          "params": "",
-          "section": "legacy",
-          "endpoint": "user_groups.index",
-          "dashboards": [
-            "admin"
-          ],
-          "sort_order": 990,
-          "visibility": "private",
-          "description": "グループ管理（旧）．「ユーザとグループ」に移行済み．やがて廃止",
-          "extra_class": ""
-        },
-        {
           "icon": "👥",
           "label": "ユーザとグループ",
           "groups": [],
           "params": "",
           "section": "system",
-          "endpoint": "user_groups.ledger_page",
+          "endpoint": "user_groups.my_groups_page",
           "dashboards": [
             "admin"
           ],
-          "sort_order": 5,
+          "sort_order": 4,
           "visibility": "private",
-          "description": "ユーザ・グループの台帳（単位×役割×人×期間）．users と user_groups の正本",
-          "extra_class": ""
-        },
-        {
-          "icon": "🔗",
-          "label": "ユーザとグループ",
-          "groups": [],
-          "params": "",
-          "section": "system",
-          "endpoint": "user_groups.pids_page",
-          "dashboards": [
-            "admin"
-          ],
-          "sort_order": 6,
-          "visibility": "private",
-          "description": "付録：永続ID．サイトをまたぐアカウント・グループの識別子．発番（源泉サイトのみ）とXLSXの書き出し・取り込み",
+          "description": "ユーザ管理・グループ管理・組織情報管理・管理（タブは権限に応じて出る）．グループの構成は regular 以上に公開",
           "extra_class": ""
         }
       ],
@@ -469,86 +439,6 @@
       ],
       "version_id": "v20261019.185336-b3a0f6",
       "version_confirmed_at": "2026-10-19 18:53:36"
-    },
-    {
-      "app_name": "table_share",
-      "display_name": "テーシャ",
-      "icon": "🔗",
-      "description": "FUJIN-P拠点間でMySQLテーブルのスナップショットを公開し、APIキー認証を介して取得・手動同期するための相互連携アプリケーション。",
-      "sort_order": 220.0,
-      "kind": "app",
-      "enabled": true,
-      "disclosed": true,
-      "blueprints": [
-        {
-          "attr": "table_share_bp",
-          "name": "table_share",
-          "module": "fujinp.table_share",
-          "url_prefix": null
-        }
-      ],
-      "launchers": [
-        {
-          "icon": "🔗️",
-          "label": "テーシャ",
-          "groups": [
-            "FUJIN-Pソムリエ"
-          ],
-          "params": "",
-          "section": "sommelier",
-          "endpoint": "table_share.dashboard",
-          "dashboards": [
-            "admin",
-            "guest"
-          ],
-          "sort_order": 90,
-          "visibility": "group",
-          "description": "SQLテーブルの共有",
-          "extra_class": ""
-        }
-      ],
-      "version_id": "v20261002.010155-bcad6c",
-      "version_confirmed_at": "2026-10-02 01:01:56"
-    },
-    {
-      "app_name": "user_migration",
-      "display_name": "ゆーまい",
-      "icon": "🛳️",
-      "description": "FUJIN-Pプラットフォーム上の複数サイト間でユーザ情報を安全に移行（マイグレーション）するシステムです。",
-      "sort_order": 230.0,
-      "kind": "app",
-      "enabled": true,
-      "disclosed": true,
-      "blueprints": [
-        {
-          "attr": "user_migration_bp",
-          "name": "user_migration",
-          "module": "fujinp.user_migration",
-          "url_prefix": null
-        }
-      ],
-      "launchers": [
-        {
-          "icon": "🛳️",
-          "label": "ゆーまい",
-          "groups": [
-            "FUJIN-Pソムリエ"
-          ],
-          "params": "",
-          "section": "sommelier",
-          "endpoint": "user_migration.dashboard",
-          "dashboards": [
-            "admin",
-            "guest"
-          ],
-          "sort_order": 100,
-          "visibility": "group",
-          "description": "ユーザのマイグレーション",
-          "extra_class": ""
-        }
-      ],
-      "version_id": "v20260917.153356-9279f6",
-      "version_confirmed_at": "2026-09-17 15:33:56"
     },
     {
       "app_name": "migrate_fujinp_scions",
@@ -1612,7 +1502,7 @@
       "app_name": "kitare_deliberation",
       "display_name": "キターレオンライン審議",
       "icon": "🏞️",
-      "description": "委員会によるオンライン審議の議題提出・審議・議決",
+      "description": "委員会によるオンライン審議の議題提出・審議・議決と，外部連携（受託／共同・研究／事業）申請の審査",
       "sort_order": 520.0,
       "kind": "app",
       "enabled": true,
@@ -1623,6 +1513,12 @@
           "name": "kitare_deliberation",
           "module": "fujinp.kitare_deliberation",
           "url_prefix": "/kitare_deliberation"
+        },
+        {
+          "attr": "ext_engagement_bp",
+          "name": "ext_engagement",
+          "module": "fujinp.kitare_deliberation.engagement",
+          "url_prefix": null
         }
       ],
       "launchers": [
@@ -1639,12 +1535,12 @@
           ],
           "sort_order": 10,
           "visibility": "private",
-          "description": "委員会によるオンライン審議の議題提出・審議・議決",
+          "description": "委員会によるオンライン審議の議題提出・審議・議決と，外部連携（受託／共同・研究／事業）申請の審査",
           "extra_class": ""
         }
       ],
-      "version_id": "v20261019.174154-4e54b0",
-      "version_confirmed_at": "2026-10-19 17:41:55"
+      "version_id": "v20261020.163738-bca452",
+      "version_confirmed_at": "2026-10-20 16:37:39"
     },
     {
       "app_name": "ethics_review",
@@ -1701,24 +1597,7 @@
           "url_prefix": null
         }
       ],
-      "launchers": [
-        {
-          "icon": "📦",
-          "label": "外部連携審査",
-          "groups": [],
-          "params": "",
-          "section": "admin_support",
-          "endpoint": "ext_engagement.index",
-          "dashboards": [
-            "admin",
-            "guest"
-          ],
-          "sort_order": 10,
-          "visibility": "private",
-          "description": "{受託／共同}・{研究／事業}申請の審査プロセス支援",
-          "extra_class": ""
-        }
-      ],
+      "launchers": [],
       "version_id": "v20261019.180516-9a1c74",
       "version_confirmed_at": "2026-10-19 18:05:16"
     },

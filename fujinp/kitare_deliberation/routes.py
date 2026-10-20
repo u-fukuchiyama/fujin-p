@@ -672,6 +672,20 @@ def return_to_fujin():
     """FUJINダッシュボードに戻る（ユーザーカテゴリに応じた遷移）"""
     return redirect_to_dashboard()
 
+def _ext_engagement_visible(user_id):
+    """外部連携審査（同梱の engagement）の入口を出すか。
+       一覧を開ける人（admin・連携審査の3グループ・執行会議）にだけ出す。"""
+    try:
+        from flask import current_app
+        if 'ext_engagement' not in current_app.blueprints:
+            return False
+        from .engagement.routes import can_view_index
+        return bool(can_view_index(user_id))
+    except Exception as e:
+        logging.warning("_ext_engagement_visible: %s", e)
+        return False
+
+
 @kitare_deliberation_bp.route('/')
 @login_required
 def index():
@@ -686,6 +700,7 @@ def index():
         is_chair=is_chair(user_id),
         is_secretariat=is_secretariat(user_id),
         can_manage_categories=can_manage_categories(user_id),
+        ext_engagement_visible=_ext_engagement_visible(user_id),
     )
 
 
@@ -2366,6 +2381,54 @@ def api_committee_cases():
                 continue
         cases.append(_serialize_case(r, include_category=True))
     return jsonify({'success': True, 'cases': cases})
+
+
+@kitare_deliberation_bp.route('/api/committee_overview', methods=['GET'])
+@login_required
+def api_committee_overview():
+    """運営委員会ボード：通常審議と外部連携審査の状態別件数。
+       クエリ fiscal_year（無指定はすべての年度）。
+       通常審議は運営委員会一覧（api_committee_cases）と同じ範囲（不受理を除き，
+       一般委員は COI の案件を除く），外部連携審査はその人に見える案件。"""
+    user_id = session.get('user_id')
+    fy = request.args.get('fiscal_year', type=int)
+    out = {'success': True, 'deliberation': None, 'engagement': None}
+
+    if is_committee(user_id):
+        where, params = ["status <> 'not_accepted'"], []
+        if fy:
+            where.append("fiscal_year = %s"); params.append(fy)
+        conn = None
+        try:
+            conn   = _conn()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, status FROM kitare_cases WHERE " + ' AND '.join(where), params)
+            rows = cursor.fetchall()
+        except Exception as e:
+            logging.error("api_committee_overview error: %s", e)
+            return jsonify({'success': False, 'error': str(e)}), 500
+        finally:
+            if conn and conn.is_connected():
+                cursor.close(); conn.close()
+        whole = is_business(user_id) or is_admin(user_id)
+        counts = {}
+        for r in rows:
+            if not whole and is_coi(user_id, r['id']):
+                continue
+            counts[r['status']] = counts.get(r['status'], 0) + 1
+        out['deliberation'] = {
+            'total': sum(counts.values()),
+            'counts': [{'status': s, 'label': STATUS_LABELS.get(s, s), 'count': counts[s]}
+                       for s in STATUS_LABELS if counts.get(s)]}
+
+    if _ext_engagement_visible(user_id):
+        try:
+            from .engagement.routes import status_counts_for
+            out['engagement'] = status_counts_for(user_id, fy)
+        except Exception as e:
+            logging.error("api_committee_overview (engagement) error: %s", e)
+            out['engagement'] = {'error': str(e)}
+    return jsonify(out)
 
 
 def _fetch_public_cases(fy):

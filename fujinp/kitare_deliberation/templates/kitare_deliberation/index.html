@@ -101,6 +101,36 @@
         .open-btn.gray { background: #94a3b8; }
         .empty-msg { text-align: center; color: #9ca3af; padding: 28px; font-size: 0.9rem; }
         .needs-action { background: #fffbeb; }
+
+        /* 運営委員会ボード */
+        .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-bottom: 18px; }
+        .board-card {
+            display: block; text-decoration: none; color: inherit; border-radius: 10px;
+            padding: 16px 18px; border: 2px solid #e5e7eb; background: #fafafa;
+            transition: box-shadow .15s, transform .1s;
+        }
+        .board-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.12); transform: translateY(-1px); }
+        .board-card.delib { border-left: 6px solid #6d5fb8; }
+        .board-card.delib.active { border-color: #6d5fb8; background: #f5f3ff; }
+        .board-card.ext { border-left: 6px solid #1e3a5f; }
+        .bc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+        .bc-title { font-size: 1.05rem; font-weight: 700; color: #1f2937; }
+        .bc-total { font-size: 0.8rem; color: #6b7280; white-space: nowrap; }
+        .bc-sub { font-size: 0.78rem; color: #6b7280; margin: 3px 0 10px; }
+        .bc-badges { display: flex; flex-wrap: wrap; gap: 6px; min-height: 26px; }
+        .bc-badge {
+            display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+            border-radius: 12px; font-size: 0.78rem; font-weight: 700; white-space: nowrap;
+        }
+        .bc-badge b { font-size: 0.95rem; }
+        .bc-badge.hot { box-shadow: 0 0 0 2px #f59e0b inset; }
+        .bc-badge.s-draft { background: #ede9fe; color: #5b21b6; }
+        .bc-badge.s-reviewing { background: #fef3c7; color: #92400e; }
+        .bc-badge.s-rejected { background: #fee2e2; color: #991b1b; }
+        .bc-loading, .bc-none { font-size: 0.8rem; color: #9ca3af; }
+        .bc-go { margin-top: 10px; font-size: 0.8rem; font-weight: 700; color: #4a3a7a; text-align: right; }
+        .board-card.ext .bc-go { color: #1e3a5f; }
+        .delib-title { font-size: 0.95rem; color: #4a3a7a; margin: 4px 0 10px; }
     </style>
 </head>
 <body>
@@ -129,7 +159,7 @@
         {% if is_business %}
         <button class="tab" data-tab="business">業務会議</button>
         {% endif %}
-        {% if is_committee %}
+        {% if is_committee or ext_engagement_visible %}
         <button class="tab" data-tab="committee">運営委員会</button>
         {% endif %}
     </div>
@@ -207,14 +237,13 @@
     </div>
     {% endif %}
 
-    {% if is_committee %}
-    <!-- 運営委員会タブ -->
+    {% if is_committee or ext_engagement_visible %}
+    <!-- 運営委員会タブ（ボード：通常審議／外部連携審査） -->
     <div class="card tab-panel" id="panel-committee" style="display:none">
         <h2>運営委員会</h2>
         <div class="tab-desc">
-            附議された案件を審議する場です。委員は審議に参加し、委員長が議決します。
-            公平性のため、取り下げ・打ち切りを含む案件を表示します（不受理は除きます）。
-            COI（利益相反）の案件はあなたの一覧から除かれます。
+            運営委員会で扱う案件の入口です。通常審議（キターレオンライン審議）と外部連携審査（受託・共同の研究・事業）の
+            それぞれについて、状態ごとの件数を示します。カードを押すと案件の一覧が開きます。
         </div>
         <div class="ctrl-bar">
             <span>年度：
@@ -225,6 +254,34 @@
                     {% endfor %}
                 </select>
             </span>
+        </div>
+        <div class="board">
+            {% if is_committee %}
+            <a class="board-card delib active" id="card-delib" href="#delib-section">
+                <div class="bc-head"><span class="bc-title">🏞️ 通常審議</span><span class="bc-total" id="total-delib"></span></div>
+                <div class="bc-sub">キターレオンライン審議　附議された案件の審議と議決</div>
+                <div class="bc-badges" id="badges-delib"><span class="bc-loading">読み込み中…</span></div>
+                <div class="bc-go">一覧を見る ↓</div>
+            </a>
+            {% endif %}
+            {% if ext_engagement_visible %}
+            <a class="board-card ext" id="card-ext" href="{{ url_for('ext_engagement.index') }}?tab=all">
+                <div class="bc-head"><span class="bc-title">📦 外部連携審査</span><span class="bc-total" id="total-ext"></span></div>
+                <div class="bc-sub">連携審査委員会　受託研究・受託事業・共同研究・共同事業</div>
+                <div class="bc-badges" id="badges-ext"><span class="bc-loading">読み込み中…</span></div>
+                <div class="bc-go">全件の一覧を開く →</div>
+            </a>
+            {% endif %}
+        </div>
+        {% if is_committee %}
+        <div id="delib-section">
+        <h3 class="delib-title">🏞️ 通常審議の案件</h3>
+        <div class="tab-desc">
+            附議された案件を審議する場です。委員は審議に参加し、委員長が議決します。
+            公平性のため、取り下げ・打ち切りを含む案件を表示します（不受理は除きます）。
+            COI（利益相反）の案件はあなたの一覧から除かれます。
+        </div>
+        <div class="ctrl-bar">
             <span>状態：
                 <select id="com-status">
                     <option value="">すべて</option>
@@ -248,6 +305,8 @@
                 </tbody>
             </table>
         </div>
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 </div>
@@ -272,12 +331,56 @@ function catTag(c) {
 }
 
 // ── タブ切り替え ──
-$('#tabs').on('click', '.tab', function() {
-    const tab = $(this).data('tab');
+function showTab(tab) {
+    const $b = $('.tab[data-tab="' + tab + '"]');
+    if (!$b.length) return false;
     $('.tab').removeClass('active');
-    $(this).addClass('active');
+    $b.addClass('active');
     $('.tab-panel').hide();
     $('#panel-' + tab).show();
+    return true;
+}
+$('#tabs').on('click', '.tab', function() { showTab($(this).data('tab')); });
+
+// ── 運営委員会ボード（通常審議・外部連携審査の状態別件数） ──
+// 対応が要る状態（申請受付・審議中・下書き）は枠付きで目立たせる
+const HOT_STATUSES = ['submitted', 'accepted_review', 'reviewing', 'draft'];
+function boardBadges(data) {
+    if (!data) return '';
+    if (data.error) return '<span class="bc-none" style="color:#ef4444">' + esc(data.error) + '</span>';
+    if (!data.counts.length) return '<span class="bc-none">案件はありません</span>';
+    return data.counts.map(c =>
+        `<span class="bc-badge status-${c.status} s-${c.status}${HOT_STATUSES.indexOf(c.status) >= 0 ? ' hot' : ''}">`
+        + `${esc(c.label)} <b>${c.count}</b></span>`).join('');
+}
+function loadBoard() {
+    if (!$('#panel-committee').length) return;
+    const fy = $('#com-fy').val();
+    // 外部連携審査のカードは「全件」タブ・同じ年度で開く
+    const $ext = $('#card-ext');
+    if ($ext.length) {
+        $ext.attr('href', '{{ url_for("ext_engagement.index") if ext_engagement_visible else "" }}'
+                  + '?tab=all&fiscal_year=' + encodeURIComponent(fy || ''));
+    }
+    $.get(URL_BASE + 'api/committee_overview', fy ? { fiscal_year: fy } : {}, function(resp) {
+        if (!resp.success) {
+            $('#badges-delib, #badges-ext').html('<span class="bc-none" style="color:#ef4444">' + esc(resp.error) + '</span>');
+            return;
+        }
+        if (resp.deliberation) {
+            $('#badges-delib').html(boardBadges(resp.deliberation));
+            $('#total-delib').text('計 ' + resp.deliberation.total + ' 件');
+        }
+        if (resp.engagement) {
+            $('#badges-ext').html(boardBadges(resp.engagement));
+            if (resp.engagement.total !== undefined) $('#total-ext').text('計 ' + resp.engagement.total + ' 件');
+        }
+    }).fail(() => $('#badges-delib, #badges-ext').html('<span class="bc-none" style="color:#ef4444">通信エラー</span>'));
+}
+$('#card-delib').on('click', function(ev) {
+    ev.preventDefault();
+    const el = document.getElementById('delib-section');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 // ── 申請者タブ ──
@@ -341,7 +444,7 @@ function loadBusiness() {
 
 // ── 運営委員会タブ ──
 function loadCommittee() {
-    if (!$('#panel-committee').length) return;
+    if (!$('#tbody-committee').length) return;
     const params = {};
     const fy = $('#com-fy').val(); const st = $('#com-status').val();
     if (fy) params.fiscal_year = fy;
@@ -372,12 +475,17 @@ function loadCommittee() {
 }
 
 $('#biz-fy, #biz-status').on('change', loadBusiness);
-$('#com-fy, #com-status').on('change', loadCommittee);
+$('#com-status').on('change', loadCommittee);
+$('#com-fy').on('change', function() { loadCommittee(); loadBoard(); });
 
 $(document).ready(function() {
+    // 最初に開くタブ：?tab= の指定，無ければ運営委員会（見られる人だけ），それ以外は申請者
+    const q = new URLSearchParams(location.search);
+    if (!(q.get('tab') && showTab(q.get('tab')))) showTab('committee');
     loadApplicant();
     loadBusiness();
     loadCommittee();
+    loadBoard();
 });
 </script>
 </body>

@@ -6,6 +6,11 @@ Blueprint 定義
 オンライン審議システム。アプリ独立性原則に従い、他の Blueprint には
 依存しない（user_groups.utils のみ共通基盤として利用）。
 
+外部連携審査（受託／共同・研究／事業の申請審査．旧 ext_engagement）は
+engagement/ に同梱している（2026-10-20 統合）．Blueprint は別立て（名前
+ext_engagement，URL /ext_engagement）で，registry の blueprints に2本目として
+載せて登録する．テーブル・Slack_port の登録名も旧来のまま．
+
 登録例（アプリ本体の app factory 側、app.py）:
     from .kitare_deliberation import kitare_deliberation_bp
     app.register_blueprint(kitare_deliberation_bp,
