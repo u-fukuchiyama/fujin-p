@@ -994,6 +994,24 @@ def status_counts_for(user_id, fiscal_year=None):
 # API: 案件
 # ────────────────────────────────────────────
 
+# 審査の当事者でない人に一覧で見せる項目（年度報告の学内向け表示とそろえる．2026-10-21）
+_PUBLIC_CASE_KEYS = (
+    'id', 'fiscal_year', 'type_key', 'type_label', 'seq_no', 'case_display_id',
+    'application_no', 'is_new_application', 'title', 'org_name', 'org_label',
+    'faculty_dept', 'representative_name', 'period_start', 'period_end',
+    'approved_date', 'status', 'status_label',
+)
+
+
+def _public_case_summary(sc):
+    """シリアライズ済みの案件から，当事者でない人に見せる項目だけを残す。
+       経費・内容・結論・申請書URL・事前協議などは返さない。"""
+    out = {k: sc.get(k) for k in _PUBLIC_CASE_KEYS}
+    out['open_motion'] = None
+    out['can_open'] = False
+    return out
+
+
 @ext_engagement_bp.route('/api/cases', methods=['GET'])
 @login_required
 def api_cases():
@@ -1035,8 +1053,17 @@ def api_cases():
         open_map = motions.get_open_motion_ids_map()
         out = []
         for c in visible:
-            sc = serialize_case(c)
-            sc['open_motion'] = open_map.get(c['id'])
+            # 案件を開けるのは，審査の当事者（連携審査委員（COIを除く）・
+            # 連携審査_管理者・連携審査_委員長．admin を含む）だけ（2026-10-21）．
+            # 下書き・審議中はここまでの判定で当事者に絞られている．
+            # 結論後の案件は，当事者でない人（執行会議など）には
+            # 年度報告の学内向け表示と同じ項目だけを返し，詳細は開かせない．
+            if c['status'] in ('draft', 'reviewing') or can_access_review(user_id, c['id']):
+                sc = serialize_case(c)
+                sc['open_motion'] = open_map.get(c['id'])
+                sc['can_open'] = True
+            else:
+                sc = _public_case_summary(serialize_case(c))
             out.append(sc)
         return jsonify({'success': True, 'cases': out})
 
@@ -1072,7 +1099,10 @@ def api_case_get(case_id):
             if not can_access_review(user_id, case_id):
                 return jsonify({'success': False, 'error': 'アクセス権限がありません'}), 403
         else:
-            if not can_view_concluded(user_id):
+            # 結論後（承認・不承認・取り下げ）の審査詳細を見られるのは，
+            # 連携審査委員（COIを除く）・連携審査_管理者・連携審査_委員長（admin を含む）だけ．
+            # 学内一般（regular）には年度報告の学内向け表示だけを見せる（2026-10-21）．
+            if not can_access_review(user_id, case_id):
                 return jsonify({'success': False, 'error': 'アクセス権限がありません'}), 403
 
         case = serialize_case(case)

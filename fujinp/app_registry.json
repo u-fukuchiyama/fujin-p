@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-22 23:49:52",
+  "generated_at": "2026-10-22 23:50:23",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -1509,8 +1509,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261020.163738-bca452",
-      "version_confirmed_at": "2026-10-20 16:37:39"
+      "version_id": "v20261022.235022-fe1f0c",
+      "version_confirmed_at": "2026-10-22 23:50:23"
     },
     {
       "app_name": "ethics_review",

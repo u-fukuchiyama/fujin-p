@@ -830,9 +830,12 @@ function renderCases(cases) {
         const consultHtml = c.pre_consultation
             ? `<div class="case-consultation">🤝 事前協議あり</div>` : '';
 
+        // 審査詳細を開けない人（執行会議など）にはカードを押せないようにする（2026-10-21）
+        const openAttr = c.can_open
+            ? `onclick="location.href='{{ url_for('ext_engagement.index') }}case/${c.id}'"`
+            : `style="cursor:default" title="審査詳細は連携審査委員会の委員・事務局・委員長だけが開けます"`;
         html += `
-        <div class="case-card status-${c.status}" data-id="${c.id}"
-             onclick="location.href='{{ url_for('ext_engagement.index') }}case/${c.id}'">
+        <div class="case-card status-${c.status}" data-id="${c.id}" ${openAttr}>
             <div class="case-id-block">
                 <div class="case-id-str">${c.case_display_id}</div>
                 ${appNoHtml}
