@@ -70,7 +70,9 @@
   </div>
 
   <div class="actbar"><span>執筆者に開いている依頼：</span><span id="actList"></span>
-    <span class="muted" style="margin-left:auto">各カードの「執筆者に開く」で切り替えます（年度をまたいで複数開けます）．</span></div>
+    <span class="muted" style="margin-left:auto">各カードの「執筆者が編集可能にする」で切り替えます（年度をまたいで複数開けます）．</span></div>
+  <div class="actbar"><span>構成員に開示：</span><span id="dscList"></span>
+    <span class="muted" style="margin-left:auto">「構成員に開示」を入れた段階がトップページ（事業全貌）に出ます．「コメントも表示」は調整中だけ使います．</span></div>
   {% if not year %}
   <p class="empty">年度の行がありません．</p>
   {% else %}
@@ -100,6 +102,7 @@
       <h2>🏛 法人評価</h2>
       <div class="desc">評価委員会からの質問・意見への回答を，責任部門と連絡を取りながらとりまとめます．評価委員会からの評点とコメント（計画番号ごと）も記録します．</div>
       <div class="stat" id="stHojin"></div>
+      <div class="rec" id="recHojin"></div>
       <div class="go"><a class="btn" style="background:#7c3aed;color:#fff;border-color:#7c3aed" href="{{ url_for('mid_term_progress.hojin') }}?year={{ year }}">法人評価へ →</a></div>
     </div>
   </div>
@@ -113,6 +116,7 @@ const YEAR = {{ year|tojson }}, LASTYEAR = {{ (years[-1] if years else None)|toj
 const U = {
   sum: '{{ url_for("mid_term_progress.api_editor_summary") }}',
   active: '{{ url_for("mid_term_progress.api_editor_active") }}',
+  disc: '{{ url_for("mid_term_progress.api_editor_disclose") }}',
   open: '{{ url_for("mid_term_progress.api_manage_open_year") }}',
 };
 const LBL = {plan:'計画', progress:'進捗報告', result:'業務実績報告'};
@@ -140,11 +144,20 @@ async function load(){
   const act = new Set((j.active || []).map(a => `${a.year}-${a.stage}`));
   const rec = s => { const c = j.stages[s], on = act.has(`${YEAR}-${s}`);
     return `<label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer;font-weight:700;color:${on ? '#15803d' : '#475569'}">` +
-           `<input type="checkbox" ${on ? 'checked' : ''} onchange="setActive('${s}', this.checked)">執筆者に開く</label>` +
-           `<span>依頼中 ${c.recorded}/${j.assigned}</span>`; };
+           `<input type="checkbox" ${on ? 'checked' : ''} onchange="setActive('${s}', this.checked)">執筆者が編集可能にする</label>` +
+           `<span>依頼中 ${c.recorded}/${j.assigned}</span>` + dsc(s, true); };
+  const D = j.disclose || null;
+  const dsc = (s, withCmt) => { const d = (D && D[s]) || {on:false, comments:false};
+    const box = (f, lbl, col) => `<label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-weight:700;margin-top:4px;color:${d[f] ? col : '#475569'}">` +
+           `<input type="checkbox" ${d[f] ? 'checked' : ''} onchange="setDisc('${s}', '${f}', this.checked)">${lbl}</label>`;
+    return `<div style="flex-basis:100%">` + (withCmt ? box('comments', 'コメントも表示', '#b45309') : '') + box('on', '構成員に開示', '#1d4ed8') + `</div>`; };
   document.getElementById('recPlan').innerHTML = rec('plan');
   document.getElementById('recProg').innerHTML = rec('progress');
   document.getElementById('recRes').innerHTML = rec('result');
+  document.getElementById('recHojin').innerHTML = dsc('hojin', false);
+  const DL = {plan:'年度計画', progress:'進捗状況報告', result:'業務実績報告', hojin:'法人評価'};
+  document.getElementById('dscList').innerHTML = !D ? '<span class="muted">（未設定：トップページにこの年度は出ません）</span>'
+    : (Object.keys(DL).filter(s => D[s] && D[s].on).map(s => `<span class="act">${YEAR}年度 ${DL[s]}${D[s].comments ? '（コメントも表示）' : ''}</span>`).join('') || '<span class="muted">（なし：トップページにこの年度は出ません）</span>');
   const lbl = {plan:'年度計画策定', progress:'年度計画進捗状況報告', result:'業務実績報告'};
   document.getElementById('actList').innerHTML = (j.active || []).length
     ? (j.active || []).map(a => `<span class="act">${a.year}年度 ${lbl[a.stage]}</span>`).join('')
@@ -155,7 +168,13 @@ async function setActive(stage, on){
                    (stage !== 'plan' ? '\nあわせて，この年度の細目構造は固定されます．' : '') + '\nよろしいですか？'
                  : `${YEAR}年度の${LBL[stage]}を執筆者ダッシュボードから外します（入力済みの内容と状態は残ります）．よろしいですか？`;
   if (!confirm(msg)) { load(); return; }
-  try { await post(U.active, {year: YEAR, stage, on}); toast(on ? '執筆者に開きました' : '執筆者ダッシュボードから外しました'); load(); }
+  try { await post(U.active, {year: YEAR, stage, on}); toast(on ? '執筆者が編集可能にしました' : '執筆者ダッシュボードから外しました'); load(); }
+  catch (e) { alert(e.message); load(); }
+}
+async function setDisc(stage, field, value){
+  const DL = {plan:'年度計画', progress:'進捗状況報告', result:'業務実績報告', hojin:'法人評価'};
+  const what = field === 'on' ? '構成員に開示' : 'コメントも表示';
+  try { await post(U.disc, {year: YEAR, stage, field, value}); toast(`${YEAR}年度 ${DL[stage]}：${what}を${value ? '入れました' : '外しました'}`); load(); }
   catch (e) { alert(e.message); load(); }
 }
 async function openYear(){

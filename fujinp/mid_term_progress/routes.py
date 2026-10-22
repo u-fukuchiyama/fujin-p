@@ -71,7 +71,7 @@ def term_label(term):
 # -----------------------------------------------
 # アップロード権限管理
 # -----------------------------------------------
-UPLOAD_MANAGER_GROUP = '中期計画進捗管理者'   # 編集・割り当て・データ管理ができるグループ（admin も可）
+UPLOAD_MANAGER_GROUP = '全学評価室_業務会議'   # 編集・割り当て・データ管理ができるグループ（admin も可）．2026-10-22 中期計画進捗管理者から変更
 
 
 def _is_admin():
@@ -127,6 +127,22 @@ def can_upload():
     if not uid:
         return False
     return UPLOAD_MANAGER_GROUP in _get_user_group_names(uid)
+
+
+def can_view():
+    """トップページ（事業全貌）を見られるか：構成員（regular）・admin と編集者．ゲストは見られない。"""
+    if session.get('user_category') in ('admin', 'regular'):
+        return True
+    return can_upload()
+
+
+def require_view_perm(f):
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        if not can_view():
+            return ('<h3>このページは構成員だけが閲覧できます．</h3>', 403)
+        return f(*args, **kwargs)
+    return wrapped
 
 
 def require_upload_perm(f):
@@ -370,6 +386,14 @@ def _selected_years(all_years):
     return [y for y in ys if y in all_years]
 
 
+def _init_focus(terms):
+    """トップページで最初に出す期：?focus=期の番号．無ければ最新の期。"""
+    f = (request.args.get('focus') or '').strip()
+    if f.isdigit() and int(f) in terms:
+        return f
+    return str(list(terms)[-1]) if terms else ''
+
+
 def _author_open():
     """執筆者ダッシュボードの導線：所属グループがあれば未完了の依頼数（0も可），無ければ None（導線を出さない）。"""
     try:
@@ -381,6 +405,7 @@ def _author_open():
 
 @mid_term_progress_bp.route('/view')
 @login_required
+@require_view_perm
 def view():
     from collections import OrderedDict
     try:
@@ -403,6 +428,15 @@ def view():
                     {'result': author_res, 'plan': author_plan, 'progress': author_prog}[q['stage']][k] = q
             except Exception:
                 author_res, author_plan, author_prog = {}, {}, {}
+            # 評価室からのコメント（段階ごと）．構成員に開示した段階で「コメントも表示」のときだけ出す
+            cmts = {}
+            try:
+                cur.execute("SELECT fiscal_year, mid_plan_no, annual_plan_no, detail_no, stage, comment "
+                            "FROM T_ann_plan_requests WHERE comment IS NOT NULL AND TRIM(comment) <> ''")
+                for q in cur.fetchall():
+                    cmts[(q['fiscal_year'], q['mid_plan_no'], q['annual_plan_no'], q['detail_no'], q['stage'])] = q['comment']
+            except Exception:
+                cmts = {}
             # 計画番号ごとの評価（大学の自己評価・評価委員会の評点とコメント）．各年度の行の直下に出す
             evals = {}
             try:
@@ -413,6 +447,23 @@ def view():
 
         from .progress import fallback_badge, active_keys
         active = active_keys()
+        # 構成員への開示：記録のある年度は開示した段階だけ出す（記録の無い年度は従来どおり全部）
+        from .workflow import load_disclose, disclose_view
+        disc = load_disclose()
+        dview = {}
+
+        def dv(yr):
+            if yr not in dview:
+                dview[yr] = disclose_view(disc, yr)
+            return dview[yr]
+
+        def shown(yr, stage):
+            v = dv(yr)
+            return True if v is None else v['show'][stage]
+
+        def cmt_on(yr, stage):
+            v = dv(yr)
+            return False if v is None else v['comments'][stage]
 
         # (term, plan_no, sub_term) → 細目をまとめた1版
         vers = OrderedDict()
@@ -505,6 +556,8 @@ def view():
             mv = version_for(p, yr)
             if mv is None:
                 continue
+            if not shown(yr, 'plan'):
+                continue          # まだ構成員に開示していない年度
             if yr not in terms[t]['years']:
                 terms[t]['years'].append(yr)
             a = p['annual'].setdefault(yr, {'midterm': mv, 'entries': []})
@@ -512,19 +565,28 @@ def view():
             plan, plan_badge = (r.get('plan_text') or '').strip(), None
             if not plan and rk in author_plan:
                 plan, plan_badge = author_plan[rk]['author_text'], fallback_badge(author_plan[rk], '執筆者の提案', active)
-            rep_, rep_badge = (r.get('result_text') or '').strip(), None
-            if not rep_ and rk in author_res:
-                rep_, rep_badge = author_res[rk]['author_text'], fallback_badge(author_res[rk], '執筆者の報告', active)
-            if not rep_ and not is_done(r.get('plan_text')):
+            rep_, rep_badge = '', None
+            if shown(yr, 'result'):
+                rep_ = (r.get('result_text') or '').strip()
+                if not rep_ and rk in author_res:
+                    rep_, rep_badge = author_res[rk]['author_text'], fallback_badge(author_res[rk], '執筆者の報告', active)
+            if not rep_ and not is_done(r.get('plan_text')) and shown(yr, 'progress'):
                 pq = author_prog.get(rk)
                 prog = (r.get('progress_text') or '').strip() or (pq['author_text'] if pq else '')
                 if prog:
                     rep_ = prog
                     rep_badge = (fallback_badge(pq, '進捗状況報告', active) if pq else None) or '進捗状況報告'
+            plan_cmts, rep_cmts = [], []
+            if cmt_on(yr, 'plan') and cmts.get(rk + ('plan',)):
+                plan_cmts.append({'label': '評価室からのコメント（年度計画）', 'text': cmts[rk + ('plan',)]})
+            for st, lb in (('progress', '進捗状況報告'), ('result', '業務実績報告')):
+                if cmt_on(yr, st) and cmts.get(rk + (st,)):
+                    rep_cmts.append({'label': '評価室からのコメント（%s）' % lb, 'text': cmts[rk + (st,)]})
             a['entries'].append({'annual_sub_no': r.get('detail_no') or '',
                                  'annual_plan_no': r.get('annual_plan_no'),
                                  'annual_plan': plan, 'plan_badge': plan_badge,
-                                 'report_content': rep_, 'report_badge': rep_badge})
+                                 'report_content': rep_, 'report_badge': rep_badge,
+                                 'plan_comments': plan_cmts, 'report_comments': rep_cmts})
         for mid in terms.values():
             mid['years'].sort()
         all_years = sorted({y for m in terms.values() for y in m['years']})
@@ -544,6 +606,8 @@ def view():
                         if prev is not None and prev['annual_plan_no'] == e['annual_plan_no']:
                             prev['report_content'] = _join([prev['report_content'], e['report_content']])
                             prev['report_badge'] = prev.get('report_badge') or e.get('report_badge')
+                            prev['plan_comments'] = prev.get('plan_comments', []) + e.get('plan_comments', [])
+                            prev['report_comments'] = prev.get('report_comments', []) + e.get('report_comments', [])
                             continue
                         e['annual_plan'] = ''      # 相手のない【同上】は空欄として出す
                     merged.append(e)
@@ -566,6 +630,10 @@ def view():
                         continue
                     se, ce = q.get('self_eval'), q.get('committee_eval')
                     sr, cc = (q.get('self_eval_reason') or '').strip(), (q.get('committee_comment') or '').strip()
+                    if not shown(yr, 'result'):
+                        se, sr = None, ''
+                    if not shown(yr, 'hojin'):
+                        ce, cc = None, ''
                     if se is None and ce is None and not sr and not cc:
                         continue
                     a['evals'].append({'no_label': str(ap) if len(aps) > 1 and ap is not None else '',
@@ -592,6 +660,8 @@ def view():
             author_open=_author_open(),
             all_years=all_years,
             selected_years=sel,
+            year_choices=sorted(y for y in disc if disclose_view(disc, y)['show']['plan']),
+            init_focus=_init_focus(terms),
         )
     except Exception as e:
         logging.error('view error: %s', e, exc_info=True)

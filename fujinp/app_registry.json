@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-20 16:41:19",
+  "generated_at": "2026-10-22 23:47:28",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -362,7 +362,7 @@
       "app_name": "migration_assistant",
       "display_name": "まいあし",
       "icon": "👣",
-      "description": "教材（コース）と進捗管理を通じて、FUJIN-P 機能モジュールの移行・構築プロセスを師弟制度で支援するWebアプリ",
+      "description": "FUJIN-P の導入・移行の手引き文書の図書館と配布ファイル（第1段）．教材と教室は第2・3段で足す",
       "sort_order": 210.0,
       "kind": "app",
       "enabled": true,
@@ -388,7 +388,7 @@
           ],
           "sort_order": 1,
           "visibility": "private",
-          "description": "FUJIN-Pマイグレーション支援",
+          "description": "図書館（手引きの文書）と配布ファイル",
           "extra_class": "clickable"
         },
         {
@@ -403,42 +403,12 @@
           ],
           "sort_order": 1,
           "visibility": "public",
-          "description": "FUJIN-Pマイグレーション支援",
-          "extra_class": ""
-        },
-        {
-          "icon": "🚚",
-          "label": "まいあし",
-          "groups": [],
-          "params": "",
-          "section": "sommelier",
-          "endpoint": "migration_assistant.install_guide",
-          "dashboards": [
-            "admin"
-          ],
-          "sort_order": 1,
-          "visibility": "private",
-          "description": "種の導入スクリプトと2段階の手引き",
-          "extra_class": ""
-        },
-        {
-          "icon": "🚚",
-          "label": "まいあし",
-          "groups": [],
-          "params": "",
-          "section": "sommelier",
-          "endpoint": "migration_assistant.install_guide",
-          "dashboards": [
-            "guest"
-          ],
-          "sort_order": 1,
-          "visibility": "domestic",
-          "description": "種の導入スクリプトと2段階の手引き",
+          "description": "図書館（手引きの文書）と配布ファイル",
           "extra_class": ""
         }
       ],
-      "version_id": "v20261019.185336-b3a0f6",
-      "version_confirmed_at": "2026-10-19 18:53:36"
+      "version_id": "v20261020.library-1",
+      "version_confirmed_at": null
     },
     {
       "app_name": "migrate_fujinp_scions",
@@ -1419,8 +1389,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261007.232819-fb601b",
-      "version_confirmed_at": "2026-10-07 23:28:19"
+      "version_id": "v20261022.234722-e7b9ee",
+      "version_confirmed_at": "2026-10-22 23:47:23"
     },
     {
       "app_name": "universal_form_composer",
@@ -1534,7 +1504,7 @@
             "guest"
           ],
           "sort_order": 10,
-          "visibility": "private",
+          "visibility": "domestic",
           "description": "委員会によるオンライン審議の議題提出・審議・議決と，外部連携（受託／共同・研究／事業）申請の審査",
           "extra_class": ""
         }

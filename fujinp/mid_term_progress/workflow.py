@@ -610,3 +610,60 @@ def api_item_text():
                                             'author_updated_by': uid})
         conn.commit()
     return jsonify({'success': True, 'updated_at': _s(now)})
+
+
+# -----------------------------------------------
+# 構成員への開示（トップページ＝事業全貌に何を出すか）
+# 設定表 k='disclose'：{"years": {"2026": {"plan": {"on": true, "comments": false}, "progress": {...},
+#                                         "result": {...}, "hojin": {...}}}}
+# どの年度も開示した段階だけ出す（記録の無い年度は何も出さない．2026-10-22 西田の決定）。
+# 後の段階を開示すると，それより前の段階の中身も出る（進捗状況報告を開示すれば計画も出る）。
+# コメント（評価室からのコメント）は，その段階を出していて「コメントも表示」が入っているときだけ出す。
+# -----------------------------------------------
+DISCLOSE_STAGES = ('plan', 'progress', 'result', 'hojin')
+DISCLOSE_LABEL = {'plan': '年度計画', 'progress': '進捗状況報告', 'result': '業務実績報告', 'hojin': '法人評価'}
+
+
+def load_disclose():
+    """年度（int）→ 段階 → {'on': bool, 'comments': bool}．記録の無い年度は含めない。"""
+    v = get_setting('disclose') or {}
+    out = {}
+    for y, d in ((v.get('years') or {}) if isinstance(v, dict) else {}).items():
+        yi = safe_int(y)
+        if not yi or not isinstance(d, dict):
+            continue
+        out[yi] = {s: {'on': bool((d.get(s) or {}).get('on')), 'comments': bool((d.get(s) or {}).get('comments'))}
+                   for s in DISCLOSE_STAGES}
+    return out
+
+
+def disclose_view(disc, year):
+    """トップページ用：その年度で何を出すか（{'show': 段階→bool, 'comments': 段階→bool}）。"""
+    d = disc.get(year) or {s: {'on': False, 'comments': False} for s in DISCLOSE_STAGES}
+    order = list(DISCLOSE_STAGES)
+    show = {s: any(d[t]['on'] for t in order[order.index(s):]) for s in order}
+    cmt = {s: show[s] and d[s]['comments'] for s in order}
+    return {'show': show, 'comments': cmt}
+
+
+@mid_term_progress_bp.route('/api/editor/disclose', methods=['GET', 'POST'])
+@login_required
+@require_upload_perm
+def api_editor_disclose():
+    """構成員への開示の設定（年度×段階の on／comments）の取得と切り替え。"""
+    if request.method == 'GET':
+        year = safe_int(request.args.get('year'))
+        d = load_disclose()
+        return jsonify({'success': True, 'year': year, 'disclose': d.get(year) if year else None,
+                        'years': sorted(d)})
+    b = _jbody()
+    year, stage, field = safe_int(b.get('year')), b.get('stage'), b.get('field')
+    if not year or stage not in DISCLOSE_STAGES or field not in ('on', 'comments'):
+        return jsonify({'success': False, 'error': '年度・段階・項目を指定してください'}), 400
+    v = get_setting('disclose')
+    v = v if isinstance(v, dict) else {}
+    years = v.setdefault('years', {})
+    d = years.setdefault(str(year), {s: {'on': False, 'comments': False} for s in DISCLOSE_STAGES})
+    d.setdefault(stage, {'on': False, 'comments': False})[field] = bool(b.get('value'))
+    put_setting('disclose', v)
+    return jsonify({'success': True, 'disclose': load_disclose().get(year)})

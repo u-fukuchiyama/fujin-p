@@ -17,3 +17,5 @@ from . import progress   # 編集者ダッシュボード（入口）と進捗�
 from . import authorview # 執筆者ダッシュボード
 from . import hojin      # 法人評価と計画番号ごとの評価
 from . import migrate    # まるごと移行（8表を1ファイルで書き出し・取り込み）
+from . import progress_import  # 進捗状況報告の取り込み（xlsx の報告内容 → progress_text）
+from . import yearview   # トップページの年度ごとの表示（構成員向け・開示の設定に従う）

@@ -63,6 +63,8 @@
   .trow.done { color:#9ca3af; }
   .trow.done > .cell { font-size:0.8rem; }   /* 行に文字サイズを付けると em 指定の番号列がずれる */
   .crep { background:#f0fdf4; }
+  .trow textarea.ptxt { width:100%; min-height:12em; font-family:inherit; font-size:0.84rem; line-height:1.6; border:1px solid #86efac; border-radius:5px; padding:5px 7px; }
+  .crep .line, .cpln .line { display:flex; gap:6px; margin-top:5px; }
   .crep .at { font-size:0.68rem; color:#166534; font-weight:700; }
   .sub2 { margin-top:5px; padding-top:4px; border-top:1px dashed #bbf7d0; font-size:0.8rem; }
   .sub2 .lbl { color:#166534; }
@@ -151,6 +153,8 @@ const U = {
   data: '{{ url_for("mid_term_progress.api_progress") }}',
   cmt: '{{ url_for("mid_term_progress.api_editor_comment") }}',
   st: '{{ url_for("mid_term_progress.api_editor_status") }}',
+  ptx: '{{ url_for("mid_term_progress.api_editor_progress_text") }}',
+  pln: '{{ url_for("mid_term_progress.api_editor_plan_text") }}',
 };
 let DATA = null;
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -201,17 +205,37 @@ function renderBlock(b){
       ? `<button type="button" class="sbtn" onclick='setSt(${J}, "requested", "${bid(b)}")'>承認を取り消す</button>`
       : (d.editor_status ? `<button type="button" class="sbtn ok" onclick='setSt(${J}, "confirmed", "${bid(b)}")'>✔ 承認</button>` : '');
     const noCell = `<div class="cell cno">${noHead}<span class="chip ${d.state}">${esc(STATE[d.state])}</span><div class="line">${approve}</div></div>`;
-    const plan = `<div class="cell" data-h="年度計画">` + (d.same ? `<div class="samenote">同上（細目${d.plan_src || '?'}と同じ計画）</div>` : '') + (d.plan_badge ? `<span class="fb">${esc(d.plan_badge)}</span>` : '') + 
-                 (d.plan_html || '<span class="pending">計画本文なし</span>') + `</div>`;
+    const plan = `<div class="cell cpln" data-h="年度計画">` + (d.same ? `<div class="samenote">同上（細目${d.plan_src || '?'}と同じ計画）</div>` : '') + (d.plan_badge ? `<span class="fb">${esc(d.plan_badge)}</span>` : '') + 
+                 `<div id="lv-${id}">` + (d.plan_html || '<span class="pending">計画本文なし</span>') +
+                 (d.same ? '' : `<div class="line"><button type="button" class="sbtn" onclick='editBox("l", "${id}")'>✎ 編集</button></div>`) + `</div>` +
+                 (d.same ? '' : `<div id="le-${id}" hidden><textarea id="lt-${id}" class="ptxt">${esc(d.plan_raw)}</textarea>` +
+                   `<div class="line"><button type="button" class="sbtn ok" onclick='savePlan(${J}, "${id}", "${bid(b)}")'>保存（上書き）</button>` +
+                   `<button type="button" class="sbtn" onclick='cancelBox("l", "${id}")'>取り消す</button></div></div>`) + `</div>`;
     const rep = `<div class="cell crep" data-h="進捗状況報告（執筆者）">` +
       (d.author_text_at ? `<div class="at">${esc(d.author_text_at)}</div>` : '') + (d.author_text && d.state === 'writing' ? `<span class="fb">執筆中</span>` : '') + 
-      (d.author_text ? d.author_html : (d.final_html || `<span class="pending">${pendingText(d)}</span>`)) + `</div>`;
+      `<div id="pv-${id}">` + (d.author_text ? d.author_html : (d.final_html || `<span class="pending">${pendingText(d)}</span>`)) +
+      `<div class="line"><button type="button" class="sbtn" onclick='editRep("${id}")'>✎ 編集</button></div></div>` +
+      `<div id="pe-${id}" hidden><textarea id="pt-${id}" class="ptxt">${esc(d.author_text || d.final_text)}</textarea>` +
+      `<div class="line"><button type="button" class="sbtn ok" onclick='saveRep(${J}, "${id}", "${bid(b)}")'>保存（上書き）</button>` +
+      `<button type="button" class="sbtn" onclick='cancelRep("${id}")'>取り消す</button></div></div>` + `</div>`;
     const cmt = `<div class="cell ccmt" data-h="評価室からのコメント">` + (d.comment_at ? `<div class="at">${esc(d.comment_at)}</div>` : '') +
       `<textarea id="c-${id}" placeholder="執筆者へのコメント（Markdown可）">${esc(d.comment)}</textarea>` +
       `<button type="button" class="sbtn" onclick='saveCmt(${J}, "${id}", "${bid(b)}")'>コメントを保存</button></div>`;
     h += `<div class="trow" data-owner="${esc(d.owner_group)}" data-state="${d.state}">${noCell}${plan}${rep}${cmt}</div>`;
   }
   return h;
+}
+function editBox(p, id){ document.getElementById(`${p}v-${id}`).hidden = true; document.getElementById(`${p}e-${id}`).hidden = false; document.getElementById(`${p}t-${id}`).focus(); }
+function cancelBox(p, id){ document.getElementById(`${p}e-${id}`).hidden = true; document.getElementById(`${p}v-${id}`).hidden = false; }
+async function savePlan(k, id, blk){
+  try { await post(U.pln, Object.assign({text: document.getElementById(`lt-${id}`).value}, k)); toast('年度計画を保存しました'); await load(blk); }
+  catch (e) { alert(e.message); }
+}
+function editRep(id){ document.getElementById(`pv-${id}`).hidden = true; document.getElementById(`pe-${id}`).hidden = false; document.getElementById(`pt-${id}`).focus(); }
+function cancelRep(id){ document.getElementById(`pe-${id}`).hidden = true; document.getElementById(`pv-${id}`).hidden = false; }
+async function saveRep(k, id, blk){
+  try { await post(U.ptx, Object.assign({text: document.getElementById(`pt-${id}`).value}, k)); toast('進捗状況報告を保存しました'); await load(blk); }
+  catch (e) { alert(e.message); }
 }
 async function saveCmt(k, id, blk){
   try { await post(U.cmt, Object.assign({stage: STAGE, comment: document.getElementById(`c-${id}`).value}, k)); toast('コメントを保存しました'); await load(blk); }

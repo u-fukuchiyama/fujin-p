@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>事業全貌 {{ year or '' }}年度</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans",sans-serif; background:#f1f5f9; color:#1f2937; font-size:14px; }
+  .bar { background:#1f2937; color:#fff; position:sticky; top:0; z-index:60; box-shadow:0 2px 6px rgba(0,0,0,.25); }
+  .row1 { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:6px 14px; }
+  .ttl { font-weight:700; font-size:0.95rem; white-space:nowrap; margin-right:6px; }
+  .quick { margin-left:auto; display:inline-flex; gap:5px; align-items:center; flex-wrap:wrap; }
+  .q { font-size:0.74rem; font-weight:700; color:#fff; text-decoration:none; padding:3px 9px; border-radius:6px; white-space:nowrap; }
+  .q:hover { filter:brightness(1.12); }
+  .q.home { background:#e74c3c; } .q.back { background:#4f46e5; } .q.gray { background:#475569; } .q.mid { background:#6d28d9; }
+  .tg { background:#374151; color:#e5e7eb; border:1px solid #4b5563; border-radius:6px; font-size:0.76rem; padding:3px 10px; cursor:pointer; white-space:nowrap; font-family:inherit; }
+  .panel { border-top:1px solid #374151; padding:6px 14px; max-height:40vh; overflow:auto; }
+  .panel[hidden] { display:none !important; }
+  .tocin { background:#fff; border-radius:6px; padding:5px 10px; display:flex; flex-wrap:wrap; gap:3px 10px; align-items:center; font-size:0.66rem; }
+  .tocg { display:inline-flex; gap:2px; align-items:center; flex-wrap:wrap; }
+  .tocg .gl { color:#9ca3af; margin-right:1px; white-space:nowrap; }
+  .tocin a { display:inline-block; padding:0 4px; min-width:1.9em; text-align:center; border:1px solid #d1d5db; color:#374151; border-radius:3px; text-decoration:none; line-height:1.5; }
+  .tocin a:hover { background:#eef2ff; border-color:#6366f1; }
+  .wrap { max-width:1600px; margin:0 auto; padding:10px 14px 80px; }
+  .note { background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; margin:14px 0; font-size:0.84rem; color:#475569; }
+  .goalh { background:#4c2c7f; color:#fff; border-radius:8px 8px 0 0; padding:6px 14px; margin-top:14px; display:flex; gap:10px; align-items:center; }
+  .goalh .code { background:rgba(0,0,0,.25); border-radius:10px; padding:1px 10px; font-size:0.78rem; font-weight:700; }
+  .goalh .gt { font-weight:700; font-size:0.9rem; }
+  .blk { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.08); scroll-margin-top:60px; }
+  .planh { background:#374151; color:#fff; padding:6px 14px; display:flex; gap:10px; align-items:center; }
+  .planh .no { background:#6d28d9; border-radius:12px; padding:1px 12px; font-weight:800; font-size:0.9rem; }
+  .midp { background:#eef2ff; border-left:4px solid #6366f1; padding:6px 14px; font-size:0.84rem; }
+  .lbl { font-size:0.7rem; font-weight:700; color:#4f46e5; margin-bottom:2px; }
+  .midp ul, .midp p, .cell ul, .cell ol, .cell p, .evbox p, .evbox ul { margin:2px 0; } .cell ul, .cell ol, .midp ul, .evbox ul { padding-left:18px; }
+  .thead, .trow { display:grid; grid-template-columns:{{ '6em' }} {% for c in cols %}{{ {'plan':'1fr','progress':'1.4fr','result':'1.4fr','cmt':'0.8fr'}[c] }} {% endfor %}; }
+  .thead { background:#4b5563; color:#fff; font-size:0.78rem; font-weight:700; }
+  .thead > div { padding:5px 10px; }
+  .trow { border-bottom:1px solid #e5e7eb; font-size:0.86rem; line-height:1.65; }
+  .trow > .cell { padding:8px 10px; border-right:1px solid #eef2f7; min-width:0; }
+  .trow > .cell:last-child { border-right:none; }
+  .cno { background:#f8fafc; font-weight:800; color:#1e3a8a; font-size:0.95rem; }
+  .cprog { background:#f0fdf4; } .cres { background:#eff6ff; } .ccmt { background:#fffbeb; font-size:0.8rem; }
+  .ccmt .cl { display:block; font-size:0.68rem; font-weight:700; color:#92400e; margin-top:2px; }
+  .trow.done { color:#9ca3af; } .trow.done > .cell { font-size:0.8rem; }
+  .samenote { font-size:0.72rem; font-weight:700; color:#6d28d9; margin-bottom:2px; }
+  .fb { display:inline-block; font-size:0.66rem; font-weight:700; color:#92400e; background:#fef3c7; border:1px solid #fcd34d; border-radius:9px; padding:0 8px; margin-bottom:3px; }
+  .pending { color:#9ca3af; font-style:italic; }
+  .evbox { background:#fffbeb; border-top:3px solid #fbbf24; padding:8px 14px 10px; display:grid; grid-template-columns:1fr 1fr; gap:14px; font-size:0.84rem; }
+  .evbox b { color:#92400e; font-size:0.8rem; }
+  .sc { display:inline-block; background:#166534; color:#fff; border-radius:10px; padding:0 9px; font-weight:800; font-size:0.8rem; margin-left:4px; }
+  .sc.com { background:#7c3aed; }
+  .st { display:inline-block; font-size:0.66rem; background:#fef3c7; color:#92400e; border-radius:9px; padding:0 7px; margin-left:4px; }
+  @media (max-width:760px) {
+    .thead { display:none; }
+    .thead, .trow { grid-template-columns:1fr; }
+    .trow > .cell { border-right:none; border-bottom:1px dashed #eef2f7; }
+    .trow > .cell[data-h]::before { content:attr(data-h); display:block; font-size:0.68rem; font-weight:700; color:#64748b; }
+    .evbox { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+{% set HEAD = {'plan':'年度計画', 'progress':'進捗状況報告', 'result':'業務実績報告', 'cmt':'評価室からのコメント'} %}
+<div class="bar">
+  <div class="row1">
+    <span class="ttl">📊 事業全貌</span>
+    {% set pm_label = (year ~ '年度') if year in years else '年度' %}{% set pm_cur = 'y' ~ year %}{% set pm_years = years %}{% set pm_inpage = false %}
+    {% include 'mid_term_progress/_period_menu.html' %}
+    <span class="quick">
+      {% if can_upload %}<a class="q back" href="{{ url_for('mid_term_progress.editor') }}{% if year %}?year={{ year }}{% endif %}">🧩 編集者⇒</a>{% endif %}
+      <a class="q home" href="{{ url_for('mid_term_progress.return_to_fujin') }}">🏠 FUJIN-P</a>
+    </span>
+    {% if blocks %}<button type="button" class="tg" id="tocT" onclick="tog()">📋 目次 <span>▾</span></button>{% endif %}
+  </div>
+  {% if blocks %}
+  <div class="panel" id="toc" hidden><div class="tocin">
+    {% set ns = namespace(g=none) %}
+    {% for b in blocks %}{% if b.goal != ns.g %}{% if not loop.first %}</span>{% endif %}<span class="tocg"><span class="gl">{{ b.goal }}</span>{% set ns.g = b.goal %}{% endif %}<a href="#b-{{ b.mid_plan_no }}-{{ b.annual_plan_no }}" onclick="tog()">{{ b.annual_plan_no }}</a>{% if loop.last %}</span>{% endif %}{% endfor %}
+  </div></div>
+  {% endif %}
+</div>
+
+<div class="wrap">
+{% if not blocks %}
+  <div class="note">{% if year %}{{ year }}年度は，まだ構成員に開示されていません．{% else %}構成員に開示している年度はまだありません．{% endif %}</div>
+{% else %}
+  {% set ns2 = namespace(g=none) %}
+  {% for b in blocks %}
+  {% if b.goal != ns2.g %}<div class="goalh"><span class="code">{{ b.goal }}</span><span class="gt">{{ b.goal_title }}</span></div>{% set ns2.g = b.goal %}{% endif %}
+  <div class="blk" id="b-{{ b.mid_plan_no }}-{{ b.annual_plan_no }}">
+    <div class="planh"><span class="no">計画番号 {{ b.mid_plan_no }}</span></div>
+    {% if b.mid_plan_html %}<div class="midp"><div class="lbl">中期計画</div>{{ b.mid_plan_html|safe }}</div>{% endif %}
+    <div class="thead"><div>番号</div>{% for c in cols %}<div>{{ HEAD[c] }}</div>{% endfor %}</div>
+    {% for d in b.details %}
+    {% if d.done %}
+    <div class="trow done"><div class="cell cno">{{ d.label }}</div>{% for c in cols %}<div class="cell">{% if loop.first %}対応済み{% endif %}</div>{% endfor %}</div>
+    {% else %}
+    <div class="trow">
+      <div class="cell cno">{{ d.label }}</div>
+      {% for c in cols %}
+      {% if c == 'plan' %}
+      <div class="cell" data-h="年度計画">{% if d.same %}<div class="samenote">同上（細目{{ d.plan_src or '?' }}と同じ計画）</div>{% endif %}{% if d.plan_badge %}<span class="fb">{{ d.plan_badge }}</span>{% endif %}{{ d.plan_html|safe if d.plan_html else '<span class="pending">－</span>'|safe }}</div>
+      {% elif c == 'progress' %}
+      <div class="cell cprog" data-h="進捗状況報告">{% if d.prog_badge %}<span class="fb">{{ d.prog_badge }}</span>{% endif %}{{ d.prog_html|safe if d.prog_html else '<span class="pending">－</span>'|safe }}</div>
+      {% elif c == 'result' %}
+      <div class="cell cres" data-h="業務実績報告">{% if d.res_badge %}<span class="fb">{{ d.res_badge }}</span>{% endif %}{{ d.res_html|safe if d.res_html else '<span class="pending">－</span>'|safe }}</div>
+      {% else %}
+      <div class="cell ccmt" data-h="評価室からのコメント">{% for cm in d.comments %}<span class="cl">💬 {{ cm.label }}</span>{{ cm.html|safe }}{% endfor %}</div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% if b.eval %}
+    <div class="evbox">
+      <div><b>大学の自己評価</b>{% if b.eval.self_eval is not none %}<span class="sc">{{ b.eval.self_eval }}</span>{% if b.eval.drafting and b.eval.committee_eval is none %}<span class="st">とりまとめ中</span>{% endif %}{% else %}<span class="pending"> －</span>{% endif %}{{ b.eval.self_html|safe }}</div>
+      <div><b>評価委員会の評価</b>{% if b.eval.committee_eval is not none %}<span class="sc com">{{ b.eval.committee_eval }}</span>{% else %}<span class="pending"> －</span>{% endif %}{{ b.eval.committee_html|safe }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+{% endif %}
+</div>
+<script>
+function tog(){ const p = document.getElementById('toc'); if (!p) return; p.hidden = !p.hidden; document.querySelector('#tocT span').textContent = p.hidden ? '▾' : '▴'; }
+</script>
+</body>
+</html>

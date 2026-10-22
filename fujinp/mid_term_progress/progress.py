@@ -17,7 +17,7 @@ from flask import render_template, request, jsonify, redirect, url_for
 from . import mid_term_progress_bp
 from .routes import (login_required, require_upload_perm, _fdb, _s, safe_int, md_to_html,
                      _goal_code, _goal_title, is_same, resolve_same, is_done)
-from .workflow import REQ_TABLE, _req_table_ready, _author_cols_ready, STAGE_LABEL, load_active_sets
+from .workflow import REQ_TABLE, _req_table_ready, _author_cols_ready, STAGE_LABEL, load_active_sets, load_disclose
 
 
 def _years(cur):
@@ -109,7 +109,8 @@ def api_editor_summary():
     return jsonify({'success': True, 'year': year, 'details': len(live), 'assigned': len(assigned),
                     'unassigned': len(live) - len(assigned), 'done': len(rows) - len(live),
                     'plans': len({(r['mid_plan_no'], r['annual_plan_no']) for r in rows}),
-                    'stages': stages, 'state_label': STATE_LABEL, 'active': load_active_sets(), 'hojin': hj})
+                    'stages': stages, 'state_label': STATE_LABEL, 'active': load_active_sets(), 'hojin': hj,
+                    'disclose': load_disclose().get(year)})
 
 
 # -----------------------------------------------
@@ -200,6 +201,7 @@ def build_blocks(cur, year, stage, visible=None):
                 'plan_html': md_to_html(text_of.get(src.get(r['detail_no'])) or '') if same
                              else md_to_html(text_of.get(r['detail_no']) or ''),
                 'plan_badge': badge_of.get(src.get(r['detail_no'])) if same else badge_of.get(r['detail_no']),
+                'plan_raw': '' if same else (text_of.get(r['detail_no']) or ''),
                 'state': _state(q), 'editor_status': q.get('editor_status'), 'author_status': q.get('author_status'),
                 'author_text': q.get('author_text') or '', 'author_html': md_to_html(q.get('author_text') or ''),
                 'author_text_at': _s(q.get('author_text_at')), 'author_self_eval': q.get('author_self_eval'),
@@ -237,3 +239,78 @@ def api_progress():
     with _fdb() as (cur, conn):
         blocks = build_blocks(cur, year, stage)
     return jsonify({'success': True, 'year': year, 'stage': stage, 'blocks': blocks})
+
+
+@mid_term_progress_bp.route('/api/editor/progress_text', methods=['POST'])
+@login_required
+@require_upload_perm
+def api_editor_progress_text():
+    """編集者が進捗状況報告を書き換える（上書き）。
+    正本 T_ann_plan_details.progress_text に入れ，執筆者の進捗状況報告（T_ann_plan_requests.author_text，
+    stage='progress'）が入っている細目はそれも同じ本文で上書きする（状態の列は触らない）。"""
+    from flask import session
+    from .workflow import _key_from, _jbody, KEY
+    from .routes import get_jst_now
+    b = _jbody()
+    k = _key_from(b)
+    if not k:
+        return jsonify({'success': False, 'error': '細目を指定してください'}), 400
+    text = (b.get('text') or '').replace('\r\n', '\n').strip() or None
+    now, uid = get_jst_now(), session.get('user_id')
+    args = tuple(k[c] for c in KEY)
+    with _fdb() as (cur, conn):
+        cur.execute('SELECT id, plan_text FROM T_ann_plan_details WHERE fiscal_year=%s AND mid_plan_no=%s '
+                    'AND annual_plan_no=%s AND detail_no=%s', args)
+        r = cur.fetchone()
+        if r is None:
+            return jsonify({'success': False, 'error': '細目が見つかりません'}), 404
+        if is_done(r.get('plan_text')):
+            return jsonify({'success': False, 'error': 'この細目は「対応済み」です'}), 400
+        try:
+            cur.execute('UPDATE T_ann_plan_details SET progress_text=%s, updated_at=%s, updated_by=%s WHERE id=%s',
+                        (text, now, uid, r['id']))
+            if _req_table_ready(cur) and _author_cols_ready(cur):
+                cur.execute("UPDATE %s SET author_text=%%s, author_text_at=%%s, author_text_by=%%s "
+                            "WHERE fiscal_year=%%s AND mid_plan_no=%%s AND annual_plan_no=%%s AND detail_no=%%s "
+                            "AND stage='progress' AND author_text IS NOT NULL AND TRIM(author_text) <> ''" % REQ_TABLE,
+                            (text, now, uid) + args)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+    return jsonify({'success': True})
+
+
+@mid_term_progress_bp.route('/api/editor/plan_text', methods=['POST'])
+@login_required
+@require_upload_perm
+def api_editor_plan_text():
+    """編集者が年度計画（正本 T_ann_plan_details.plan_text）を書き換える（上書き）。
+    【同上】の細目と対応済みの細目は書き換えない（【同上】は出どころの細目を直す）。"""
+    from flask import session
+    from .workflow import _key_from, _jbody, KEY
+    from .routes import get_jst_now
+    b = _jbody()
+    k = _key_from(b)
+    if not k:
+        return jsonify({'success': False, 'error': '細目を指定してください'}), 400
+    text = (b.get('text') or '').replace('\r\n', '\n').strip() or None
+    now, uid = get_jst_now(), session.get('user_id')
+    with _fdb() as (cur, conn):
+        cur.execute('SELECT id, plan_text FROM T_ann_plan_details WHERE fiscal_year=%s AND mid_plan_no=%s '
+                    'AND annual_plan_no=%s AND detail_no=%s', tuple(k[c] for c in KEY))
+        r = cur.fetchone()
+        if r is None:
+            return jsonify({'success': False, 'error': '細目が見つかりません'}), 404
+        if is_done(r.get('plan_text')):
+            return jsonify({'success': False, 'error': 'この細目は「対応済み」です'}), 400
+        if is_same(r.get('plan_text')):
+            return jsonify({'success': False, 'error': 'この細目は【同上】です．出どころの細目の計画を直してください'}), 400
+        try:
+            cur.execute('UPDATE T_ann_plan_details SET plan_text=%s, updated_at=%s, updated_by=%s WHERE id=%s',
+                        (text, now, uid, r['id']))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+    return jsonify({'success': True})

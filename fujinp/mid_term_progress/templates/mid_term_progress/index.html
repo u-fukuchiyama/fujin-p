@@ -59,6 +59,21 @@
     </div>
 
     <div class="card">
+        <h2>📝 進捗状況報告の取り込み（xlsx の報告内容 → 進捗状況報告）</h2>
+        <p class="note">「年度計画番号」「年度計画細目番号」「報告内容」（K列）を持つ xlsx を読み，指定した年度の細目の進捗状況報告に差し込みます．
+            何度取り込んでも結果は同じです（本文が同じ細目は書きません）．執筆者がシステムに入力した進捗状況報告があれば，それも同じ本文で上書きします．報告内容が空の行と対応済みの細目は触りません．
+            ファイルを選ぶと点検結果が出ますので，確かめてから「差し込む」を押してください．</p>
+        <div class="row">
+            <label style="font-size:0.86rem">年度 <input type="number" id="ipYear" min="2016" max="2100" aria-label="年度"></label>
+            <input type="file" id="ipFile" accept=".xlsx" onchange="ipRun(true)">
+            <button class="btn" type="button" onclick="ipRun(true)">🔍 点検</button>
+            <button class="btn danger" type="button" id="ipGo" onclick="ipRun(false)" disabled>📥 差し込む</button>
+        </div>
+        <div id="ipMsg" class="msg"></div>
+        <div id="ipPlan"></div>
+    </div>
+
+    <div class="card">
         <h2>🚚 まるごと移行（サイト間でデータを運ぶ）</h2>
         <p class="note">事業全貌が使う8表（常設4表と，執筆依頼・法人評価・設定の4表）を1つのファイルにまとめて運びます．
             移し元で「書き出す」，移し先で同じファイルを選んで「取り込む」だけです．
@@ -198,6 +213,39 @@ async function mgImport(){
     msg.className = 'msg ' + (r.success ? 'ok' : 'ng');
     msg.textContent = r.success ? ['取り込みました．'].concat(r.notes || [], r.report || []).join('\n') : ('エラー: ' + r.error);
     if (r.success) { loadStatus(); mgStatus(); document.getElementById('mgPlan').innerHTML = ''; }
+  } catch (e) { msg.className = 'msg ng'; msg.textContent = 'エラー: ' + e; }
+}
+(function(){
+  const y = document.getElementById('ipYear');
+  if (!y.value) { const d = new Date(); y.value = d.getMonth() < 3 ? d.getFullYear() - 1 : d.getFullYear(); }
+})();
+async function ipRun(dry){
+  const f = document.getElementById('ipFile').files[0], y = document.getElementById('ipYear').value;
+  const msg = document.getElementById('ipMsg'), box = document.getElementById('ipPlan'), go = document.getElementById('ipGo');
+  if (!f) { if (!dry) alert('xlsx を選んでください'); return; }
+  if (!y) { alert('年度を入れてください'); return; }
+  if (!dry && !confirm(`${y}年度の進捗状況報告に差し込みます（同じ細目の進捗状況報告と執筆者の報告は書き換わります）．\nよろしいですか？`)) return;
+  go.disabled = true;
+  const fd = new FormData(); fd.append('file', f); fd.append('year', y); fd.append('dry', dry ? '1' : '0');
+  msg.className = 'msg'; msg.textContent = dry ? '点検中…' : '差し込み中…';
+  try {
+    const r = await (await fetch('{{ url_for("mid_term_progress.api_import_progress") }}', {method:'POST', body:fd})).json();
+    if (!r.success) { msg.className = 'msg ng'; msg.textContent = 'エラー: ' + r.error; box.innerHTML = ''; return; }
+    const c = r.counts, n = k => c[k] || 0;
+    const sum = `新たに入れる ${n('update')}，書き換える ${n('overwrite')}，変更なし ${n('same')}，空欄 ${n('skip_empty')}，対応済み ${n('skip_done')}，細目なし ${n('missing')}，執筆者の報告を上書き ${n('author')}`;
+    msg.className = 'msg ' + (dry ? '' : 'ok');
+    msg.textContent = dry ? `【点検】${r.year}年度，ファイルの ${r.file_rows} 行 → ${sum}`
+                          : `${r.year}年度の進捗状況報告に ${r.written} 細目を差し込みました（執筆者の報告の上書き ${r.written_author}．${sum}）`;
+    const order = {missing:0, overwrite:1, update:2, skip_done:3, skip_empty:4, same:5};
+    const its = r.items.slice().sort((a, b) => (order[a.action] - order[b.action]));
+    let h = '<table class="st"><tr><th>番号-細目</th><th>処置</th><th>字数</th><th>ファイルの行</th><th>備考</th></tr>';
+    its.forEach(it => {
+      const col = it.action === 'missing' ? '#b91c1c' : (it.action === 'overwrite' ? '#9a3412' : (it.action === 'same' ? '#6b7280' : '#1f2937'));
+      h += `<tr><td>${esc(it.no)}</td><td style="color:${col}">${esc(it.label)}</td><td>${esc(it.chars)}</td><td>${esc(it.lines.join(','))}</td><td>${esc(it.how)}</td></tr>`;
+    });
+    box.innerHTML = h + '</table>';
+    if (dry) go.disabled = !(n('update') + n('overwrite') + n('author'));
+    else loadStatus();
   } catch (e) { msg.className = 'msg ng'; msg.textContent = 'エラー: ' + e; }
 }
 loadStatus();

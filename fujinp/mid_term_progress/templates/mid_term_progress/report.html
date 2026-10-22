@@ -268,6 +268,9 @@
             .plan-block-header { flex-wrap:wrap; }
             .page-header { padding:10px 14px; }
         }
+        .cmt-box { margin-top:6px; padding:5px 8px; background:#fffbeb; border:1px solid #fde68a; border-left:3px solid #f59e0b; border-radius:5px; font-size:0.86em; color:#78350f; }
+        .cmt-box .cmt-lbl { display:block; font-size:0.8em; font-weight:700; color:#92400e; margin-bottom:2px; }
+        .cmt-box p { margin:0; }
         .fb { display:inline-block; font-size:0.66rem; font-weight:700; color:#92400e; background:#fef3c7; border:1px solid #fcd34d; border-radius:9px; padding:0 8px; margin-bottom:3px; }
         /* 年度ごとの評価（自己評価・評価委員会） */
         .annual-table tbody tr.eval-row td { background:#fffbeb; border-top:1px dashed #fcd34d; font-size:0.82rem; }
@@ -348,6 +351,7 @@
 
     </style>
 </head>
+{% macro cmt_box(cs) %}{% for c in cs %}<div class="cmt-box"><span class="cmt-lbl">💬 {{ c.label }}</span>{{ md_to_html(c.text)|safe }}</div>{% endfor %}{% endmacro %}
 {% macro eval_rows(yr, evs) %}{% for ev in evs %}
 <tr class="eval-row">
     <td class="no-cell"><span class="m-year">{{ yr }}年度</span>評価{% if ev.no_label %}<br>{{ ev.no_label }}{% endif %}</td>
@@ -362,11 +366,10 @@
     {% set last_mid = (midterm_map.keys()|list)[-1] if midterm_map else None %}
     <div class="fb-row fb-main">
         <span class="fb-title" title="生成日時: {{ generated_at }}">📊 事業全貌</span>
-        {% if last_mid %}
-        <button class="focus-btn main-focus" data-mid="{{ last_mid }}" onclick="setFocus({{ last_mid }})"
-                title="{{ midterm_map[last_mid].label }}{% if midterm_map[last_mid].years %}（{{ midterm_map[last_mid].years[0] }}～{{ midterm_map[last_mid].years[-1] }}年度）{% endif %}">{{ midterm_map[last_mid].label }}</button>
-        {% endif %}
-        <span class="fb-other" id="fbOther" hidden></span>
+        {% set pm_terms = [] %}{% for mid_id, mid in midterm_map.items() %}{% set _ = pm_terms.append((mid_id, mid.label)) %}{% endfor %}
+        {% set pm_label = ('第' ~ init_focus ~ '中期全部') if init_focus and (init_focus|int) in midterm_map else '' %}
+        {% set pm_cur = init_focus %}{% set pm_years = year_choices %}{% set pm_inpage = true %}
+        {% include 'mid_term_progress/_period_menu.html' %}
         <span class="fb-quick">
             {% if can_upload %}<a href="{{ url_for('mid_term_progress.editor') }}" class="fb-q editor" title="編集者ダッシュボード">🧩 編集者⇒</a>{% endif %}
             {% if author_open is not none or can_upload %}<a href="{{ url_for('mid_term_progress.author') }}" class="fb-q author" title="執筆者ダッシュボード">✍️ 執筆者⇒{% if author_open %}<span class="fb-badge">{{ author_open }}</span>{% endif %}</a>{% endif %}
@@ -375,7 +378,7 @@
         </span>
         <button type="button" class="fb-toggle" id="tocToggle" onclick="toggleToc()" aria-expanded="false" title="計画番号の目次（開いているあいだは上部に固定）">
             📋 目次 <span id="tocArrow">▾</span></button>
-        <button type="button" class="fb-toggle" id="fbToggle" onclick="toggleTools()" aria-expanded="false" title="期の切り替え・列幅の調整">
+        <button type="button" class="fb-toggle" id="fbToggle" onclick="toggleTools()" aria-expanded="false" title="列幅の調整">
             ⚙ 表示 <span id="fbArrow">▾</span></button>
     </div>
     <!-- 目次（畳み込み．開いているあいだは上部に固定） -->
@@ -403,14 +406,6 @@
     </div>
     <!-- 畳み込み：列幅の調整・機能ボタン -->
     <div class="fb-row fb-tools" id="fbTools" hidden>
-        <span class="fb-periods">
-            <span class="focus-bar-label">期</span>
-            <button class="focus-btn all" onclick="setFocus(null)">全期間</button>
-            {% for mid_id, mid in midterm_map.items() %}
-            <button class="focus-btn" data-mid="{{ mid_id }}" onclick="setFocus({{ mid_id }})"
-                    title="{{ mid.label }}{% if mid.years %}（{{ mid.years[0] }}～{{ mid.years[-1] }}年度）{% endif %}">{{ mid.label }}</button>
-            {% endfor %}
-        </span>
         <div class="width-ctrl">
             <span class="wc-end">計画</span>
             <input type="range" id="planRatio" min="20" max="80" step="5" value="50"
@@ -543,6 +538,7 @@ function toggleTools(){
                                         {% if sub.annual_plan %}
                                             <div class="cell-content">{{ md_to_html(sub.annual_plan)|safe }}</div>
                                         {% else %}<span class="empty-cell">－</span>{% endif %}
+                                        {{ cmt_box(sub.plan_comments|default([])) }}
                                     </td>
                                     <td>
                                         <span class="cell-label">年度実績</span>
@@ -550,6 +546,7 @@ function toggleTools(){
                                         {% if sub.report_content %}
                                             <div class="cell-content">{{ md_to_html(sub.report_content)|safe }}</div>
                                         {% else %}<span class="empty-cell">－</span>{% endif %}
+                                        {{ cmt_box(sub.report_comments|default([])) }}
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -623,8 +620,8 @@ function toggleTools(){
                         <tr>
                             {% if loop.first %}<td class="year-cell" rowspan="{{ subs|length + (yr_data.evals|default([])|length) }}">{{ yr }}</td>{% endif %}
                             <td class="no-cell"><span class="m-year">{{ yr }}年度</span>{{ sub.no_label or '－' }}</td>
-                            <td><span class="cell-label">年度計画</span>{% if sub.plan_badge %}<span class="fb">{{ sub.plan_badge }}</span>{% endif %}{% if sub.annual_plan %}<div class="cell-content">{{ md_to_html(sub.annual_plan)|safe }}</div>{% else %}<span class="empty-cell">－</span>{% endif %}</td>
-                            <td><span class="cell-label">年度実績</span>{% if sub.report_badge %}<span class="fb">{{ sub.report_badge }}</span>{% endif %}{% if sub.report_content %}<div class="cell-content">{{ md_to_html(sub.report_content)|safe }}</div>{% else %}<span class="empty-cell">－</span>{% endif %}</td>
+                            <td><span class="cell-label">年度計画</span>{% if sub.plan_badge %}<span class="fb">{{ sub.plan_badge }}</span>{% endif %}{% if sub.annual_plan %}<div class="cell-content">{{ md_to_html(sub.annual_plan)|safe }}</div>{% else %}<span class="empty-cell">－</span>{% endif %}{{ cmt_box(sub.plan_comments|default([])) }}</td>
+                            <td><span class="cell-label">年度実績</span>{% if sub.report_badge %}<span class="fb">{{ sub.report_badge }}</span>{% endif %}{% if sub.report_content %}<div class="cell-content">{{ md_to_html(sub.report_content)|safe }}</div>{% else %}<span class="empty-cell">－</span>{% endif %}{{ cmt_box(sub.report_comments|default([])) }}</td>
                         </tr>
                         {% endfor %}{{ eval_rows(yr, yr_data.evals|default([])) }}{% else %}
                         <tr><td class="year-cell">{{ yr }}</td><td class="no-cell"><span class="m-year">{{ yr }}年度</span>－</td><td><span class="cell-label">年度計画</span><span class="empty-cell">－</span></td><td><span class="cell-label">年度実績</span><span class="empty-cell">－</span></td></tr>
@@ -677,29 +674,18 @@ function toggleTools(){
     window.addEventListener('resize', applyColWidths);
 
     function setFocus(midId, noScroll) {
-        document.querySelectorAll('.focus-btn').forEach(b => b.classList.remove('active'));
-        if (midId === null) {
-            document.querySelector('.fb-tools .focus-btn.all')?.classList.add('active');
-        } else {
-            document.querySelectorAll(`.focus-btn[data-mid="${midId}"]`).forEach(b => b.classList.add('active'));
-        }
-        // 選んだ期だけを出す（全期間ならすべて）．目次も同じ期に合わせる
+        // 選んだ期だけを出す．目次も同じ期に合わせる
         document.querySelectorAll('.midterm-section').forEach(sec => {
             sec.classList.toggle('hidden-term', midId !== null && parseInt(sec.dataset.mid) !== midId);
         });
         document.querySelectorAll('.bar-toc').forEach(t => {
             t.classList.toggle('hidden-term', midId !== null && parseInt(t.dataset.mid) !== midId);
         });
-        // 1行目には，いまの期が最新の期以外なら，その期のボタンも出す
-        const other = document.getElementById('fbOther');
-        const mainMid = parseInt(document.querySelector('.main-focus')?.dataset.mid);
-        if (other) {
-            if (midId === null) { other.textContent = '全期間'; other.hidden = false; }
-            else if (midId !== mainMid) {
-                const b = document.querySelector(`.fb-tools .focus-btn[data-mid="${midId}"]`);
-                other.textContent = b ? b.textContent : ''; other.hidden = !b;
-            } else other.hidden = true;
-        }
+        // 表示期間のボタンの表示名と，選択中の印
+        const key = midId === null ? 'all' : String(midId);
+        document.querySelectorAll('#pm a[data-focus]').forEach(a => a.classList.toggle('cur', a.dataset.focus === key));
+        const cur = document.querySelector(`#pm a[data-focus="${key}"]`);
+        if (cur) document.getElementById('pmLabel').textContent = cur.textContent;
         if (!noScroll) {
             const target = midId !== null ? document.getElementById(`midterm-${midId}`) : document.querySelector('.midterm-section');
             if (target) {
@@ -708,8 +694,14 @@ function toggleTools(){
             }
         }
     }
-    // 最初は最新の期（第2期）だけを出す
-    (function(){ const m = document.querySelector('.main-focus'); if (m) setFocus(parseInt(m.dataset.mid), true); })();
+    function pmPick(f) {
+        setFocus(f === 'all' ? null : f);
+        try { history.replaceState(null, '', '?focus=' + f); } catch (e) {}
+        document.getElementById('pm').open = false;
+        return false;
+    }
+    // 最初は ?focus= の期（無ければ最新の期）だけを出す
+    (function(){ const f = {{ init_focus|tojson }}; if (f) setFocus(parseInt(f), true); })();
     document.querySelectorAll('a[href^="#"]').forEach(a => {
         a.addEventListener('click', e => {
             const target = document.querySelector(a.getAttribute('href'));
