@@ -73,6 +73,14 @@ Web タブで Flask の Web アプリを1つ作っておきます．Python の�
 アプシャを最初に上書きするのは，カーネルの取り込みがアプシャの新しい版の機能だからです．
 古い種のアプシャにはカーネルの取り込みの画面がありません．
 
+## 配布ファイル
+
+導入スクリプト [fujinp_kernel_install.py](/migration_assistant/dist/fujinp_kernel_install.py) は，新しいサイトのホーム直下（`/home/<アカウント名>/`）に置いて使います．
+ふつうはカーネルの JSON から取り出すので，ダウンロードが要るのはカーネルの JSON が手元に無いときです．
+組み立て道具 [build_installer.py](/migration_assistant/dist/build_installer.py) は，配布元のサイトで導入スクリプトを作り直すときに使います．
+配布元のサイトでは `~/fujinp/migration_assistant/` に入っているので，`python3 ~/fujinp/migration_assistant/build_installer.py` で実行します．
+どちらのダウンロードにも，配布元の FUJIN-P サイトへのログインが要ります．
+
 ## 段階ごとの手引き
 
 第1段階の手順は「第1段階マニュアル」に，第2段階の手順は「第2段階マニュアル」に，それぞれ順を追って書いてあります．

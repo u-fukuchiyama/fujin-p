@@ -32,7 +32,9 @@ python3 fujinp_kernel_install.py --list
 ホームディレクトリに `fujinp_kernel_install.py` ができ，その中のファイルの一覧が出ます．
 `--list` は何も書き込みません．
 
-カーネルの JSON が無いときは，FUJIN-P の公開リポジトリ（GitHub）の https://github.com/u-fukuchiyama/fujin-p/blob/main/fujinp/migration_assistant/data_for_distribution/fujinp_kernel_install.py か，FUJIN-P のサイトのまいあしの「🚚 別サイトへのインストール」の画面からスクリプトを入手します．
+カーネルの JSON が無いときは，導入スクリプト [fujinp_kernel_install.py](/migration_assistant/dist/fujinp_kernel_install.py) をダウンロードし，新しいサイトのホーム直下（`/home/<アカウント名>/`）に置いてください．
+ダウンロードには，配布元の FUJIN-P サイトへのログインが要ります．
+FUJIN-P の公開リポジトリ（GitHub）の https://github.com/u-fukuchiyama/fujin-p/blob/main/fujinp/migration_assistant/data_for_distribution/fujinp_kernel_install.py からも入手できます．
 
 ## 2. ファイルを展開する
 

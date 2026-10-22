@@ -21,7 +21,10 @@
 
 """
 まいあし (MaiAshi) Blueprint
-FUJIN-Pスタブの段階的構築をガイドするマイグレーションアシスタント
+
+2026-10-20 第1段：入口を1つにし，図書館（文書アーカイブの文書への目次）と
+配布ファイル（導入スクリプトと組み立て道具）だけを持つ形に作り直した．
+教材（かたりべ作品の並び）は第2段，教室は第3段で足す．
 """
 from flask import Blueprint
 
@@ -31,9 +34,6 @@ migration_assistant = Blueprint(
     url_prefix='/migration_assistant',
     template_folder='templates',
     static_folder=None,          # 2026-10-05 データ流出を防ぐため静的配信を無効化．復活させないこと
-    static_url_path='static'         # ← 追加
 )
 
 from . import migration_assistant_routes
-from . import install_guide   # 別サイトへのインストール（配布物と手引き）
-from . import migration_assistant_transfer   # 教材と履修記録のエクスポート／インポート（2026-10-09 追加）
