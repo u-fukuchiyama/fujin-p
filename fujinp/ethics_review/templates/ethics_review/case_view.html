@@ -3,43 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>学内公開 - 研究倫理審査</title>
+    <title>申請内容の閲覧 - 研究倫理審査</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif;
             background: linear-gradient(135deg, #4a3a7a 0%, #6d5fb8 100%);
-            min-height: 100vh; padding: 15px;
+            min-height: 100vh;
+            padding: 15px;
         }
-        .container { max-width: 1000px; margin: 0 auto; }
+        .container { max-width: 1100px; margin: 0 auto; }
         .header {
-            background: white; padding: 16px 24px; border-radius: 10px;
-            margin-bottom: 14px; display: flex; align-items: center;
+            background: white; padding: 14px 22px; border-radius: 10px;
+            margin-bottom: 12px; display: flex; align-items: center;
             gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
-        .header h1 { flex: 1; font-size: 1.3rem; color: #4a3a7a; min-width: 160px; }
+        .header h1 { flex: 1; font-size: 1.15rem; color: #4a3a7a; min-width: 200px; }
         .nav-btn {
-            padding: 9px 16px; background: #94a3b8; color: white; border: none;
-            border-radius: 6px; cursor: pointer; text-decoration: none; font-size: 0.88rem;
+            padding: 7px 13px; background: #6d5fb8; color: white; border: none;
+            border-radius: 6px; cursor: pointer; text-decoration: none;
+            font-size: 0.82rem; white-space: nowrap;
         }
+        .nav-btn.secondary { background: #94a3b8; }
         .nav-btn:hover { opacity: 0.9; }
+
         .card {
-            background: white; border-radius: 10px; padding: 20px 24px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            background: white; border-radius: 10px; padding: 16px 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 12px;
         }
         .card h2 {
-            font-size: 1rem; color: #4a3a7a; font-weight: 700;
-            border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 14px;
+            font-size: 0.95rem; color: #4a3a7a; font-weight: 700;
+            border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px;
         }
-        .ctrl-bar { margin-bottom: 12px; font-size: 0.86rem; }
-        .ctrl-bar select {
-            padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.86rem;
+
+        /* 閲覧専用であることを示す注意バナー */
+        .notice {
+            background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+            border-radius: 8px; padding: 10px 16px; font-size: 0.83rem;
+            margin-bottom: 12px; line-height: 1.7;
         }
-        table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
-        th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid #f3f4f6; }
-        th { background: #f8fafc; color: #6b7280; font-weight: 600; font-size: 0.78rem; }
-        .case-id { font-family: monospace; font-weight: 600; color: #6d5fb8; }
+
+        .case-meta { font-size: 0.85rem; line-height: 1.8; }
+        .case-meta .meta-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .case-meta .meta-label { color: #6b7280; min-width: 90px; font-weight: 600; }
+
         .status-badge {
             display: inline-block; padding: 2px 9px; border-radius: 10px;
             font-size: 0.72rem; font-weight: 700;
@@ -53,81 +61,153 @@
         .status-rejected { background: #fee2e2; color: #991b1b; }
         .status-not_applicable { background: #ccfbf1; color: #134e4a; }
         .status-withdrawn, .status-terminated { background: #f3f4f6; color: #6b7280; }
-        .empty-msg { text-align: center; color: #9ca3af; padding: 28px; font-size: 0.9rem; }
+
+        .doc-item {
+            display: flex; gap: 10px; align-items: center; padding: 8px 10px;
+            background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px;
+            margin-bottom: 6px; font-size: 0.85rem;
+        }
+        .doc-item .doc-title { font-weight: 600; color: #4a3a7a; }
+        .doc-item a { color: #6d5fb8; text-decoration: none; }
+        .doc-item a:hover { text-decoration: underline; }
+        .doc-version {
+            display: inline-block; font-size: 0.68rem; padding: 1px 6px;
+            border-radius: 4px; background: #e5e7eb; color: #6b7280; margin-left: 6px;
+        }
+        .doc-version.current { background: #d1fae5; color: #065f46; }
+
+        .empty-msg { text-align: center; color: #9ca3af; padding: 18px; font-size: 0.88rem; }
     </style>
 </head>
 <body>
 <div class="container">
+
     <div class="header">
-        <h1>📊 研究倫理審査 — 学内公開</h1>
-        <a href="{{ url_for('ethics_review.index') }}" class="nav-btn">← トップへ</a>
-        <a href="{{ url_for('ethics_review.public_approved') }}" class="nav-btn">承認案件一覧</a>
+        <h1>📄 申請内容の閲覧</h1>
+        <a href="{{ url_for('ethics_review.index') }}" class="nav-btn secondary">← トップへ</a>
+    </div>
+
+    <div class="notice">
+        この画面は申請内容（案件情報・提出書類）の閲覧専用です。内容は守秘の対象です。
+        審査の議論および担当委員に関する情報は含まれません。
     </div>
 
     <div class="card">
-        <h2>申請案件の受付状況</h2>
-        <div class="ctrl-bar">
-            年度：
-            <select id="sel-fy">
-                {% for y in range(current_fy, current_fy - 6, -1) %}
-                <option value="{{ y }}" {% if y == current_fy %}selected{% endif %}>{{ y }}年度</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div style="overflow-x:auto">
-            <table>
-                <thead>
-                <tr>
-                    <th>受付番号</th><th>受付日</th><th>ステータス</th>
-                    <th>最終日</th><th>最終状態</th>
-                </tr>
-                </thead>
-                <tbody id="tbody">
-                <tr><td colspan="5" class="empty-msg">読み込み中…</td></tr>
-                </tbody>
-            </table>
+        <h2>案件情報</h2>
+        <div id="case-meta" class="case-meta">
+            <div class="empty-msg">読み込み中…</div>
         </div>
     </div>
+
+    <div class="card">
+        <h2>申請書類</h2>
+        <div id="docs-area">
+            <div class="empty-msg">読み込み中…</div>
+        </div>
+    </div>
+
 </div>
 
 <script>
+const CASE_ID = {{ case_id }};
 const STATUS_LABELS = {{ status_labels | tojson }};
 const URL_BASE = '{{ url_for("ethics_review.index") }}';
+
+let caseView = null;
 
 function esc(s) {
     return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+function ajaxErr(xhr) {
+    if (xhr && xhr.responseJSON && xhr.responseJSON.error) return xhr.responseJSON.error;
+    if (xhr && xhr.status === 403) return '閲覧権限がありません';
+    if (xhr && xhr.status === 404) return '案件が見つかりません';
+    return '読み込みに失敗しました';
+}
+function fmtSize(bytes) {
+    if (bytes === null || bytes === undefined) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
 
-function loadCases() {
-    const fy = $('#sel-fy').val();
-    $.get(URL_BASE + 'api/public/cases', { fiscal_year: fy }, function(resp) {
+function loadView() {
+    $.get(URL_BASE + 'api/case/' + CASE_ID + '/view', function(resp) {
         if (!resp.success) {
-            $('#tbody').html('<tr><td colspan="5" class="empty-msg" style="color:#ef4444">' + esc(resp.error || '読み込み失敗') + '</td></tr>');
+            $('#case-meta').html('<div class="empty-msg" style="color:#ef4444">'
+                + esc(resp.error || '読み込み失敗') + '</div>');
+            $('#docs-area').html('');
             return;
         }
-        if (!resp.cases.length) {
-            $('#tbody').html('<tr><td colspan="5" class="empty-msg">該当する案件はありません</td></tr>');
-            return;
-        }
-        let rows = '';
-        resp.cases.forEach(c => {
-            rows += `
-            <tr>
-                <td><span class="case-id">${esc(c.case_display_id)}</span></td>
-                <td>${c.received_date || '—'}</td>
-                <td><span class="status-badge status-${c.status}">${esc(c.status_label)}</span></td>
-                <td>${c.final_date || '—'}</td>
-                <td>${c.final_label ? esc(c.final_label) : '—'}</td>
-            </tr>`;
-        });
-        $('#tbody').html(rows);
-    }).fail(() => {
-        $('#tbody').html('<tr><td colspan="5" class="empty-msg" style="color:#ef4444">通信エラー</td></tr>');
+        caseView = resp;
+        renderMeta();
+        renderDocs();
+    }).fail(function(xhr) {
+        $('#case-meta').html('<div class="empty-msg" style="color:#ef4444">'
+            + esc(ajaxErr(xhr)) + '</div>');
+        $('#docs-area').html('');
     });
 }
 
-$('#sel-fy').on('change', loadCases);
-$(document).ready(loadCases);
+function renderMeta() {
+    const c = caseView.case;
+    let html = '';
+    html += `<div class="meta-row"><span class="meta-label">案件ID</span>`
+          + `<span><b>${esc(c.case_display_id)}</b> `
+          + `<span class="status-badge status-${c.status}">`
+          + `${esc(c.status_label || STATUS_LABELS[c.status] || c.status)}</span></span></div>`;
+    html += `<div class="meta-row"><span class="meta-label">研究課題</span>`
+          + `<span>${esc(c.title) || '—'}</span></div>`;
+    html += `<div class="meta-row"><span class="meta-label">申請者</span>`
+          + `<span>${esc(c.applicant_name)}`
+          + `${c.applicant_affiliation ? '（' + esc(c.applicant_affiliation) + '）' : ''}</span></div>`;
+    if (c.research_period_start || c.research_period_end) {
+        html += `<div class="meta-row"><span class="meta-label">研究期間</span>`
+              + `<span>${c.research_period_start || '—'} 〜 ${c.research_period_end || '—'}</span></div>`;
+    }
+    if (c.resubmission_count > 0) {
+        html += `<div class="meta-row"><span class="meta-label">再提出</span>`
+              + `<span>${c.resubmission_count} 回</span></div>`;
+    }
+    $('#case-meta').html(html);
+}
+
+function renderDocs() {
+    const docs = caseView.documents || [];
+    if (!docs.length) {
+        $('#docs-area').html('<div class="empty-msg">申請書類はまだありません</div>');
+        return;
+    }
+    let html = '';
+    docs.forEach(d => {
+        const vcls = d.is_current ? 'doc-version current' : 'doc-version';
+        const vlabel = 'v' + d.version;
+        let metaBits = [];
+        if (d.file_size) metaBits.push(fmtSize(d.file_size));
+        if (d.uploaded_at) metaBits.push(esc(d.uploaded_at));
+        const fn = d.download_url
+            ? `<a href="${esc(d.download_url)}" target="_blank" rel="noopener">📎 `
+              + `${esc(d.original_filename || 'ダウンロード')}</a>`
+            : '';
+        html += `
+        <div class="doc-item">
+            <div style="flex:1">
+                <span class="doc-title">${esc(d.title)}</span>
+                <span class="${vcls}">${vlabel}</span>
+                ${d.note ? `<div style="color:#9ca3af;font-size:0.78rem;margin-top:2px">`
+                          + `${esc(d.note)}</div>` : ''}
+                ${metaBits.length ? `<div style="color:#9ca3af;font-size:0.74rem;margin-top:2px">`
+                          + `${metaBits.join(' ・ ')}</div>` : ''}
+            </div>
+            <div>${fn}</div>
+        </div>`;
+    });
+    $('#docs-area').html(html);
+}
+
+$(function() {
+    loadView();
+});
 </script>
 </body>
 </html>

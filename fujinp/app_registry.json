@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-22 23:50:23",
+  "generated_at": "2026-10-25 21:30:33",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -1542,13 +1542,13 @@
             "guest"
           ],
           "sort_order": 10,
-          "visibility": "private",
+          "visibility": "domestic",
           "description": "研究倫理審査申請と審査のためのアプリです．",
           "extra_class": ""
         }
       ],
-      "version_id": "v20261019.175231-08c8b3",
-      "version_confirmed_at": "2026-10-19 17:52:31"
+      "version_id": "v20261025.213003-f51343",
+      "version_confirmed_at": "2026-10-25 21:30:03"
     },
     {
       "app_name": "ext_engagement",
