@@ -599,9 +599,14 @@ def stream_drive(url, back):
         flash(str(e), 'error')
         return redirect(back)
     from urllib.parse import quote
-    return Response(stream_with_context(r.iter_content(64 * 1024)), content_type=ctype,
-                    headers={'Content-Disposition': "inline; filename*=UTF-8''" + quote(name),
-                             'Cache-Control': 'private, max-age=600'})
+    headers = {'Content-Disposition': "inline; filename*=UTF-8''" + quote(name),
+               'Cache-Control': 'private, max-age=600'}
+    # HTML・SVG・XML はサイトのオリジンで開かせない（スクリプトを動かせないようにする．2026-10-26 最終点検）
+    base = (ctype or '').split(';', 1)[0].strip().lower()
+    if base in ('text/html', 'application/xhtml+xml', 'image/svg+xml', 'text/xml', 'application/xml'):
+        headers['Content-Disposition'] = "attachment; filename*=UTF-8''" + quote(name)
+        headers['Content-Security-Policy'] = 'sandbox'
+    return Response(stream_with_context(r.iter_content(64 * 1024)), content_type=ctype, headers=headers)
 
 
 @bp.route('/m/<int:minute_id>/original')
