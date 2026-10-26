@@ -253,7 +253,7 @@ function doJump() {
 }
 
 function renderReportList(data) {
-  var esc=function(s){return (s||''). replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');};
   var html='';
   data.forEach(function(r){
     var ts=(r.openTime&&r.status!=='closed')?r.openTime+'～'+r.closeTime:'';
@@ -268,14 +268,14 @@ function renderReportList(data) {
       actions+='<a href="'+URL_EDIT+r.id+'/edit" class="rc-link edit">編集</a>';
     }
     actions+='</div>';
-    html+='<div class="report-card '+r.status+'" id="r-'+r.date+'">'+
+    html+='<div class="report-card '+esc(r.status)+'" id="r-'+r.date+'">'+
       '<div class="rc-head">'
       +'<span class="rc-date">'+r.dateLabel+'</span>'
       +'<span class="rc-badge" style="background:'+r.statusColor+'">'+r.statusLabel+'</span>'
       +'<span class="rc-insp '+(insp?'ok':'pending')+'">'+( insp?'✓ 点検済':'未点検')+'</span>'
       +'</div>'
       +'<div class="rc-meta">'
-      +r.staff+(ts?' / '+ts:'')+(r.closureNote?' / '+esc(r.closureNote):'')+' / 訪問 <strong>'+r.visitors+'</strong>名'+(insp?' / 点検: '+r.inspector:'')
+      +esc(r.staff)+(ts?' / '+ts:'')+(r.closureNote?' / '+esc(r.closureNote):'')+' / 訪問 <strong>'+r.visitors+'</strong>名'+(insp?' / 点検: '+esc(r.inspector):'')
       +'</div>'
       +(bc?'<div class="rc-body">'+bc+'</div>':'')
       +actions
@@ -313,7 +313,7 @@ function buildExportHtml() {
     var tr=rows;for(var i=0;i<cells.length;i+=7)tr+='<tr>'+cells.slice(i,i+7).join('')+'</tr>';
     toc+='<div id="month-'+ym+'" style="margin-bottom:16px"><div style="font-size:.88rem;font-weight:800;color:#047857;margin-bottom:4px;padding-bottom:3px;border-bottom:2px solid #d1fae5">'+label+'</div><table style="border-collapse:collapse;width:100%">'+tr+'</table></div>';
   });
-  var esc=function(s){return (s||''). replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');};
   var body='';
   ALL_DATA.forEach(function(r){
     var ts=(r.openTime&&r.status!=='closed')?r.openTime+'～'+r.closeTime:'';
@@ -322,7 +322,7 @@ function buildExportHtml() {
     var insp=r.inspected;
     body+='<div id="r-'+r.date+'" style="margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid #e2e8f0">'
       +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px"><strong>'+r.dateLabel+'</strong> <span style="background:'+r.statusColor+';color:#fff;font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:9px">'+r.statusLabel+'</span> <span style="background:'+(insp?'#d1fae5':'#fef3c7')+';color:'+(insp?'#065f46':'#92400e')+';font-size:.72rem;padding:2px 9px;border-radius:9px">'+(insp?'\u2713 \u70b9\u691c\u6e08':'\u672a\u70b9\u691c')+'</span></div>'
-      +'<div style="font-size:.82rem;color:#64748b;margin-bottom:6px">'+r.staff+(ts?' / '+ts:'')+(r.closureNote?' / '+esc(r.closureNote):'')+' / \u8a2a\u554f '+r.visitors+'\u540d'+(insp?' / \u70b9\u691c: '+r.inspector:'')+'</div>'
+      +'<div style="font-size:.82rem;color:#64748b;margin-bottom:6px">'+esc(r.staff)+(ts?' / '+ts:'')+(r.closureNote?' / '+esc(r.closureNote):'')+' / \u8a2a\u554f '+r.visitors+'\u540d'+(insp?' / \u70b9\u691c: '+esc(r.inspector):'')+'</div>'
       +(bc?'<div style="font-size:.88rem;line-height:1.75;background:#f8fafc;padding:10px 14px;border-radius:6px;border-left:3px solid #059669">'+bc+'</div>':'')
       +'<div style="margin-top:5px"><a href="#top" style="font-size:.72rem;color:#94a3b8;text-decoration:none">\u25b2 \u76ee\u6b21\u3078</a></div></div>';
   });
