@@ -29,7 +29,8 @@ import json
 import logging
 from pytz import timezone
 
-from flask import render_template, request, jsonify, session, send_file
+from flask import render_template, request, jsonify, session, send_file, redirect, url_for
+import re
 import mysql.connector
 import io
 import pandas as pd
@@ -43,6 +44,76 @@ from . import index_review_bp
 JST = timezone('Asia/Tokyo')
 TABLE_SET_ADMIN_GROUP = 'パブリックテーブル総管理者'
 PROJECT_ACCESS_POLICIES = {'public', 'domestic', 'group', 'private'}
+
+
+# ============================================
+# 2026-10-25 セキュリティ改修（C-3）
+#   index_review は Blueprint 全体を管理者限定にする（deny by default）．
+#   指標プロジェクトを作れるのは admin だけ（2026-10-25 決定）．
+#   例外として通すのは，プロジェクトの閲覧（公開範囲 access_policy は各ルートが判定），
+#   注釈の編集（_can_edit_project で判定），テーブル集の閲覧と，担当グループによる
+#   Excel 更新（_check_table_set_admin／_is_group_member で判定），戻る導線のみ．
+#   旧版は api/browser/*・api/sql_test・api/schema_dump が @login_required だけで，
+#   一般ユーザが全 DB を読み，任意の SELECT を実行できた．
+# ============================================
+
+_OPEN_ENDPOINTS = {
+    'index_review.index',
+    'index_review.return_to_fujin',
+    # プロジェクトの閲覧（_can_view_project）
+    'index_review.api_projects',
+    'index_review.api_project_detail',
+    'index_review.api_project_indicators',
+    'index_review.api_project_indicator_get',
+    'index_review.api_project_indicator_data',
+    'index_review.api_project_export',
+    'index_review.api_indicator_annotations_list',
+    # 注釈の編集（_can_edit_project）
+    'index_review.api_indicator_annotations_create',
+    'index_review.api_indicator_annotations_update',
+    'index_review.api_indicator_annotations_delete',
+    # テーブル集の閲覧と担当グループの Excel 更新（ルート内で判定）
+    'index_review.api_table_sets_list',
+    'index_review.api_table_set_items_list',
+    'index_review.table_data_update',
+    'index_review.table_data_update_download',
+    'index_review.table_data_update_upload',
+}
+
+_IDENT_RE = re.compile(r'^[A-Za-z0-9_$]{1,64}$')
+
+
+def _is_safe_table_ident(name):
+    """テーブル名として許す文字（英数・_ のみ，64 文字以内）"""
+    return bool(name) and bool(_IDENT_RE.match(name)) and '$' not in name
+
+
+def _is_own_database(name):
+    """このアカウント配下の DB（<DB_ACCOUNT>$...）だけを対象にする"""
+    try:
+        prefix = Config.DB_ACCOUNT + '$'
+    except Exception:
+        return False
+    return bool(name) and bool(_IDENT_RE.match(name)) and name.startswith(prefix)
+
+
+@index_review_bp.before_request
+def require_admin():
+    """index_review 配下を管理者に限定する（_OPEN_ENDPOINTS は各ルートの判定に委ねる）"""
+    if request.endpoint in _OPEN_ENDPOINTS:
+        return None
+    wants_json = (request.method != 'GET'
+                  or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                  or request.accept_mimetypes.best == 'application/json')
+    if 'user_id' not in session:
+        if wants_json:
+            return jsonify({'success': False, 'error': 'ログインが必要です'}), 401
+        return redirect(url_for('auth.login', next=request.url))
+    if session.get('user_category') != 'admin':
+        if wants_json:
+            return jsonify({'success': False, 'error': '管理者権限が必要です'}), 403
+        return redirect_to_dashboard()
+    return None
 
 
 def get_jst_now():
@@ -311,7 +382,7 @@ def api_projects():
 @index_review_bp.route('/api/projects', methods=['POST'])
 @login_required
 def api_projects_create():
-    """プロジェクト新規作成（ログインユーザ全員可）"""
+    """プロジェクト新規作成（2026-10-25 から admin のみ．before_request で判定）"""
     user_id = session.get('user_id')
     data = request.json or {}
     name = data.get('name', '').strip()
@@ -1173,6 +1244,9 @@ def api_schema_dump():
             for item in items:
                 db_name = item['database_name']
                 tbl     = item['table_name']
+                if not _is_own_database(db_name) or not _is_safe_table_ident(tbl):
+                    lines.append(f"### {tbl}（database: {db_name}）— 名前が不正のため読み飛ばし")
+                    continue
                 try:
                     conn2   = mysql.connector.connect(**DatabaseConfig.get_config(db_name))
                     cursor2 = conn2.cursor()
@@ -1440,6 +1514,8 @@ def api_table_set_items_add(set_id):
     tbl_name = data.get('table_name', '').strip()
     if not db_name or not tbl_name:
         return jsonify({'success': False, 'error': 'database_name と table_name は必須'}), 400
+    if not _is_own_database(db_name) or not _is_safe_table_ident(tbl_name):
+        return jsonify({'success': False, 'error': 'database_name／table_name が不正です'}), 400
     try:
         conn = mysql.connector.connect(**DatabaseConfig.default())
         cursor = conn.cursor(dictionary=True)
@@ -1587,6 +1663,8 @@ def table_data_update_download(item_id):
 
         database   = item['database_name']
         table_name = item['table_name']
+        if not _is_own_database(database) or not _is_safe_table_ident(table_name):
+            return "テーブル名が不正です", 400
         conn2  = mysql.connector.connect(**DatabaseConfig.get_config(database))
         cur2   = conn2.cursor(dictionary=True)
         cur2.execute(f"DESCRIBE `{table_name}`")
@@ -1647,6 +1725,8 @@ def table_data_update_upload(item_id):
 
         database   = item['database_name']
         table_name = item['table_name']
+        if not _is_own_database(database) or not _is_safe_table_ident(table_name):
+            return jsonify({'success': False, 'error': 'テーブル名が不正です'}), 400
         file = request.files.get('excel_file')
         if not file:
             return jsonify({'success': False, 'error': 'ファイルが指定されていません'}), 400
