@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-26 19:43:27",
+  "generated_at": "2026-10-26 19:47:00",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -1087,8 +1087,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260917.151526-77fbf6",
-      "version_confirmed_at": "2026-09-17 15:15:26"
+      "version_id": "v20261026.194657-9f544e",
+      "version_confirmed_at": "2026-10-26 19:46:57"
     },
     {
       "app_name": "lookout",
