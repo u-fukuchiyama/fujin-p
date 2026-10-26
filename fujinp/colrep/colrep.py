@@ -135,22 +135,16 @@ def allowed_file(filename):
 
 
 def _sanitize_svg(data):
-    """アップロードされた SVG から script / on* / javascript: を除去する簡易サニタイズ"""
+    """アップロードされた SVG を無害化する（2026-10-26 セキュリティ改修 R-2）．
+    旧版の正規表現による除去は，引用符なしの on* 属性・foreignObject・SMIL・
+    文字参照で隠した javascript: を通していた．カーネルの markdown_converter が持つ
+    XML 方式の許可リスト型サニタイザに委ねる．読み込めなければ中身のない SVG にする．"""
     try:
-        text = data.decode('utf-8', errors='replace')
+        from markdown_converter import sanitize_svg_bytes
     except Exception:
-        return data
-    # <script>...</script> 除去
-    text = re.sub(r'<script\b[^>]*>.*?</script\s*>', '', text,
-                  flags=re.IGNORECASE | re.DOTALL)
-    # 自己終端の <script .../> 除去
-    text = re.sub(r'<script\b[^>]*/\s*>', '', text, flags=re.IGNORECASE)
-    # on*="..." イベントハンドラ除去
-    text = re.sub(r'\son\w+\s*=\s*"[^"]*"', '', text, flags=re.IGNORECASE)
-    text = re.sub(r"\son\w+\s*=\s*'[^']*'", '', text, flags=re.IGNORECASE)
-    # javascript: URI 除去
-    text = re.sub(r'javascript\s*:', '', text, flags=re.IGNORECASE)
-    return text.encode('utf-8')
+        return (b'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="40">'
+                b'<text x="10" y="25" font-size="14">SVG could not be loaded safely</text></svg>')
+    return sanitize_svg_bytes(data)
 
 def get_user_info():
     """ユーザー情報を取得する関数"""
@@ -827,7 +821,7 @@ def view_project(project_id):
         table_info = None
         if project['テーブル名']:
             try:
-                cursor.execute(f"SHOW TABLES LIKE '{project['テーブル名']}'")
+                cursor.execute("SHOW TABLES LIKE %s", (project['テーブル名'],))
                 table_exists = cursor.fetchone() is not None
 
                 if table_exists:
@@ -918,18 +912,19 @@ def edit_project(project_id):
         elif request.method == 'POST':
             project_name = request.form.get('project_name')
             responsible_user = request.form.get('responsible_user')
-            table_name = request.form.get('table_name')
+            # 2026-10-25 セキュリティ改修（C-5）：テーブル名はシステムが発番した値に固定し，
+            # フォームからは受け取らない（旧版は任意の文字列を保存でき，全クエリに識別子として入った）
             composer = request.form.get('composer', '')
             is_public = request.form.get('is_public') == 'on'
 
-            if not project_name or not responsible_user or not table_name:
+            if not project_name or not responsible_user:
                 flash('必須項目を入力してください。', 'error')
                 return redirect(url_for('colrep.edit_project', project_id=project_id))
 
             now = get_jst_now()
             update_query = f"""
                 UPDATE {COLREP_PROJECTS_TABLE}
-                SET プロジェクト名 = %s, 更新日時 = %s, 責任者 = %s, テーブル名 = %s, Composer = %s, is_public = %s
+                SET プロジェクト名 = %s, 更新日時 = %s, 責任者 = %s, Composer = %s, is_public = %s
                 WHERE id = %s
             """
 
@@ -937,7 +932,6 @@ def edit_project(project_id):
                 project_name,
                 now,
                 responsible_user,
-                table_name,
                 composer,
                 is_public,
                 project_id
@@ -1007,6 +1001,8 @@ def delete_project(project_id):
                 cursor.execute(f"SHOW TABLES LIKE %s", (table_name,))
                 if cursor.fetchone():
                     # テーブルを削除
+                    if not re.fullmatch(r'colrep_[0-9a-f]{12}', table_name or ''):
+                        raise ValueError(f'コレポの作成したテーブル名ではないため削除しません: {table_name}')
                     cursor.execute(f"DROP TABLE IF EXISTS `{table_name}`")
                     conn.commit()
                     logging.info(f"プロジェクト {project_id} のテーブル削除: {table_name}")
@@ -1076,7 +1072,7 @@ def manage_project_table(project_id):
         table_name = project['テーブル名']
 
         # テーブルが存在するかチェック
-        cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+        cursor.execute("SHOW TABLES LIKE %s", (table_name,))
         table_exists = cursor.fetchone() is not None
 
         if not table_exists:
@@ -1298,7 +1294,7 @@ def worker_dashboard():
 
             try:
                 # テーブルが存在するかチェック
-                cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+                cursor.execute("SHOW TABLES LIKE %s", (table_name,))
                 if not cursor.fetchone():
                     logging.warning(f"Table {table_name} does not exist")
                     continue
@@ -1496,7 +1492,7 @@ def get_integrated_preview(project_id):
             return Response("<p>プロジェクトが見つかりません。</p>", mimetype='text/html'), 404
 
         table_name = project['テーブル名']
-        cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+        cursor.execute("SHOW TABLES LIKE %s", (table_name,))
         if not cursor.fetchone():
             return Response("<p>プロジェクトテーブルが見つかりません。</p>", mimetype='text/html'), 404
 
@@ -1811,7 +1807,7 @@ def export_project(project_id):
 
         # テーブルが存在するかチェック
         table_name = project['テーブル名']
-        cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+        cursor.execute("SHOW TABLES LIKE %s", (table_name,))
         if not cursor.fetchone():
             flash('プロジェクトテーブルが存在しません。', 'error')
             return redirect(url_for('colrep.view_project', project_id=project_id))
@@ -1947,7 +1943,7 @@ def get_task_content_admin(project_id, task_id):
                             'error': 'この操作はプロジェクト責任者または管理者のみ実行可能です'}), 403
 
         table_name = project['テーブル名']
-        cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+        cursor.execute("SHOW TABLES LIKE %s", (table_name,))
         if not cursor.fetchone():
             return jsonify({'success': False,
                             'error': 'プロジェクトテーブルがまだ作成されていません'}), 404
@@ -2199,7 +2195,7 @@ def preview_integrated(project_id):
         table_name = project['テーブル名']
 
         # テーブルが存在するかチェック
-        cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+        cursor.execute("SHOW TABLES LIKE %s", (table_name,))
         table_exists = cursor.fetchone() is not None
 
         if not table_exists:
@@ -2458,7 +2454,7 @@ def shared_preview(project_id):
             return Response("<p>プロジェクトが見つかりません。</p>", mimetype='text/html'), 404
 
         table_name = project['テーブル名']
-        cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+        cursor.execute("SHOW TABLES LIKE %s", (table_name,))
         if not cursor.fetchone():
             return Response("<p>プロジェクトテーブルがまだ作成されていません。</p>",
                             mimetype='text/html'), 400
@@ -2654,7 +2650,7 @@ def archive_project(project_id):
         table_name = project['テーブル名']
 
         # テーブルが存在するかチェック
-        cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+        cursor.execute("SHOW TABLES LIKE %s", (table_name,))
         table_exists = cursor.fetchone() is not None
 
         if not table_exists:
@@ -3277,7 +3273,7 @@ def export_project_data(project_id):
         table_name = project['テーブル名']
 
         # テーブルが存在するか確認
-        cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+        cursor.execute("SHOW TABLES LIKE %s", (table_name,))
         if not cursor.fetchone():
             flash('プロジェクトテーブルが存在しません。', 'error')
             return redirect(url_for('colrep.view_project', project_id=project_id))
@@ -3603,7 +3599,7 @@ def export_project_data_json(project_id):
         table_name = project['テーブル名']
 
         # テーブルが存在するか確認
-        cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+        cursor.execute("SHOW TABLES LIKE %s", (table_name,))
         if not cursor.fetchone():
             flash('プロジェクトテーブルが存在しません。', 'error')
             return redirect(url_for('colrep.view_project', project_id=project_id))

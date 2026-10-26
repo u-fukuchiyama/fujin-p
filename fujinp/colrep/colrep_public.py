@@ -144,7 +144,7 @@ def project_detail(project_id):
 
         # テーブル情報を取得
         table_name = project['テーブル名']
-        cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+        cursor.execute("SHOW TABLES LIKE %s", (table_name,))
         table_exists = cursor.fetchone() is not None
 
         components = []
@@ -243,7 +243,7 @@ def get_components(project_id):
         table_name = project['テーブル名']
 
         # テーブルが存在するかチェック
-        cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+        cursor.execute("SHOW TABLES LIKE %s", (table_name,))
         if not cursor.fetchone():
             return jsonify({
                 'success': True,
@@ -373,7 +373,7 @@ def get_integrated_preview(project_id):
             return Response("<p>プロジェクトが見つかりません。</p>", mimetype='text/html'), 404
 
         table_name = project['テーブル名']
-        cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+        cursor.execute("SHOW TABLES LIKE %s", (table_name,))
         if not cursor.fetchone():
             return Response("<p>プロジェクトテーブルが見つかりません。</p>", mimetype='text/html'), 404
 
