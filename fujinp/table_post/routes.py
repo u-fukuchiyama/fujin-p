@@ -74,6 +74,50 @@ def _is_admin():
     return session.get('user_category') in ('admin',)
 
 
+# ------------------------------------------------------------
+# 2026-10-25 セキュリティ改修（C-4）
+#   一般ユーザが触れるのは「有効なプロジェクトに割り当てられたテーブル」だけにする．
+#   旧版は download_table / submit_request が database・table を無検証で受け取り，
+#   ログインした誰でも users を含む任意テーブルを xlsx で取得でき，
+#   割り当て外のテーブルへの全置換申請も積めた．
+# ------------------------------------------------------------
+_BAD_IDENT_CHARS = ('`', ';', "'", '"', '\\', '\x00', '\n', '\r')
+
+
+def _safe_ident(name):
+    """DB名・テーブル名として受け付けてよい文字列か（識別子注入の防止）"""
+    if not name or len(name) > 255:
+        return False
+    return not any(ch in name for ch in _BAD_IDENT_CHARS)
+
+
+def _is_assigned(database, table_name, project_id=None):
+    """(database, table_name) が有効なプロジェクトに割り当て済みか．
+    project_id を渡せばそのプロジェクトに限って照合する．"""
+    if not (_safe_ident(database) and _safe_ident(table_name)):
+        return False
+    try:
+        conn = mysql.connector.connect(**DatabaseConfig.default())
+        cursor = conn.cursor()
+        sql = (f"SELECT 1 FROM {T_STATUS} s "
+               f"JOIN {T_PROJECTS} p ON p.id = s.project_id "
+               f"WHERE s.database_name = %s AND s.table_name = %s "
+               f"AND p.is_active = 1")
+        args = [database, table_name]
+        if project_id is not None:
+            sql += " AND s.project_id = %s"
+            args.append(project_id)
+        cursor.execute(sql + " LIMIT 1", tuple(args))
+        return cursor.fetchone() is not None
+    except mysql.connector.Error as e:
+        logging.error("_is_assigned error: %s", e)
+        return False
+    finally:
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+
 def _current_user():
     """更新者として記録するアカウント名"""
     return (session.get('username')
@@ -599,6 +643,11 @@ def download_table():
     table_name = request.args.get('table')
     if not database or not table_name:
         return "database or table not specified", 400
+    # 一般ユーザは割り当て済みテーブルのみ．admin も識別子の検査は通す
+    if not (_safe_ident(database) and _safe_ident(table_name)):
+        return "不正なテーブル名です", 400
+    if not _is_admin() and not _is_assigned(database, table_name):
+        return "このテーブルはダウンロードの対象ではありません", 403
 
     try:
         conn = mysql.connector.connect(**DatabaseConfig.get_config(database))
@@ -719,6 +768,10 @@ def submit_request():
     if not all([project_id, database, table_name, file]):
         return jsonify({'success': False,
                         'error': 'パラメータが不足しています'}), 400
+    # 申請できるのは，そのプロジェクトに割り当てられたテーブルだけ（admin も同じ）
+    if not _is_assigned(database, table_name, project_id):
+        return jsonify({'success': False,
+                        'error': 'このテーブルはこのプロジェクトの申請対象ではありません'}), 403
 
     try:
         df = pd.read_excel(file, engine='openpyxl')
@@ -882,6 +935,13 @@ def apply_request():
 
     database = req['database_name']
     table_name = req['table_name']
+
+    # 適用直前にも割り当てを再確認する（割り当て外テーブルへの申請・旧データの救済）
+    if not _is_assigned(database, table_name, req['project_id']):
+        return jsonify({'success': False,
+                        'error': ('この申請の対象テーブルは現在プロジェクトに割り当てられて'
+                                  'いないため適用できません（'
+                                  f'{database}.{table_name}）')}), 400
 
     try:
         payload = json.loads(req['payload'])
@@ -1065,6 +1125,8 @@ def rollback():
 
     database = hist['database_name']
     table_name = hist['table_name']
+    if not (_safe_ident(database) and _safe_ident(table_name)):
+        return jsonify({'success': False, 'error': '不正なテーブル名の記録です'}), 400
     try:
         snapshot = json.loads(hist['snapshot'])
 
