@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-26 20:24:11",
+  "generated_at": "2026-10-26 20:30:07",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -1606,8 +1606,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20261006.012419-263306",
-      "version_confirmed_at": "2026-10-06 01:24:19"
+      "version_id": "v20261026.203006-6905f3",
+      "version_confirmed_at": "2026-10-26 20:30:06"
     },
     {
       "app_name": "machinaka",

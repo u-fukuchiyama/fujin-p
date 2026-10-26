@@ -60,11 +60,49 @@ def _stl_allowed_file(filename):
 
 
 # Markdown プレビュー（共有部品）。フォールバック付き。
+def _plain_html(text):
+    """変換できないときの表示用：文字として出す（HTML として解釈させない．R-10/R-11）"""
+    import html as _h
+    return _h.escape(text or '').replace('\n', '<br>')
+
+
+# ── 画像アップロードの検査（R-11，2026-10-26）──
+# 拡張子だけでなく中身の先頭（シグネチャ）を確かめ，Pillow があれば画像として開けるかも確かめる．
+# 1 枚 5MB まで．拡張子と中身が食い違うもの（画像名の HTML など）は受け付けない．
+IMG_UPLOAD_MAX_BYTES = 5 * 1024 * 1024
+
+
+def _read_image_upload(file):
+    """(データ, エラー文)．問題なければエラー文は None"""
+    import io
+    data = file.stream.read(IMG_UPLOAD_MAX_BYTES + 1)
+    if len(data) > IMG_UPLOAD_MAX_BYTES:
+        return None, '画像は 1 枚 5MB までです'
+    ext = (file.filename or '').rsplit('.', 1)[-1].lower()
+    sig_ok = {
+        'png': data.startswith(b'\x89PNG\r\n\x1a\n'),
+        'jpg': data.startswith(b'\xff\xd8\xff'),
+        'jpeg': data.startswith(b'\xff\xd8\xff'),
+        'gif': data.startswith((b'GIF87a', b'GIF89a')),
+        'webp': data[:4] == b'RIFF' and data[8:12] == b'WEBP',
+    }.get(ext, False)
+    if not sig_ok:
+        return None, '画像ファイルではないか，拡張子と中身が合っていません'
+    try:
+        from PIL import Image
+        Image.open(io.BytesIO(data)).verify()
+    except ImportError:
+        pass
+    except Exception:
+        return None, '画像として読めません'
+    return data, None
+
+
 try:
     from markdown_converter import process_markdown_for_preview
 except ImportError:
     def process_markdown_for_preview(text):
-        return text
+        return _plain_html(text)
 
 
 JST = timezone('Asia/Tokyo')
@@ -712,7 +750,7 @@ def report_detail(rid):
         try:
             body_html = process_markdown_for_preview(report['body'])
         except Exception:
-            body_html = report['body']
+            body_html = _plain_html(report['body'])
 
     return render_template('stl_manager/stl_report_detail.html',
         uid=uid, report=report, body_html=body_html,
@@ -907,7 +945,10 @@ def report_delete(rid):
 @stl_bp.route('/report/upload_image', methods=['POST'])
 @login_required
 def report_upload_image():
-    """レポート本文用 画像アップロード"""
+    """レポート本文用 画像アップロード（staff か，いずれかの団体の editor に限る．R-11）"""
+    uid = current_uid()
+    if not (is_staff(uid) or 'editor' in (user_team_roles(uid) or {}).values()):
+        return jsonify({'success': False, 'error': '権限がありません'}), 403
     if 'file' not in request.files:
         return jsonify({'success': False, 'error': 'ファイルが選択されていません'}), 400
     file = request.files['file']
@@ -916,17 +957,21 @@ def report_upload_image():
     if not _stl_allowed_file(file.filename):
         return jsonify({'success': False,
                         'error': '許可されていないファイル形式です（png/jpg/jpeg/gif/webp）'}), 400
+    data, err = _read_image_upload(file)
+    if err:
+        return jsonify({'success': False, 'error': err}), 400
     try:
         os.makedirs(STL_UPLOAD_FOLDER, exist_ok=True)
         timestamp = get_jst_now().strftime('%Y%m%d_%H%M%S')
         filename = secure_filename(file.filename)
         name, ext = os.path.splitext(filename)
         unique = f"{name}_{timestamp}{ext}"
-        file.save(os.path.join(STL_UPLOAD_FOLDER, unique))
+        with open(os.path.join(STL_UPLOAD_FOLDER, unique), 'wb') as fp:
+            fp.write(data)
         return jsonify({'success': True, 'filename': unique,
                         'url': url_for('stl.image', filename=unique)})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+    except Exception:
+        return jsonify({'success': False, 'error': '保存に失敗しました'}), 500
 
 
 @stl_bp.route('/img/<path:filename>')
@@ -1575,7 +1620,7 @@ def disclosure_detail(did):
         try:
             body_html = process_markdown_for_preview(d['body'])
         except Exception:
-            body_html = d['body']
+            body_html = _plain_html(d['body'])
 
     return render_template('stl_manager/stl_disclosure_detail.html',
         uid=uid, d=d, body_html=body_html, staff_ok=is_staff(uid))
