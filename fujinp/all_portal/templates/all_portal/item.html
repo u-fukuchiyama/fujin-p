@@ -55,9 +55,13 @@
   {% if it.url.startswith('/') and not kid %}
   <iframe src="{{ it.url }}" title="{{ it.title }}" class="mb-2" style="width:100%;height:70vh;border:1px solid #dee2e6;border-radius:.375rem;background:#fff"></iframe>
   {% endif %}
+  {% if show_copy %}
   <details class="mb-2"{{ ' open' if not it.url.startswith('/') and not kid }}><summary class="small">Claude に渡るテキスト（最後に読んだ写し．Claude は読むたびに URL をたたき直します）</summary>
     {% if it.body %}<div class="bg-white border rounded p-3 body-text mt-1">{{ it.body }}</div>{% else %}<p class="text-muted small mt-1">写しはまだありません．</p>{% endif %}
   </details>
+  {% else %}
+  <p class="text-muted small mb-2">このサイトの中のページです．写しは admin にだけ表示します．<a href="{{ it.url }}" target="_blank" rel="noopener">ページを開く</a>と，あなたの権限で表示されます．</p>
+  {% endif %}
 {% elif it.body %}
 <div class="bg-white border rounded p-3 body-text">{{ it.body }}</div>
 {% else %}

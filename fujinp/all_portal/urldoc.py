@@ -156,6 +156,15 @@ def _public_host(host):
     return bool(infos)
 
 
+def _http():
+    """カーネルの safe_fetch があればその Session（接続相手の IP を確かめる），なければ requests"""
+    try:
+        from safe_fetch import session
+        return session()
+    except ImportError:
+        return requests
+
+
 def fetch_external(url):
     """ほかのサイトを HTTP で取りに行く（ログインなし）"""
     for _ in range(MAX_REDIRECTS + 1):
@@ -165,10 +174,15 @@ def fetch_external(url):
         if not _public_host(parts.hostname):
             raise FetchError('内部ネットワークのアドレスは読めません')
         try:
-            r = requests.get(url, timeout=TIMEOUT, stream=True, allow_redirects=False,
-                             headers={'User-Agent': 'FUJIN-P all_portal'})
+            # 接続した相手の IP も確かめる（名前解決のすり替え対策．R-11，2026-10-26）
+            r = _http().get(url, timeout=TIMEOUT, stream=True, allow_redirects=False,
+                            headers={'User-Agent': 'FUJIN-P all_portal'})
         except requests.RequestException as e:
             raise FetchError(f'取りに行けませんでした（{e.__class__.__name__}）')
+        except Exception as e:   # safe_fetch.FetchBlocked（接続の瞬間に内部アドレスと分かった）
+            if e.__class__.__name__ == 'FetchBlocked':
+                raise FetchError('内部ネットワークのアドレスは読めません')
+            raise
         if r.is_redirect:
             url = urljoin(url, r.headers.get('Location') or '')
             r.close()

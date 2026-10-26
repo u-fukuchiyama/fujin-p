@@ -34,7 +34,7 @@ import logging
 from flask import Response, request
 
 from . import all_portal_bp as bp
-from .core import (KINDS, LEVEL_LABEL, ancestors, children_of, descendant_ids, cursor, item_row, item_visible, items_of, level_of, visible_items, mcp_who, portal_row,
+from .core import (copy_visible, KINDS, LEVEL_LABEL, ancestors, children_of, descendant_ids, cursor, item_row, item_visible, items_of, level_of, visible_items, mcp_who, portal_row,
                    portals_for, add_request, save_item, user_active, user_info, write_log,
                    subtree_base, in_subtree, subtree_entries)
 from .oauth import bearer_grant, cors, json_resp, unauthorized
@@ -229,7 +229,7 @@ def t_read_item(who, args):
             body = urldoc.read_text(it['url'], who).strip() or '（URL は空のページを返しました）'
             head += '（この本文は今 URL をたたいて得たものです）\n\n'
         except urldoc.FetchError as e:
-            body = (it['body'] or '').strip()
+            body = (it['body'] or '').strip() if copy_visible(it, who) else ''
             when = it['fetched_at'].strftime('%Y-%m-%d %H:%M') if it.get('fetched_at') else ''
             head += (f'（URL を読めませんでした：{e}．以下は {when} の写しです）\n\n' if body
                      else f'（URL を読めませんでした：{e}．写しもありません）\n\n')
@@ -278,7 +278,10 @@ def t_read_url(who, args):
         text, final = urldoc.read_text_final(target, who)
     except urldoc.FetchError as e:
         raise ToolError(f'読めませんでした：{e}')
-    fpath = urlsplit(final).path or '/'
+    fparts = urlsplit(final)
+    if fparts.netloc and fparts.netloc.lower() != request.host.lower():
+        raise ToolError('この URL はほかのサイトへ転送されたので，返しません．')
+    fpath = fparts.path or '/'
     if not in_subtree(base, fpath):
         raise ToolError('この URL は入口の配下の外へ転送されたので，返しません．')
     offset, mc = paging(args)
@@ -294,7 +297,7 @@ def item_text(it, who):
     try:
         return urldoc.read_text(it['url'], who).strip() or '（URL は空のページを返しました）', '今 URL をたたいて得た本文'
     except urldoc.FetchError as e:
-        body = (it.get('body') or '').strip()
+        body = (it.get('body') or '').strip() if copy_visible(it, who) else ''
         when = it['fetched_at'].strftime('%Y-%m-%d %H:%M') if it.get('fetched_at') else ''
         return (body or '（本文なし）'), (f'URL を読めませんでした：{e}．{when} の写し' if body else f'URL を読めませんでした：{e}')
 
@@ -369,13 +372,17 @@ def t_search_items(who, args):
         parts.append('(' + inner.join(conds) + ')')
     ids = list(allowed)
     with cursor() as (cur, conn):
-        cur.execute("SELECT id, portal_id, bundle, title, body, access_policy, access_groups FROM all_items WHERE portal_id IN (" +
+        cur.execute("SELECT id, portal_id, bundle, title, body, url, source, access_policy, access_groups FROM all_items WHERE portal_id IN (" +
                     ','.join(['%s'] * len(ids)) + ") AND (" + outer.join(parts) + ") ORDER BY portal_id, id LIMIT 100",
                     ids + params)
         rows = cur.fetchall()
     terms = [t for g in groups for t in g]
     out = []
     rows = [r for r in rows if item_visible(r, who, allowed[r['portal_id']]['level'])]
+    if not who.admin:
+        # 写しを見せられない行（サイト内 URL）は，題名に当たったときだけ返し，抜粋は出さない
+        rows = [r if copy_visible(r, who) else dict(r, body='') for r in rows]
+        rows = [r for r in rows if r['body'] or any(t in (r['title'] or '') for t in terms)]
     for r in rows:
         body = r['body'] or ''
         i = min([body.find(t) for t in terms if body.find(t) >= 0] or [0])

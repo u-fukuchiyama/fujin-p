@@ -532,6 +532,31 @@ def save_item(who, pid, vals, iid=None):
     return iid
 
 
+def is_site_url(url):
+    """このサイトの中の URL か（/ で始まるパス，またはこのサイトのホスト名の URL）"""
+    from . import urldoc
+    u = (url or '').strip()
+    return bool(u) and urldoc.is_internal(u.split('#', 1)[0])
+
+
+def copy_visible(it, who):
+    """写し（all_items.body）を who に見せてよいか（R-7，2026-10-26）．
+    このサイトの URL の写しは，取得した人の身元で取ったもので，取得者にしか見えないページの中身を
+    含みうる．admin だけに見せる．ほかの人には，その人の身元で今たたいた本文（画面の枠・MCP）を渡す．"""
+    if it.get('source') != 'url':
+        return True
+    return who.admin or not is_site_url(it.get('url'))
+
+
+def site_url_allowed(who, new_url, old_url=None):
+    """このサイトの URL を登録・変更してよいか（R-7）．
+    サイト内 URL は読む人の身元で内部実行されるので，admin 以外が仕込むと admin の読み取りで実行される．
+    admin 以外は，すでに登録されている URL をそのまま保つ場合を除き，サイト内 URL を置けない．"""
+    if who.admin or not is_site_url(new_url):
+        return True
+    return old_url is not None and (new_url or '').strip() == (old_url or '').strip()
+
+
 def store_copy(iid, text):
     """URL 文書の写しを置く（アクトの人が保存・読み直しをしたときだけ呼ぶ）"""
     with cursor() as (cur, conn):

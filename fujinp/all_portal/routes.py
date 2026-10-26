@@ -46,7 +46,8 @@ from . import all_portal_bp as bp
 from .core import (KINDS, LEVEL_KEYS, LEVEL_KEY_LABEL, LEVEL_LABEL, POLICIES, POLICY_LABEL, add_request,
                    all_group_names, policy_of, policy_rows,
                    ancestors, children_of, descendant_ids, cursor, grants_of, item_row, item_groups, item_visible, items_of, visible_items, ITEM_POLICIES, level_of, now_jst, portal_row, portals_for,
-                   requests_of, save_item, store_copy, subtree_base, user_info, web_who, write_log)
+                   requests_of, save_item, store_copy, subtree_base, user_info, web_who, write_log,
+                   copy_visible, is_site_url, site_url_allowed)
 from . import urldoc
 from .oauth import connections, csrf_ok, csrf_token, issuer, mcp_url, revoke_family
 
@@ -306,7 +307,7 @@ def item_harvest(iid):
         picks = f.getlist('pick')
         rows = items_of(tp['id'])
         top = max([float(r['sort_order']) for r in rows if r['sort_order'] is not None] or [0])
-        n = 0
+        n, skipped = 0, 0
         for k in picks:
             url = (f.get('url_' + k) or '').strip()
             title = (f.get('title_' + k) or '').strip()[:500] or url
@@ -314,12 +315,18 @@ def item_harvest(iid):
                 url = urldoc.normalize(url)
             except ValueError:
                 continue
+            if not site_url_allowed(web_who(), url):
+                skipped += 1
+                continue
             n += 1
             save_item(web_who(), tp['id'], {'title': title, 'url': url, 'note': None, 'source': 'url',
                                             'access_policy': 'inherit', 'access_groups': None,
                                             'sort_order': round(top + n, 2)})
         flash(f'{n} 件の URL を「{tp["name"]}」に登録しました．「写しをまとめて更新」で中身を読んでおくと検索できます',
               'success')
+        if skipped:
+            flash(f'このサイトの中のリンク {skipped} 件は登録しませんでした（このサイトの URL を登録できるのは admin だけです）',
+                  'error')
         return redirect(back)
     try:
         html, final = urldoc.fetch_html(it['url'], web_who())
@@ -408,7 +415,8 @@ def item(iid):
         kid_items, kid_kids, kid_reqs = items_of(kid['id']), children_of(kid['id']), requests_of(kid['id'])
     crumbs = [{'name': a['name'], 'url': edit_home(a)} for a in ancestors(p) + [p]]
     return render_template('all_portal/item.html', p=p, it=it, kid=kid, crumbs=crumbs,
-                           kid_items=kid_items, kid_kids=kid_kids, kid_reqs=kid_reqs)
+                           kid_items=kid_items, kid_kids=kid_kids, kid_reqs=kid_reqs,
+                           show_copy=copy_visible(it, web_who()))
 
 
 # ── アクト：文書の登録・編集・削除 ──
@@ -439,6 +447,9 @@ def item_edit(pid=None, iid=None):
                     'sort_order': num(f.get('sort_order'), '順序数')}
             if not vals['title']:
                 raise ValueError('題名を書いてください')
+            if not site_url_allowed(web_who(), vals['url'], (it or {}).get('url')):
+                raise ValueError('このサイトの URL（/ で始まるパス）を登録・変更できるのは admin だけです．'
+                                 'リクエストで admin に依頼してください')
             # 配下も読める（入口）：admin だけが変えられる．ほかの人の保存では元の値を残す
             if web_who().admin:
                 vals['subtree'] = 1 if f.get('subtree') else 0
@@ -689,4 +700,3 @@ def connect_revoke():
 @bp.route('/return_to_fujin')
 def return_to_fujin():
     return redirect_to_dashboard()
-
