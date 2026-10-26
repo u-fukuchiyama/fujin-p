@@ -39,6 +39,44 @@ from werkzeug.utils import secure_filename  # noqa: F401 (将来の拡張用)
 import mysql.connector
 from markdown_converter import process_markdown_for_preview
 
+
+def _plain_html(text):
+    """変換できないときの表示用：文字として出す（HTML として解釈させない．R-10/R-11）"""
+    import html as _h
+    return _h.escape(text or '').replace('\n', '<br>')
+
+
+# ── 画像アップロードの検査（R-11，2026-10-26）──
+# 拡張子だけでなく中身の先頭（シグネチャ）を確かめ，Pillow があれば画像として開けるかも確かめる．
+# 1 枚 5MB まで．拡張子と中身が食い違うもの（画像名の HTML など）は受け付けない．
+IMG_UPLOAD_MAX_BYTES = 5 * 1024 * 1024
+
+
+def _read_image_upload(file):
+    """(データ, エラー文)．問題なければエラー文は None"""
+    import io
+    data = file.stream.read(IMG_UPLOAD_MAX_BYTES + 1)
+    if len(data) > IMG_UPLOAD_MAX_BYTES:
+        return None, '画像は 1 枚 5MB までです'
+    ext = (file.filename or '').rsplit('.', 1)[-1].lower()
+    sig_ok = {
+        'png': data.startswith(b'\x89PNG\r\n\x1a\n'),
+        'jpg': data.startswith(b'\xff\xd8\xff'),
+        'jpeg': data.startswith(b'\xff\xd8\xff'),
+        'gif': data.startswith((b'GIF87a', b'GIF89a')),
+        'webp': data[:4] == b'RIFF' and data[8:12] == b'WEBP',
+    }.get(ext, False)
+    if not sig_ok:
+        return None, '画像ファイルではないか，拡張子と中身が合っていません'
+    try:
+        from PIL import Image
+        Image.open(io.BytesIO(data)).verify()
+    except ImportError:
+        pass
+    except Exception:
+        return None, '画像として読めません'
+    return data, None
+
 from db import DatabaseConfig
 from auth import redirect_to_dashboard
 from . import ekinaka_bp
@@ -399,7 +437,8 @@ def has_perm(access_type, user_id=None):
 
     allowed = access_group_names(access_type)
 
-    if PUBLIC_SENTINEL in allowed:
+    # 「公開」は閲覧（view）にだけ効かせる．申請・承認などの書き込みはログインが要る（R-11，2026-10-26）
+    if PUBLIC_SENTINEL in allowed and access_type == 'view':
         return True
 
     if not user_id:
@@ -579,7 +618,7 @@ def index():
                 try:
                     p['note_html'] = process_markdown_for_preview(p['note']) if p['note'] else ''
                 except Exception:
-                    p['note_html'] = p['note'] or ''
+                    p['note_html'] = _plain_html(p['note'])
                 perf_map.setdefault(p['event_id'], []).append(p)
         except Exception:
             pass
@@ -705,7 +744,7 @@ def event_detail(eid):
         try:
             return process_markdown_for_preview(text)
         except Exception:
-            return text
+            return _plain_html(text)
 
     detail_html      = _md(event.get('detail'))
     summary_html     = _md(event.get('summary'))
@@ -788,7 +827,7 @@ def apply_edit(eid):
 
     if not event:
         abort(404)
-    if not (is_admin_user() or event['applicant_id'] == uid or has_perm('approve', uid)):
+    if not (is_admin_user() or (uid is not None and event['applicant_id'] == uid) or has_perm('approve', uid)):
         abort(403)
     if event['status'] != 'pending':
         flash('申請中のイベントのみ編集できます', 'error')
@@ -867,7 +906,7 @@ def _get_event_for_applicant(eid, uid):
             cur.close(); conn.close()
     if not event:
         abort(404)
-    if not (is_admin_user() or event['applicant_id'] == uid):
+    if not (is_admin_user() or (uid is not None and event['applicant_id'] == uid)):
         abort(403)
     return event
 
@@ -972,7 +1011,7 @@ def perf_add(eid):
 
     if not event:
         abort(404)
-    if not (is_admin_user() or event['applicant_id'] == uid or has_perm('approve', uid)):
+    if not (is_admin_user() or (uid is not None and event['applicant_id'] == uid) or has_perm('approve', uid)):
         abort(403)
     if event['status'] not in ('pending', 'approved'):
         flash('申請中または承認済みのイベントのみ公演を追加できます', 'error')
@@ -1023,7 +1062,7 @@ def perf_edit(pid):
 
     if not perf:
         abort(404)
-    if not (is_admin_user() or perf['applicant_id'] == uid or has_perm('approve', uid)):
+    if not (is_admin_user() or (uid is not None and perf['applicant_id'] == uid) or has_perm('approve', uid)):
         abort(403)
 
     s_dt = request.form.get('start_datetime', '').strip()
@@ -1067,7 +1106,7 @@ def perf_delete(pid):
 
     if not perf:
         abort(404)
-    if not (is_admin_user() or perf['applicant_id'] == uid or has_perm('approve', uid)):
+    if not (is_admin_user() or (uid is not None and perf['applicant_id'] == uid) or has_perm('approve', uid)):
         abort(403)
 
     eid = perf['event_id']
@@ -1237,7 +1276,7 @@ def update_detail(eid):
 
     if not event:
         abort(404)
-    if not (is_admin_user() or event['applicant_id'] == uid or has_perm('approve', uid)):
+    if not (is_admin_user() or (uid is not None and event['applicant_id'] == uid) or has_perm('approve', uid)):
         abort(403)
 
     detail = request.form.get('detail', '').strip()
@@ -1271,7 +1310,7 @@ def update_info(eid):
 
     if not event:
         abort(404)
-    if not (is_admin_user() or event['applicant_id'] == uid or has_perm('approve', uid)):
+    if not (is_admin_user() or (uid is not None and event['applicant_id'] == uid) or has_perm('approve', uid)):
         abort(403)
 
     summary = request.form.get('summary', '').strip()
@@ -1352,6 +1391,9 @@ def api_upload_image():
     if not _ekinaka_allowed_img(file.filename):
         return jsonify({'success': False,
                         'error': '許可されていないファイル形式です（png/jpg/jpeg/gif/webp）'}), 400
+    data, err = _read_image_upload(file)
+    if err:
+        return jsonify({'success': False, 'error': err}), 400
     try:
         folder = EKINAKA_IMG_DIR
         os.makedirs(folder, exist_ok=True)
@@ -1359,12 +1401,13 @@ def api_upload_image():
         filename = secure_filename(file.filename)
         name, ext = os.path.splitext(filename)
         unique = f"{name}_{ts}{ext}"
-        file.save(os.path.join(folder, unique))
+        with open(os.path.join(folder, unique), 'wb') as fp:
+            fp.write(data)
         return jsonify({'success': True, 'filename': unique,
                         'url': url_for('ekinaka.image', filename=unique)})
     except Exception as e:
         logging.error("ekinaka api_upload_image error: %s", e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': '保存に失敗しました'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -1682,7 +1725,7 @@ def public_view():
                 try:
                     p['note_html'] = process_markdown_for_preview(p['note']) if p['note'] else ''
                 except Exception:
-                    p['note_html'] = p['note'] or ''
+                    p['note_html'] = _plain_html(p['note'])
                 perf_map.setdefault(p['event_id'], []).append(p)
         except Exception:
             pass
@@ -1792,7 +1835,7 @@ def public_event_detail(eid):
         try:
             p['note_html'] = process_markdown_for_preview(p['note']) if p['note'] else ''
         except Exception:
-            p['note_html'] = p['note'] or ''
+            p['note_html'] = _plain_html(p['note'])
 
     # detail / summary / other_notes MD変換
     def _md(text):
@@ -1801,7 +1844,7 @@ def public_event_detail(eid):
         try:
             return process_markdown_for_preview(text)
         except Exception:
-            return text
+            return _plain_html(text)
 
     detail_html      = _md(event.get('detail'))
     summary_html     = _md(event.get('summary'))
