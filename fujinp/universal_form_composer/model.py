@@ -13,20 +13,17 @@ WORK, PART = 'work', 'part'
 LEVEL_LABEL = {'work': '作品', 'part': '複合部品', 'box': '倉庫部品', 'item': '箇条'}
 MAX_DEPTH = 6
 
-_TAG_SCRIPT = re.compile(r'<\s*(script|iframe|object|embed)\b.*?<\s*/\s*\1\s*>', re.I | re.S)
-_TAG_OPEN = re.compile(r'<\s*(script|iframe|object|embed|link|meta)\b[^>]*>', re.I)
-_ON_ATTR = re.compile(r'\son[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)', re.I)
-_JS_URL = re.compile(r'(href|src)\s*=\s*("|\')\s*javascript:[^"\']*\2', re.I)
-
-
 def clean_html(raw):
-    """書かれた HTML から，動くものを落とす（こんかと同じ規則）。"""
+    """書かれた HTML から，動くものを落とす。見た目の指定（表・style など）は残す。
+    2026-10-26（R-10）：正規表現の除去をやめ，カーネルの許可リスト型サニタイザに任せる。
+    カーネルが古くて使えないときは，HTML として解釈させず文字として出す。"""
     h = raw or ''
-    h = _TAG_SCRIPT.sub('', h)
-    h = _TAG_OPEN.sub('', h)
-    h = _ON_ATTR.sub('', h)
-    h = _JS_URL.sub('', h)
-    return h
+    try:
+        from markdown_converter import sanitize_html
+    except ImportError:
+        import html as _h
+        return _h.escape(h)
+    return sanitize_html(h)
 
 
 def _loads(raw):
