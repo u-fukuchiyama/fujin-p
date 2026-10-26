@@ -35,6 +35,14 @@ try:
 except ImportError:
     MARKDOWN_AVAILABLE = False
 
+# 2026-10-26 セキュリティ改修（R-6）：Markdown から作った HTML はカーネルの許可リスト型
+# サニタイザで無害化する．サニタイザを読み込めないときは Markdown を使わず，
+# 文字をエスケープする簡易表示に切り替える（生の HTML を通さないため）．
+try:
+    from markdown_converter import sanitize_html as _sanitize_html
+except Exception:
+    _sanitize_html = None
+
 try:
     import mysql.connector
     from config import Config
@@ -161,8 +169,8 @@ def get_jst_now():
 def md_to_html(text):
     if not text or not isinstance(text, str):
         return ''
-    if MARKDOWN_AVAILABLE:
-        return markdown.markdown(text, extensions=['nl2br'])
+    if MARKDOWN_AVAILABLE and _sanitize_html is not None:
+        return _sanitize_html(markdown.markdown(text, extensions=['nl2br']))
     import html as html_module
     escaped = html_module.escape(text)
     lines = escaped.split('\n')
@@ -854,6 +862,7 @@ def _group_names():
 
 @mid_term_progress_bp.route('/manage')
 @login_required
+@require_view_perm
 def manage():
     """担当表の閲覧（計画別・部門別）。割り当ては細目編集（/editor/structure）で行う。"""
     readonly = True

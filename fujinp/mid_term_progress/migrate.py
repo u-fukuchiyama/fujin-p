@@ -274,6 +274,11 @@ def _insert_rows(cur, table, cols, rows, batch=200):
 @login_required
 @require_upload_perm
 def migrate_import():
+    # 取り込みはファイル由来の DDL（CREATE・ALTER）を実行するので admin に限る（R-11，2026-10-26）．
+    # 書き出しと事前の確かめ（check）は従来どおりアップロード権限の人ができる．
+    from flask import session as _session
+    if _session.get('user_category') != 'admin':
+        return jsonify({'success': False, 'error': '取り込みは admin だけが行えます'}), 403
     try:
         body, tables = _read_upload()
         report, notes = [], []
