@@ -993,7 +993,42 @@ def view_document(doc_id):
                            public_html=public_html,
                            owner_html=owner_html,
                            content_html=content_html,
+                           sandbox_attr=(SANDBOX_IFRAME if needs_sandbox(document) else None),
                            can_edit=can_modify_document(document))
+
+
+# ── 2026-10-26 セキュリティ改修（R-3）──
+#   HTML・SVG の文書は，作成者が admin でない限り「サンドボックス」で表示する．
+#   サンドボックスの中のスクリプトはサイトとは別の出どころ（オリジン）として動くので，
+#   本文に仕込まれたスクリプトがログイン中の人のセッションを使うことはできない．
+#   かたりべのプレゼンなど admin が作った文書は，従来どおりそのまま表示する．
+SANDBOX_POLICY = ('sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox '
+                  'allow-downloads allow-modals')
+SANDBOX_IFRAME = 'allow-scripts allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals'
+_SANDBOX_TYPES = ('text/html', 'image/svg+xml', 'application/xhtml+xml', 'text/xml',
+                  'application/xml')
+
+
+def creator_is_admin(document):
+    """文書の作成者が admin か（作成者不明・取得失敗は admin でないとみなす）"""
+    try:
+        uid = int((document or {}).get('created_by') or 0)
+    except (TypeError, ValueError):
+        return False
+    if not uid:
+        return False
+    try:
+        with get_db_cursor(database='default') as (cursor, conn):
+            cursor.execute("SELECT category FROM users WHERE id = %s", (uid,))
+            row = cursor.fetchone()
+            return bool(row) and row.get('category') == 'admin'
+    except Exception as e:
+        logger.error(f"作成者区分の取得エラー: {e}")
+        return False
+
+
+def needs_sandbox(document):
+    return not creator_is_admin(document)
 
 
 @document_archive_bp.route('/plain/<int:doc_id>')
@@ -1015,11 +1050,20 @@ def plain_view(doc_id):
         if not abs_path or not os.path.exists(abs_path):
             logger.error(f"実ファイルが見つかりません: doc_id={doc_id} path={document['file_path']!r}")
             return "ファイルが見つかりません", 404
-        return send_file(abs_path, mimetype=document['file_type'])
+        resp = send_file(abs_path, mimetype=document['file_type'])
+        if (str(document['file_type']).lower().startswith(_SANDBOX_TYPES)
+                and needs_sandbox(document)):
+            resp.headers['Content-Security-Policy'] = SANDBOX_POLICY
+        resp.headers['X-Content-Type-Options'] = 'nosniff'
+        return resp
 
     if not document.get('content'):
         return "No Content", 404
-    return Response(document['content'], mimetype='text/html; charset=utf-8')
+    resp = Response(document['content'], mimetype='text/html; charset=utf-8')
+    if needs_sandbox(document):
+        resp.headers['Content-Security-Policy'] = SANDBOX_POLICY
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    return resp
 
 
 # ダウンロード時の拡張子（MIMEタイプ → Windows 標準の拡張子）

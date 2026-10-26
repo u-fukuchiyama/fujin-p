@@ -292,7 +292,7 @@ def can_modify_document(document):
     """
     文書を編集・削除できるか。
 
-    admin / 作成者本人 / created_by = 0（作成者不明）の3条件。
+    admin / 作成者本人 の2条件（作成者不明 created_by = 0 は admin のみ。2026-10-26）。
     document は dict（created_by を含む）または None。
     """
     if is_admin_user():
@@ -307,9 +307,10 @@ def can_modify_document(document):
         created_by = int(raw)
     except (TypeError, ValueError):
         return False
-    # created_by = 0 は「作成者不明」で、従来どおりログイン済みユーザなら編集可
+    # created_by = 0 は「作成者不明」．2026-10-26 から admin のみ編集・削除できる
+    # （旧版はログイン済みの誰でも編集・削除できた．admin は冒頭で許可済み）
     if created_by == 0:
-        return True
+        return False
     return created_by == current_user_id()
 
 
