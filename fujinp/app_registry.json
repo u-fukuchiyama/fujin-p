@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-26 20:02:23",
+  "generated_at": "2026-10-26 20:04:47",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -1351,8 +1351,8 @@
           "extra_class": ""
         }
       ],
-      "version_id": "v20260917.151020-31bf1b",
-      "version_confirmed_at": "2026-09-17 15:10:21"
+      "version_id": "v20261026.200445-d4c9ca",
+      "version_confirmed_at": "2026-10-26 20:04:46"
     },
     {
       "app_name": "mid_term_progress",

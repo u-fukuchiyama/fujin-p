@@ -839,16 +839,16 @@ def _svg_head_ok(head):
 
 
 def _sanitize_svg(data):
+    """アップロードされた SVG を無害化する（2026-10-26 セキュリティ改修 R-2）．
+    旧版の正規表現による除去は，引用符なしの on* 属性・foreignObject・SMIL・
+    文字参照で隠した javascript: を通していた．カーネルの markdown_converter が持つ
+    XML 方式の許可リスト型サニタイザに委ねる．読み込めなければ中身のない SVG にする．"""
     try:
-        text = data.decode('utf-8', errors='replace')
+        from markdown_converter import sanitize_svg_bytes
     except Exception:
-        return data
-    text = re.sub(r'<script\b[^>]*>.*?</script\s*>', '', text, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r'<script\b[^>]*/\s*>', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'\son\w+\s*=\s*"[^"]*"', '', text, flags=re.IGNORECASE)
-    text = re.sub(r"\son\w+\s*=\s*'[^']*'", '', text, flags=re.IGNORECASE)
-    text = re.sub(r'javascript\s*:', '', text, flags=re.IGNORECASE)
-    return text.encode('utf-8')
+        return (b'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="40">'
+                b'<text x="10" y="25" font-size="14">SVG could not be loaded safely</text></svg>')
+    return sanitize_svg_bytes(data)
 
 
 _ATT_REF_RE = re.compile(r'/fujin_forum_ne/file/(\d+)')
