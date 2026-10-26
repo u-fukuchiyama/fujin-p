@@ -688,7 +688,94 @@ def _validate_select(query):
     for bad in ('into outfile', 'into dumpfile'):
         if bad in low:
             return None, f'許可されない構文が含まれています：{bad}'
+    # 2026-10-26 セキュリティ改修（R-4）：読めるのは登録簿に載った公式テーブルだけにする
+    err = _check_query_scope(q)
+    if err:
+        return None, err
     return q, None
+
+
+# ── 指標クエリの読み取り範囲の検査（2026-10-26 R-4）──
+#   旧版は SELECT で始まりさえすれば，users など同じDBの任意の表，他のDB
+#   （fujinp$default.users のような修飾），information_schema，LOAD_FILE()・SLEEP() 等が通った．
+#   ここでは文字列リテラルとコメントを除いた本文を調べ，
+#     ・危険な関数・システムスキーマ・他DBの修飾（$ を含む名前）・INTO・ロック句を拒否し，
+#     ・クエリに現れる名前のうち「実行先DBに実在するが登録簿に載っていない表」の名前があれば拒否する．
+#   表を読むには名前を書くしかないので，名前の照合で読み取り範囲を登録簿に閉じ込められる．
+#   （列名がたまたま未登録の表と同名だと誤って拒否されるが，安全側に倒す）
+_Q_STRIP_RE = re.compile(
+    r"'(?:[^'\\]|\\.|'')*'"          # '...'
+    r'|"(?:[^"\\]|\\.|"")*"'         # "..."
+    r'|/\*.*?\*/'                      # /* ... */
+    r'|(?:--\s|#)[^\n]*',               # -- ... / # ...
+    re.S)
+_Q_DENY_RE = re.compile(
+    r'\b(load_file|sleep|benchmark|get_lock|release_lock|release_all_locks|is_free_lock|'
+    r'is_used_lock|master_pos_wait|source_pos_wait|sys_exec|sys_eval|load_data)\s*\('
+    r'|`?\b(information_schema|performance_schema|mysql|sys)\b`?\s*\.'
+    r'|\binto\b|\bfor\s+update\b|\block\s+in\s+share\s+mode\b|\bfor\s+share\b'
+    r'|\bhandler\b|\bprocedure\b',
+    re.I)
+_Q_IDENT_RE = re.compile(r'`([^`]+)`|([0-9A-Za-z_$\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\uff00-\uffef]+)')
+_scope_cache = {'at': 0.0, 'forbidden': None}
+_SCOPE_TTL = 5    # 登録簿の追加直後でも待たずに使えるよう短く保つ
+
+
+def _forbidden_tables():
+    """実行先DBにあって登録簿に載っていない表の名前（小文字）の集合。5秒キャッシュ。"""
+    import time
+    now = time.time()
+    if _scope_cache['forbidden'] is not None and now - _scope_cache['at'] < _SCOPE_TTL:
+        return _scope_cache['forbidden']
+    conn = mysql.connector.connect(**DB_CHOICES[INDICATOR_DB]())
+    try:
+        cur = conn.cursor()
+        cur.execute("SHOW TABLES")
+        actual = {r[0] for r in cur.fetchall()}
+        cur.close()
+    finally:
+        conn.close()
+    conn = mysql.connector.connect(**DatabaseConfig.default())
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT table_name FROM official_data_archive_tables "
+                    "WHERE database_name = %s", (INDICATOR_DB,))
+        registered = {r[0].lower() for r in cur.fetchall()}
+        cur.close()
+    finally:
+        conn.close()
+    forbidden = {t.lower() for t in actual} - registered
+    _scope_cache.update(at=now, forbidden=forbidden)
+    return forbidden
+
+
+def _check_query_scope(q):
+    """読み取り範囲の検査。問題があればエラーメッセージ，なければ None。"""
+    # MySQL は /*! ... */ の中身を実行する（バージョン付きコメント）．コメントとして
+    # 読み飛ばすと検査をすり抜けるので，この形は使わせない．
+    if '/*!' in q:
+        return 'バージョン付きコメント（/*! … */）は使えません'
+    body = _Q_STRIP_RE.sub(' ', q)
+    m = _Q_DENY_RE.search(body)
+    if m:
+        return '許可されない構文・関数が含まれています：' + m.group(0).strip()
+    if '$' in body:
+        return '他のデータベースを指す名前は使えません（登録簿の公式テーブルだけを読めます）'
+    try:
+        forbidden = _forbidden_tables()
+    except Exception as e:
+        logging.error("official_data_archive _forbidden_tables: %s", e)
+        return '読み取り範囲を確認できないため実行しません'
+    for a, b in _Q_IDENT_RE.findall(body):
+        name = (a or b).lower()
+        if name in forbidden:
+            return f'登録簿に載っていないテーブルは読めません：{a or b}'
+    # 二重引用符を名前として扱う設定（ANSI_QUOTES）への備え：
+    # "..." の中身がそのまま未登録の表の名前なら拒否する
+    for lit in re.findall(r'"((?:[^"\\]|\\.|"")*)"', q):
+        if lit.lower() in forbidden:
+            return f'登録簿に載っていないテーブルは読めません：{lit}'
+    return None
 
 
 def _run_indicator_query(query, max_rows):
@@ -1690,14 +1777,43 @@ def api_bulk_download():
 #   書き出しも取り込みもブラウザが組み立て役になり、サーバとはテーブル単位
 #   （大きい表は行を分割）の短いリクエストでやり取りする（タイムアウト対策）。
 #   管理グループは名前で持ち運ぶ（グループ id はサイト間で一致しないため）。
-#   JSONの形式は fujinpshowcase 版の「全部一括（JSON）」（format_version 1）と
-#   同じで、どちらの版で書き出したものも取り込める。
+#   2026-10-26：fujinpshowcase の廃止にあわせ，この版（format_version 3）を正本とする．
+#   format_version 3 では，DDL から外部キー（FOREIGN KEY 制約）を外して持ち運ぶ．
+#   公式テーブルは年度ごとのスナップショットで，表どうしの参照整合は保証されない
+#   （例：時間割の科目コードが科目一覧で一意でない・存在しない）ため，外部キーは
+#   取り込み先で作成に失敗する原因になる．取り込みでも同じ処理をかけるので，
+#   古い版（format_version 1・2）のファイルもそのまま取り込める．
 # ────────────────────────────────────────────
 
-MIGRATION_FORMAT_VERSION = 2
+MIGRATION_FORMAT_VERSION = 3
 MIGRATION_PAGE_MAX = 5000     # 書き出し1回あたりの最大行数
 MIGRATION_EXPORT_TYPE = 'official_data_archive_migration'
 MIGRATION_INSERT_CHUNK = 500
+
+
+_FK_LINE_RE = re.compile(r'^\s*(CONSTRAINT\s+`[^`]*`\s+)?FOREIGN\s+KEY\b', re.IGNORECASE)
+
+
+def _strip_foreign_keys(ddl):
+    """CREATE TABLE 文から外部キー制約の行を取り除く。(新しいDDL, 外した制約の行のlist) を返す。
+    SHOW CREATE TABLE の出力（1制約1行）を前提にし，残った最後の定義行の末尾カンマを整える。"""
+    if not ddl:
+        return ddl, []
+    lines = ddl.split('\n')
+    kept, removed = [], []
+    for ln in lines:
+        if _FK_LINE_RE.match(ln):
+            removed.append(ln.strip().rstrip(','))
+        else:
+            kept.append(ln)
+    if not removed:
+        return ddl, []
+    # 閉じ括弧の行（") ENGINE=..." 等）の直前の定義行から末尾カンマを外す
+    for i, ln in enumerate(kept):
+        if ln.lstrip().startswith(')') and i > 0:
+            kept[i - 1] = kept[i - 1].rstrip().rstrip(',')
+            break
+    return '\n'.join(kept), removed
 
 
 def _migration_val(v):
@@ -1851,7 +1967,8 @@ def api_migration_table():
         if offset == 0:
             cur.execute('SHOW CREATE TABLE `%s`' % table)
             row = cur.fetchone()
-            out['ddl'] = row[1] if row and len(row) > 1 else None
+            ddl = row[1] if row and len(row) > 1 else None
+            out['ddl'], out['dropped_foreign_keys'] = _strip_foreign_keys(ddl)
         cur.execute("SHOW KEYS FROM `%s` WHERE Key_name = 'PRIMARY'" % table)
         keys = sorted(cur.fetchall(), key=lambda k: k[3])   # Seq_in_index
         order = (' ORDER BY ' + ', '.join('`%s`' % k[4] for k in keys)) if keys else ''
@@ -1873,27 +1990,145 @@ def api_migration_table():
         conn.close()
 
 
+# ── 2026-10-26 改修：取り込みの安全化と全消去 ──
+#   ・取り込み（全消去・テーブル・定義）は admin のみ（旧版は全体管理者＝まいぐるの役割でも可で，
+#     リクエストの DDL を無検査で実行し，任意テーブルを DROP できた）．
+#   ・DDL は「同名テーブルの CREATE TABLE 1 文」に限る．
+#   ・カーネルや他アプリの表の名前は，取り込みでも全消去でも扱わない．
+#   ・全消去：移行先の登録簿にある公式テーブル，データ更新のバックアップ表，
+#     登録簿・単一指標・複合指標・データ更新の記録をすべて消す（何度実行しても同じ結果）．
+
+# 取り込み・全消去で決して触らない表（カーネルと主要アプリの表）
+MIG_PROTECTED_TABLES = {
+    'users', 'user_groups', 'user_group_memberships', 'features', 'user_features',
+    'password_reset_tokens', 'user_events', 'registration_requests', 'approved_users',
+    'apps', 'app_permission_labels', 'app_feature_permissions', 'notify_ledger',
+}
+MIG_PROTECTED_PREFIXES = ('official_data_archive_', 'app_share_', 'user_group')
+MIG_BACKUP_RE = re.compile(r'^[^\s`\'\"%;\\./]{1,43}_bak_\d{14}$')
+
+
+def _mig_is_admin(user_id):
+    """取り込み系は admin カテゴリのみ（DB の区分で判定）。"""
+    return _get_user_category(user_id) == 'admin'
+
+
+def _mig_table_ok(name):
+    """取り込み・全消去で扱ってよいテーブル名か。"""
+    if not name or not TABLE_NAME_RE.match(name):
+        return False
+    low = name.lower()
+    if low in MIG_PROTECTED_TABLES:
+        return False
+    return not any(low.startswith(p) for p in MIG_PROTECTED_PREFIXES)
+
+
+def _mig_ddl_ok(ddl, table_name):
+    """DDL が「同名テーブルの CREATE TABLE 1 文」か。"""
+    if not ddl or ';' in ddl:
+        return False
+    m = re.match(r'\s*CREATE\s+TABLE\s+`([^`]+)`\s*\(', ddl, re.IGNORECASE)
+    if not m or m.group(1) != table_name:
+        return False
+    # CREATE TABLE ... SELECT / LIKE で他表を読む形を拒む
+    if re.search(r'\)\s*(AS\s+)?SELECT\b', ddl, re.IGNORECASE):
+        return False
+    if re.search(r'\bLIKE\s+`', ddl, re.IGNORECASE):
+        return False
+    return True
+
+
 def _migration_importable(item):
-    """取り込み対象のテーブル項目か（DDLがあり、所在DBがこのサイトにある）。"""
+    """取り込み対象のテーブル項目か（DDLが同名表のCREATE 1文で，所在DBがこのサイトにあり，
+    名前が保護対象でない）。外部キーを外したあとの DDL で判定する。"""
     reg = item.get('registry') or {}
-    return (not item.get('error') and item.get('ddl')
-            and reg.get('table_name')
-            and reg.get('database_name') in DB_CHOICES)
+    tbl = reg.get('table_name')
+    ddl, _ = _strip_foreign_keys(item.get('ddl'))
+    return bool(not item.get('error') and ddl
+                and tbl and reg.get('database_name') in DB_CHOICES
+                and _mig_table_ok(tbl)
+                and _mig_ddl_ok(ddl, tbl))
+
+
+def _migration_current_state():
+    """移行先の現状：登録簿・バックアップ表・定義の件数。全消去の確認と実行に使う。"""
+    conn = mysql.connector.connect(**DatabaseConfig.default())
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT table_name, database_name FROM official_data_archive_tables")
+        registry = cur.fetchall()
+        cur.execute("""SELECT DISTINCT database_name, backup_table
+                       FROM official_data_archive_updates
+                       WHERE backup_table IS NOT NULL AND backup_table <> ''""")
+        backups = cur.fetchall()
+        counts = {}
+        for key, tbl in (('indicator_views', 'official_data_archive_indicator_views'),
+                         ('composites', 'official_data_archive_composites'),
+                         ('updates', 'official_data_archive_updates')):
+            cur.execute("SELECT COUNT(*) AS n FROM %s" % tbl)
+            counts[key] = cur.fetchone()['n']
+        cur.close()
+    finally:
+        conn.close()
+    return registry, backups, counts
+
+
+def _migration_wipe():
+    """移行先の公式データ集をすべて消す。消した件数を返す。"""
+    registry, backups, counts = _migration_current_state()
+    dropped, skipped = [], []
+    targets = [(r['database_name'], r['table_name'], False) for r in registry]
+    targets += [(b['database_name'], b['backup_table'], True) for b in backups]
+    for db, tbl, is_backup in targets:
+        ok = (db in DB_CHOICES and _mig_table_ok(tbl)
+              and (not is_backup or MIG_BACKUP_RE.match(tbl or '')))
+        if not ok:
+            skipped.append('%s.%s' % (db, tbl))
+            continue
+        conn = mysql.connector.connect(**DB_CHOICES[db]())
+        try:
+            cur = conn.cursor()
+            cur.execute("SET FOREIGN_KEY_CHECKS=0")
+            cur.execute("DROP TABLE IF EXISTS `%s`" % tbl)
+            cur.execute("SET FOREIGN_KEY_CHECKS=1")
+            conn.commit()
+            cur.close()
+            dropped.append('%s.%s' % (db, tbl))
+        finally:
+            conn.close()
+    conn = mysql.connector.connect(**DatabaseConfig.default())
+    try:
+        cur = conn.cursor()
+        for tbl in ('official_data_archive_composite_components',
+                    'official_data_archive_composites',
+                    'official_data_archive_indicator_views',
+                    'official_data_archive_updates',
+                    'official_data_archive_tables'):
+            cur.execute("DELETE FROM %s" % tbl)
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+    return {'dropped': len(dropped), 'skipped': skipped,
+            'registry': len(registry), 'indicator_views': counts['indicator_views'],
+            'composites': counts['composites'], 'updates': counts['updates']}
 
 
 def _migration_import_table(item, reset):
     """1テーブル分（または行の一部）を書き込む。
-    reset=True なら DROP → 同梱DDLで CREATE してから INSERT、
-    False なら既存テーブルへ INSERT のみ（行を分割して送る2回目以降）。挿入行数を返す。"""
+    reset=True なら DROP → 同梱DDL（外部キーを外したもの）で CREATE してから INSERT、
+    False なら既存テーブルへ INSERT のみ（行を分割して送る2回目以降）。
+    (挿入行数, 外した外部キーの行のlist) を返す。"""
     reg = item['registry']
     tbl = reg['table_name']
+    ddl, dropped_fk = _strip_foreign_keys(item['ddl'])
     conn = mysql.connector.connect(**DB_CHOICES[reg['database_name']]())
     cur = conn.cursor()
     try:
         cur.execute("SET FOREIGN_KEY_CHECKS=0")
         if reset:
             cur.execute("DROP TABLE IF EXISTS `%s`" % tbl)
-            cur.execute(item['ddl'])
+            cur.execute(ddl)
         cols = item.get('columns') or []
         rows = item.get('rows') or []
         if cols and rows:
@@ -1904,7 +2139,7 @@ def _migration_import_table(item, reset):
                 cur.executemany(sql, [tuple(r) for r in
                                       rows[i:i + MIGRATION_INSERT_CHUNK]])
         conn.commit()
-        return len(rows)
+        return len(rows), (dropped_fk if reset else [])
     finally:
         try:
             cur.execute("SET FOREIGN_KEY_CHECKS=1")
@@ -1929,6 +2164,8 @@ def _migration_import_definitions(pkg, user_id, now):
             reg = item.get('registry') or {}
             key = (reg.get('database_name'), reg.get('table_name'))
             if not all(key) or key in seen:
+                continue
+            if key[0] not in DB_CHOICES or not _mig_table_ok(key[1]):
                 continue
             seen.add(key)
             cur.execute("""
@@ -1997,22 +2234,61 @@ def _migration_import_definitions(pkg, user_id, now):
 # 各テーブルは最初の送信（reset=true）で作り直すので、途中で止まっても
 # 最初からやり直せば同じ結果になる（冪等）。
 
+@official_data_archive_bp.route('/api/migration/import/plan', methods=['GET'])
+@login_required
+def api_migration_import_plan():
+    """全消去の対象（移行先の現状）を返す。admin のみ。画面の確認表示に使う。"""
+    if not _mig_is_admin(session.get('user_id')):
+        return jsonify({'success': False,
+                        'error': '取り込みは管理者（admin）のみ実行できます'}), 403
+    try:
+        registry, backups, counts = _migration_current_state()
+        return jsonify({'success': True,
+                        'registry': [{'table_name': r['table_name'],
+                                      'database_name': r['database_name']}
+                                     for r in registry],
+                        'backups': len(backups), 'counts': counts})
+    except Exception as e:
+        logging.error("api_migration_import_plan: %s", e)
+        return jsonify({'success': False, 'error': '現状の取得に失敗しました'}), 500
+
+
+@official_data_archive_bp.route('/api/migration/import/wipe', methods=['POST'])
+@login_required
+def api_migration_import_wipe():
+    """移行先の公式データ集をすべて消す（取り込みの最初の段）。admin のみ。
+    リクエスト: { confirm: "wipe" }"""
+    if not _mig_is_admin(session.get('user_id')):
+        return jsonify({'success': False,
+                        'error': '取り込みは管理者（admin）のみ実行できます'}), 403
+    data = request.get_json(silent=True) or {}
+    if data.get('confirm') != 'wipe':
+        return jsonify({'success': False, 'error': '確認の指定がありません'}), 400
+    try:
+        result = _migration_wipe()
+        return jsonify({'success': True, 'wiped': result})
+    except Exception as e:
+        logging.error("api_migration_import_wipe: %s", e)
+        return jsonify({'success': False,
+                        'error': f'全消去に失敗しました：{e}'}), 500
+
+
 @official_data_archive_bp.route('/api/migration/import/table', methods=['POST'])
 @login_required
 def api_migration_import_table():
-    """1テーブル分を取り込む。全体管理者のみ。
+    """1テーブル分を取り込む。admin のみ。
     リクエスト: { registry, ddl, columns, rows, reset }"""
     user_id = session.get('user_id')
-    if not is_global_manager(user_id):
+    if not _mig_is_admin(user_id):
         return jsonify({'success': False,
-                        'error': '全体管理者のみ実行できます'}), 403
+                        'error': '取り込みは管理者（admin）のみ実行できます'}), 403
     item = request.get_json(silent=True) or {}
     if not _migration_importable(item):
         return jsonify({'success': False,
                         'error': '取り込み対象外のテーブルです'}), 400
     try:
-        n = _migration_import_table(item, bool(item.get('reset')))
-        return jsonify({'success': True, 'rows': n})
+        n, dropped_fk = _migration_import_table(item, bool(item.get('reset')))
+        return jsonify({'success': True, 'rows': n, 'dropped_foreign_keys': dropped_fk})
     except Exception as e:
         logging.error("api_migration_import_table %s: %s",
                       (item.get('registry') or {}).get('table_name'), e)
@@ -2022,12 +2298,12 @@ def api_migration_import_table():
 @official_data_archive_bp.route('/api/migration/import/definitions', methods=['POST'])
 @login_required
 def api_migration_import_definitions():
-    """登録簿・単一指標・複合指標を全削除して再作成する。全体管理者のみ。
+    """登録簿・単一指標・複合指標を全削除して再作成する。admin のみ。
     リクエスト: { tables: [{registry}], indicator_views, composites }"""
     user_id = session.get('user_id')
-    if not is_global_manager(user_id):
+    if not _mig_is_admin(user_id):
         return jsonify({'success': False,
-                        'error': '全体管理者のみ実行できます'}), 403
+                        'error': '取り込みは管理者（admin）のみ実行できます'}), 403
     pkg = request.get_json(silent=True) or {}
     try:
         counts = _migration_import_definitions(pkg, user_id, get_jst_now())
@@ -2398,6 +2674,10 @@ def api_update_apply():
                         'error': '対象データベースの指定が不正です'}), 400
 
     table = u['table_name']
+    # 転記はテーブルを全件消して入れ替えるので，名前の形と保護対象を必ず確かめる（2026-10-26 最終点検）
+    if not _mig_table_ok(table):
+        return jsonify({'success': False,
+                        'error': 'このテーブルには転記できません（名前が不正か，保護対象のテーブルです）'}), 400
     path = os.path.join(_upload_dir(), os.path.basename(u['stored_filename']))
     if not os.path.exists(path):
         return jsonify({'success': False,
