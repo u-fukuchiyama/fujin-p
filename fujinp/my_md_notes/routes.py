@@ -361,23 +361,16 @@ def svg_head_ok(head_bytes):
 
 
 def _sanitize_svg(data):
-    """アップロードされた SVG から script / on* / javascript: を除去する簡易サニタイズ
-    （コレポと同じ規則）"""
+    """アップロードされた SVG を無害化する（2026-10-26 セキュリティ改修 R-2）．
+    旧版の正規表現による除去は，引用符なしの on* 属性・foreignObject・SMIL・
+    文字参照で隠した javascript: を通していた．カーネルの markdown_converter が持つ
+    XML 方式の許可リスト型サニタイザに委ねる．読み込めなければ中身のない SVG にする．"""
     try:
-        text = data.decode('utf-8', errors='replace')
+        from markdown_converter import sanitize_svg_bytes
     except Exception:
-        return data
-    # <script>...</script> 除去
-    text = re.sub(r'<script\b[^>]*>.*?</script\s*>', '', text,
-                  flags=re.IGNORECASE | re.DOTALL)
-    # 自己終端の <script .../> 除去
-    text = re.sub(r'<script\b[^>]*/\s*>', '', text, flags=re.IGNORECASE)
-    # on*="..." イベントハンドラ除去
-    text = re.sub(r'\son\w+\s*=\s*"[^"]*"', '', text, flags=re.IGNORECASE)
-    text = re.sub(r"\son\w+\s*=\s*'[^']*'", '', text, flags=re.IGNORECASE)
-    # javascript: URI 除去
-    text = re.sub(r'javascript\s*:', '', text, flags=re.IGNORECASE)
-    return text.encode('utf-8')
+        return (b'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="40">'
+                b'<text x="10" y="25" font-size="14">SVG could not be loaded safely</text></svg>')
+    return sanitize_svg_bytes(data)
 
 
 # =============================================================================
@@ -734,12 +727,22 @@ def create_note(user_id, name, sequence=0):
 # ルート
 # =============================================================================
 
+
+def _safe_return_to(v):
+    """「戻る」ボタンの行き先．このサイトのパス（/ で始まり // や \\ を含まない）だけを使う（2026-10-26 最終点検）．
+    javascript: や外部サイトの URL を渡されたら既定のダッシュボードに戻す"""
+    v = (v or '').strip()
+    if v.startswith('/') and not v.startswith('//') and '\\' not in v \
+            and not any(ord(ch) < 0x20 for ch in v):
+        return v
+    return url_for('auth.redirect_to_dashboard')
+
 @my_md_notes_bp.route('/')
 @login_required
 def index():
     user_category = session.get('user_category')
     notes = get_user_notes_flat(session['user_id'], category=user_category)
-    return_to = request.args.get('return_to') or url_for('auth.redirect_to_dashboard')
+    return_to = _safe_return_to(request.args.get('return_to'))
 
     return render_template('my_notes.html', notes=notes, return_to=return_to,
                            user_category=user_category, session=session)
@@ -2039,7 +2042,7 @@ def search_notes():
     user_category = session.get('user_category')
     keyword = request.args.get('keyword', '').strip()
     sort_by = request.args.get('sort_by', 'updated_desc')
-    return_to = request.args.get('return_to') or url_for('auth.redirect_to_dashboard')
+    return_to = _safe_return_to(request.args.get('return_to'))
 
     order_clauses = {
         'updated_asc': 'ORDER BY ns.更新日時 ASC',
