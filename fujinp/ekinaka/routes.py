@@ -1426,7 +1426,9 @@ def settings():
 
             cur.execute("DELETE FROM ekinaka_access_settings")
             for atype in ('view', 'apply', 'approve'):
-                if request.form.get(f'{atype}_public'):
+                # 「公開」は閲覧（view）にだけ効く（R-11）ので，view でだけ受け付ける．
+                # 以前に保存された apply の「公開」は，この保存で消える（2026-11-01）
+                if atype == 'view' and request.form.get(f'{atype}_public'):
                     cur.execute("""
                         INSERT IGNORE INTO ekinaka_access_settings (access_type, group_name)
                         VALUES (%s, %s)

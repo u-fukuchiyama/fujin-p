@@ -110,13 +110,7 @@ header{background:var(--c-primary);color:#fff;padding:10px 16px;position:sticky;
     </div>
     {{ current_badges('apply') }}
     <div class="check-group">
-        <label class="check-item anon-item">
-          <input type="checkbox" name="apply_public" value="1" {% if public_sentinel in by_type['apply'] %}checked{% endif %}>
-          <div>
-            <div class="check-item-label">🌐 匿名（ログインなし）</div>
-            <div class="check-item-sub">通常は使用しません</div>
-          </div>
-        </label>
+      {# 申請の「匿名（ログインなし）」は効かなくなったので取り除いた（R-11 の後始末，2026-11-01） #}
       {% for g in all_groups %}
       <label class="check-item">
         <input type="checkbox" name="apply_groups" value="{{ g.name }}" {% if g.name in by_type['apply'] %}checked{% endif %}>
