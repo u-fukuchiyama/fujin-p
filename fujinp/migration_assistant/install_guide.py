@@ -23,13 +23,14 @@
 まいあし：別サイトへのインストール
 
 新品の PythonAnywhere に FUJIN-P を立ち上げるための配布物と手引きを，
-1つの画面にまとめて置く．中身は data_for_distribution/ の4ファイル．
+1つの画面にまとめて置く．中身は data_for_distribution/ の6ファイル．
 
-  install_overview.md        全体マニュアル（2段階の見取り図）
-  install_stage1.md          第1段階マニュアル（種の立ち上げ）
-  fujinp_kernel_install.py   第1段階で使う導入スクリプト（配布物）
-  install_stage2.md          第2段階マニュアル（版をそろえ，全アプリを取り込む）
-  legacy_docs_202607.md      まいあしの旧文書（保存用）
+  install_overview.md           全体マニュアル（2段階の見取り図）
+  install_stage1.md             第1段階マニュアル（種の立ち上げ）
+  fujinp_kernel_install.py      第1段階で使う導入スクリプト（配布物）
+  install_stage2.md             第2段階マニュアル（版をそろえ，全アプリを取り込む）
+  install_external_services.md  外部サービス設定（Google認証・Slack．config.py を作る段階で読む）
+  legacy_docs_202607.md         まいあしの旧文書（保存用）
 
 導入スクリプトは build_installer.py で，いま動いているサイトのカーネルから作り直す．
 画面はこのファイルの中で組み立てる（テンプレートファイルを持たない）．
@@ -55,6 +56,9 @@ DOCS = {
                'カーネルの JSON から導入スクリプトを取り出し，カーネルとアプシャだけの「種」を立ち上げる．ログインまで．'),
     'stage2': ('install_stage2.md', '第2段階マニュアル',
                'アプシャ・カーネル・admin を元のサイトと同じ版にそろえ，全アプリパッケージから全アプリを取り込む．'),
+    'external': ('install_external_services.md', '外部サービス設定（Google認証・Slack）',
+                 'Google のコールバック URL の追加登録と，Slack の二重投稿・予約投稿を避ける順序．'
+                 'config.py を作る段階で読む．なぜ必要かの説明つき．'),
     'legacy': ('legacy_docs_202607.md', 'まいあし 旧文書（2026年7月版）',
                '正本化より前のユーザマニュアルと技術仕様書．控えとして残してある．'),
 }
@@ -167,6 +171,8 @@ _INDEX_HTML = """<!DOCTYPE html>
       第2段階でアプシャ・カーネル・admin を元のサイトと同じ版にそろえてから全アプリを取り込みます．
       間に挟まる手作業は，データベースの作成・<code>config.py</code> の用意・WSGI の設定・
       最初の admin の登録の4つだけです．テーブルの中身（データ）は別の手順で戻します．
+      Google 認証と Slack は FUJIN-P の外のサービスなので，<code>config.py</code> に値を写すだけでは動きません．
+      その設定は「外部サービス設定」にまとめてあります．
     </div>
 
     <div class="steps">
@@ -209,6 +215,13 @@ _INDEX_HTML = """<!DOCTYPE html>
         <p>{{ docs['stage2'][2] }}</p>
         <a class="btn read" href="{{ url_for('migration_assistant.install_guide_doc', key='stage2') }}">📖 読む</a>
         <a class="btn read" href="{{ url_for('migration_assistant.install_guide_download', key='stage2') }}">⬇ .md</a>
+      </div>
+
+      <div class="step">
+        <span class="no">＊</span><h2>{{ docs['external'][1] }}</h2>
+        <p>{{ docs['external'][2] }}</p>
+        <a class="btn read" href="{{ url_for('migration_assistant.install_guide_doc', key='external') }}">📖 読む</a>
+        <a class="btn read" href="{{ url_for('migration_assistant.install_guide_download', key='external') }}">⬇ .md</a>
       </div>
 
     </div>
