@@ -57,7 +57,15 @@
   .note { font-size: 12px; color: #555; margin-top: 2px; }
   .num { white-space: nowrap; color: #555; }
   .coming { font-size: 13px; color: var(--muted); line-height: 1.7; }
-  @media (max-width: 600px) { .toc-row { flex-direction: column; } table.dist .num { display: none; } }
+  ul.guides { list-style: none; margin: 0; padding: 0; }
+  ul.guides li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 4px; border-bottom: 1px dashed var(--border); }
+  ul.guides li:last-child { border-bottom: none; }
+  ul.guides .g-main { flex: 1; min-width: 0; }
+  ul.guides .g-main a { font-weight: 600; color: var(--primary); text-decoration: none; font-size: 15px; }
+  ul.guides .g-main a:hover { text-decoration: underline; }
+  ul.guides .g-ops { display: flex; gap: 4px; flex-shrink: 0; align-items: center; }
+  ul.guides .missing { color: #c0392b; font-size: 12px; }
+  @media (max-width: 600px) { .toc-row, ul.guides li { flex-direction: column; } table.dist .num { display: none; } }
 </style>
 </head>
 <body>
@@ -68,10 +76,35 @@
 <main>
 
   <section>
+    <h2>📘 組み込みの手引き</h2>
+    <p class="lead">FUJIN-P の導入と移行の手引きです．まいあしと一緒に配られる固定の版で，どのサイトでも同じものが読めます．</p>
+    <ul class="guides">
+      {% for g in guides %}
+      <li>
+        <div class="g-main">
+          {% if g.exists %}
+          <a href="{{ url_for('migration_assistant.guide_view', key=g.key) }}">{{ g.title }}</a>
+          {% else %}
+          <strong>{{ g.title }}</strong> <span class="missing">（{{ g.name }} がありません）</span>
+          {% endif %}
+          <div class="toc-desc">{{ g.desc }}</div>
+        </div>
+        {% if g.exists %}
+        <div class="g-ops">
+          <a class="btn" href="{{ url_for('migration_assistant.guide_view', key=g.key) }}">📖 読む</a>
+          <a class="btn" href="{{ url_for('migration_assistant.guide_download', key=g.key) }}">⬇ .md</a>
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section>
     <h2>📚 図書館
       {% if can_edit %}<button class="btn btn-primary" id="btn-add">＋ 文書を加える</button>{% endif %}
     </h2>
-    <p class="lead">FUJIN-P の導入や移行の手引きなどの文書の目次です．題名を押すと別のタブで開きます．</p>
+    <p class="lead">文書アーカイブなどに置いた，そのほかの文書の目次です．題名を押すと別のタブで開きます．このサイトの登録なので，まいあしを別のサイトへ移しても目次の行はついてきません．</p>
     <ol class="toc" id="toc"></ol>
     <div class="empty" id="toc-empty" style="display:none">まだ文書がありません．</div>
 

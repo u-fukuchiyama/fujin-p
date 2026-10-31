@@ -33,6 +33,8 @@
 `config.py` はどのファイルにも入っていません．
 保全では元のサイトの `config.py` を別に控えておき，それを使います．
 新しく作るときは，カーネルに入っている `config_template.py` から書きます．
+Google 認証と Slack は FUJIN-P の外のサービスなので，`config.py` に元のサイトと同じ値を写すだけでは動きません．
+その設定は手引き「[外部サービス設定（Google認証・Slack）](/migration_assistant/guide/external)」にまとめてあります．
 
 PythonAnywhere の有料アカウント（Developer プラン以上）も要ります．
 FUJIN-P はデータベース（MySQL）を全面的に使うので，無料プランでは動きません．

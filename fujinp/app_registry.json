@@ -1,6 +1,6 @@
 {
   "format_version": 2,
-  "generated_at": "2026-10-31 11:53:18",
+  "generated_at": "2026-10-31 13:14:05",
   "note": "FUJIN-P アプリ正本の写し．正本は app_share_registry / app_share_sections / app_share_dashboards（アプシャ）．手で編集せず，アプシャの「発行」で再生成する．",
   "apps": [
     {
@@ -362,7 +362,7 @@
       "app_name": "migration_assistant",
       "display_name": "まいあし",
       "icon": "👣",
-      "description": "FUJIN-P の導入・移行の手引き文書の図書館と配布ファイル（第1段）．教材と教室は第2・3段で足す",
+      "description": "FUJIN-P の導入・移行の手引き（組み込み）と，その他の文書の図書館，配布ファイル（第1段）．教材と教室は第2・3段で足す",
       "sort_order": 210.0,
       "kind": "app",
       "enabled": true,
@@ -388,7 +388,7 @@
           ],
           "sort_order": 1,
           "visibility": "private",
-          "description": "図書館（手引きの文書）と配布ファイル",
+          "description": "組み込みの手引き・図書館・配布ファイル",
           "extra_class": "clickable"
         },
         {
@@ -403,12 +403,12 @@
           ],
           "sort_order": 1,
           "visibility": "public",
-          "description": "図書館（手引きの文書）と配布ファイル",
+          "description": "組み込みの手引き・図書館・配布ファイル",
           "extra_class": ""
         }
       ],
-      "version_id": "v20261031.115305-75aad3",
-      "version_confirmed_at": "2026-10-31 11:53:06"
+      "version_id": "v20261031.131403-ac0824",
+      "version_confirmed_at": "2026-10-31 13:14:03"
     },
     {
       "app_name": "migrate_fujinp_scions",

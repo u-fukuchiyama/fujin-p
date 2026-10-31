@@ -22,7 +22,10 @@
 """
 まいあし (MaiAshi) ルート（2026-10-20 第1段）
 
-  図書館      … 文書アーカイブなどに置いた文書への目次．行は題名・説明・URL・並び順だけ
+  組み込みの手引き … data_for_distribution/ の .md（導入・移行の手引き）を画面で読み，.md で受け取る．
+                     一覧はコード内の固定表 GUIDES で，DB にも他のアプリにも依存しない．
+                     まいあしのパッケージに入って一緒に移るので，移設先でもそのまま読める（2026-10-31）
+  図書館      … 文書アーカイブなどに置いたその他の文書への目次．行は題名・説明・URL・並び順だけ
   配布ファイル … 導入スクリプト（data_for_distribution/ の .py）と組み立て道具 build_installer.py
 
 閲覧はログインした人全員．目次の編集は admin と「まいあしインストラクター」グループの所属者．
@@ -126,11 +129,68 @@ def _need_instructor_json():
 
 
 # =============================================================================
+# 組み込みの手引き（data_for_distribution/ の .md）
+# =============================================================================
+
+# key: (ファイル名, 表題, 一行の説明)．並びは画面の表示順
+GUIDES = [
+    ('overview', 'install_overview.md', '全体マニュアル',
+     '新品の PythonAnywhere に FUJIN-P を立ち上げるまでの見取り図．用意するファイルと config.py，2つの段階，手で行う設定．最初にこれを読む．'),
+    ('stage1', 'install_stage1.md', '第1段階マニュアル',
+     'カーネルとアプシャだけの「種」を立ち上げ，admin でログインできるところまで．'),
+    ('stage2', 'install_stage2.md', '第2段階マニュアル',
+     'アプシャ・カーネル・admin を元のサイトと同じ版にそろえ，全アプリパッケージから全アプリを取り込む．'),
+    ('external', 'install_external_services.md', '外部サービス設定（Google認証・Slack）',
+     '新しいサイトで Google ログインのコールバック URL を登録し直す手順と，Slack の二重投稿・予約投稿を避ける切替の順序．なぜ必要かの説明つき．'),
+    ('legacy', 'legacy_docs_202607.md', 'まいあし 旧文書（2026年7月版）',
+     '正本化より前のユーザマニュアルと技術仕様書．控えとして残してある．現行のコードとは食い違う．'),
+]
+GUIDE_MAP = {k: (name, title, desc) for k, name, title, desc in GUIDES}
+
+
+def _guide_info():
+    """画面に並べる手引きの一覧（実在するものに exists=True）"""
+    rows = []
+    for key, name, title, desc in GUIDES:
+        path = os.path.join(DIST_DIR, name)
+        ok = os.path.isfile(path)
+        rows.append({
+            'key': key, 'name': name, 'title': title, 'desc': desc, 'exists': ok,
+            'mtime': (datetime.datetime.fromtimestamp(os.stat(path).st_mtime, JST).strftime('%Y-%m-%d %H:%M')
+                      if ok else ''),
+        })
+    return rows
+
+
+def _guide_text(key):
+    """(ファイル名, 表題, 本文) を返す．表に無い key は None，ファイルが無ければ本文 None"""
+    if key not in GUIDE_MAP:
+        return None
+    name, title, _desc = GUIDE_MAP[key]
+    path = os.path.join(DIST_DIR, name)
+    if not os.path.isfile(path):
+        return name, title, None
+    with open(path, encoding='utf-8') as f:
+        return name, title, f.read()
+
+
+def _md_to_html(md_text):
+    """Markdown を HTML に．カーネルの markdown_converter（無害化つき）を使い，無ければ素のテキストで出す"""
+    try:
+        from markdown_converter import process_markdown_for_preview
+        return process_markdown_for_preview(md_text)
+    except Exception as e:
+        logging.warning("migration_assistant _md_to_html: %s", e)
+        import html as _h
+        return '<pre style="white-space:pre-wrap">' + _h.escape(md_text) + '</pre>'
+
+
+# =============================================================================
 # 配布ファイル
 # =============================================================================
 
 def _dist_files():
-    """配布するファイルの一覧（名前 → 実パス）．.md は文書アーカイブ側に移したので配らない"""
+    """配布するファイルの一覧（名前 → 実パス）．.py だけ．手引きの .md は「組み込みの手引き」が配る"""
     out = {}
     if os.path.isdir(DIST_DIR):
         for name in sorted(os.listdir(DIST_DIR)):
@@ -173,8 +233,42 @@ def index():
         return render_template('migration_assistant/error.html', error='ログインが必要です'), 401
     return render_template('migration_assistant/migration_assistant_index.html',
                            can_edit=is_instructor(),
+                           guides=_guide_info(),
                            dist_files=_dist_info(),
                            instructor_group=INSTRUCTOR_GROUP)
+
+
+@migration_assistant.route('/guide/<key>')
+def guide_view(key):
+    """組み込みの手引きを画面で読む"""
+    if not session.get('user_id'):
+        return render_template('migration_assistant/error.html',
+                               error='手引きを読むにはログインが必要です'), 401
+    got = _guide_text(key)
+    if got is None:
+        abort(404)
+    name, title, text = got
+    if text is None:
+        return render_template('migration_assistant/error.html',
+                               error=f'{name} がアプリの data_for_distribution/ にありません'), 404
+    return render_template('migration_assistant/migration_assistant_guide.html',
+                           key=key, name=name, title=title, body=_md_to_html(text),
+                           guides=_guide_info())
+
+
+@migration_assistant.route('/guide/<key>/download')
+def guide_download(key):
+    """組み込みの手引きを .md で受け取る"""
+    if not session.get('user_id'):
+        return render_template('migration_assistant/error.html',
+                               error='手引きの受け取りにはログインが必要です'), 401
+    if key not in GUIDE_MAP:
+        abort(404)
+    name = GUIDE_MAP[key][0]
+    if not os.path.isfile(os.path.join(DIST_DIR, name)):
+        abort(404)
+    return send_from_directory(DIST_DIR, name, as_attachment=True, download_name=name,
+                               mimetype='text/markdown')
 
 
 @migration_assistant.route('/dist/<path:name>')

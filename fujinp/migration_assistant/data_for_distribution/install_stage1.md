@@ -82,6 +82,7 @@ Files 画面で `config.py` を開き，`<...>` の箇所を埋めます．埋�
 `DB_ACCOUNT` は PythonAnywhere のアカウント名，`BASE_URL` は `https://<アカウント名>.pythonanywhere.com` です．
 `DB_HOST`・`DB_USER`・`DB_PASSWORD` は Databases タブに出ている値をそのまま入れます．
 Google 認証とメールは空のままで構いません．種はメールアドレスとパスワードのログインで立ち上げ，Google 認証はあとから足します．
+Google 認証と Slack を足すときの手順と順序は，手引き「[外部サービス設定（Google認証・Slack）](/migration_assistant/guide/external)」にあります．
 
 ## 6. テーブルを作る
 
