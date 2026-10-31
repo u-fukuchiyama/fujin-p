@@ -229,3 +229,5 @@ fujinp/slack_minutes/data/
 fujinp/surakumine/data/
 fujinp/table_converter/data/
 fujinp/*/static/
+**/migration_staging/
+*.zip
