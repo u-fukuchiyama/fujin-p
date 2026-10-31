@@ -349,7 +349,17 @@ function loadSummary(){
             else if(!s.enabled)b+='<span class="badge badge-danger">無効</span> ';
             else if(s.running===false)b+='<span class="badge badge-danger" title="正本にあるが起動中に未登録（発行＋Reload が必要）">未起動</span> ';
             const g=s.git;
-            if(g&&!g.error){
+            const st=s.stage;
+            if(st&&!st.error){
+                // 作業の段階（2026-10-31）：いまの段階と次にすること．押すと，それをする画面へ
+                const STY={docs:'badge-danger',version:'badge-info',commit:'badge-warning',push:'badge-info',done:'badge-success'};
+                const ICO={docs:'📝',version:'🏷',commit:'⬆',push:'🚀',done:'✔'};
+                const chain=st.steps.map(x=>(x.state==='done'?'✔':x.state==='current'?'▶':'・')+x.label).join(' → ');
+                const tip=[st.title,'次：'+st.next].concat(st.reasons||[]).concat([chain]).join('\n');
+                const go=(st.step==='docs')?`/app_share/package/export/${encodeURIComponent(name)}`:`/app_share/app/${encodeURIComponent(name)}#ver`;
+                b+=`<span class="badge ${STY[st.step]||'badge-gray'}" title="${esc(tip)}" style="cursor:pointer" onclick="location.href='${go}'">${ICO[st.step]||''} ${esc(st.title)}</span> `;
+            }
+            else if(g&&!g.error){
                 if(g.needs_commit){
                     const onlyDel=(g.changed+g.added===0&&g.deleted>0);
                     b+=`<span class="badge badge-warning" title="変更 ${g.changed} / 新規 ${g.added} / 削除 ${g.deleted}" style="cursor:pointer" onclick="location.href='/app_share/app/${name}#ver'">${onlyDel?'🔶 関所の整理（削除 '+g.deleted+'）':'🔶 要commit '+esc(g.last_change||'')}</span> `;
