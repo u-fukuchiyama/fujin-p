@@ -26,7 +26,7 @@
                      一覧はコード内の固定表 GUIDES で，DB にも他のアプリにも依存しない．
                      まいあしのパッケージに入って一緒に移るので，移設先でもそのまま読める（2026-10-31）
   図書館      … 文書アーカイブなどに置いたその他の文書への目次．行は題名・説明・URL・並び順だけ
-  配布ファイル … 導入スクリプト（data_for_distribution/ の .py）と組み立て道具 build_installer.py
+  配布ファイル … 立ち上げスクリプト fujinp_bootstrap.py（このサイトのホーム直下にある本物を配る．2026-10-31）
 
 閲覧はログインした人全員．目次の編集は admin と「まいあしインストラクター」グループの所属者．
 """
@@ -50,7 +50,10 @@ INSTRUCTOR_GROUP = 'まいあしインストラクター'
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIST_DIR = os.path.join(HERE, 'data_for_distribution')
-BUILDER_NAME = 'build_installer.py'
+# 立ち上げスクリプトはカーネルの一部としてホーム直下に置かれている（全アプリパッケージにも入る）．
+# まいあしは写しを持たず，ホーム直下の本物を配る（2026-10-31．旧 fujinp_kernel_install.py と build_installer.py は廃止）
+SITE_ROOT = os.path.dirname(os.path.dirname(HERE))
+BOOTSTRAP_NAME = 'fujinp_bootstrap.py'
 
 JST = datetime.timezone(datetime.timedelta(hours=9), 'JST')
 
@@ -135,11 +138,11 @@ def _need_instructor_json():
 # key: (ファイル名, 表題, 一行の説明)．並びは画面の表示順
 GUIDES = [
     ('overview', 'install_overview.md', '全体マニュアル',
-     '新品の PythonAnywhere に FUJIN-P を立ち上げるまでの見取り図．用意するファイルと config.py，2つの段階，手で行う設定．最初にこれを読む．'),
+     '新品の PythonAnywhere に FUJIN-P を立ち上げるまでの見取り図．全アプリパッケージ1つと config.py，2つの段階，手で行う設定，アプシャが開けなくなったときの立て直し．最初にこれを読む．'),
     ('stage1', 'install_stage1.md', '第1段階マニュアル',
-     'カーネルとアプシャだけの「種」を立ち上げ，admin でログインできるところまで．'),
+     '立ち上げスクリプト fujinp_bootstrap.py で，全アプリパッケージからカーネルとアプシャまでを立ち上げ，admin でログインできるところまで．'),
     ('stage2', 'install_stage2.md', '第2段階マニュアル',
-     'アプシャ・カーネル・admin を元のサイトと同じ版にそろえ，全アプリパッケージから全アプリを取り込む．'),
+     '立ち上がったサイトのアプシャで，同じ全アプリパッケージから一般のアプリをまとめて取り込む．'),
     ('external', 'install_external_services.md', '外部サービス設定（Google認証・Slack）',
      '新しいサイトで Google ログインのコールバック URL を登録し直す手順と，Slack の二重投稿・予約投稿を避ける切替の順序．なぜ必要かの説明つき．'),
     ('legacy', 'legacy_docs_202607.md', 'まいあし 旧文書（2026年7月版）',
@@ -190,22 +193,17 @@ def _md_to_html(md_text):
 # =============================================================================
 
 def _dist_files():
-    """配布するファイルの一覧（名前 → 実パス）．.py だけ．手引きの .md は「組み込みの手引き」が配る"""
+    """配布するファイルの一覧（名前 → 実パス）．手引きの .md は「組み込みの手引き」が配る"""
     out = {}
-    if os.path.isdir(DIST_DIR):
-        for name in sorted(os.listdir(DIST_DIR)):
-            path = os.path.join(DIST_DIR, name)
-            if os.path.isfile(path) and name.endswith('.py'):
-                out[name] = path
-    builder = os.path.join(HERE, BUILDER_NAME)
-    if os.path.isfile(builder):
-        out[BUILDER_NAME] = builder
+    boot = os.path.join(SITE_ROOT, BOOTSTRAP_NAME)
+    if os.path.isfile(boot):
+        out[BOOTSTRAP_NAME] = boot
     return out
 
 
 DIST_NOTES = {
-    'fujinp_kernel_install.py': '導入スクリプト．新しいサイトのホーム直下（/home/<アカウント名>/）に置いて使います',
-    BUILDER_NAME: '組み立て道具．配布元のサイトで導入スクリプトを作り直すときに使います',
+    BOOTSTRAP_NAME: '立ち上げスクリプト．全アプリパッケージの JSON と一緒に，新しいサイトのホーム直下（/home/<アカウント名>/）に置いて使います．'
+                    'ふつうは JSON から取り出すので，ダウンロードは要りません',
 }
 
 
