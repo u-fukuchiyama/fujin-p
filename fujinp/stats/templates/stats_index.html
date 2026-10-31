@@ -1279,7 +1279,8 @@
             {% endif %}
         </div>
 
-        <!-- データベース統計（テーブル一覧と行数） -->
+        <!-- データベース統計（テーブル一覧と行数）：admin 専用（2026-11-01） -->
+        {% if user_category == 'admin' %}
         <div class="stat-card">
             <h2>🗄️ データベース統計（MySQL テーブルと行数）</h2>
             {% if db_stats %}
@@ -1340,6 +1341,7 @@
             <div class="db-stat-empty">データベース情報を取得できませんでした</div>
             {% endif %}
         </div>
+        {% endif %}
 
         <!-- Admin専用セクション -->
         {% if user_category == 'admin' and admin_data %}

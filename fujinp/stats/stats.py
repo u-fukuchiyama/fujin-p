@@ -781,14 +781,18 @@ def stat_main():
     app_sizes_total = sum(a['total_lines'] for a in app_sizes)
     app_sizes_max = max((a['total_lines'] for a in app_sizes), default=1)
 
-    # データベース統計（Guest/Admin共通）※全テーブルのCOUNT(*)が重いのでキャッシュ経由
-    db_stats = _cached('db_stats', get_database_stats)
-    # テンプレート用：バー表示の最大行数（全DB通して、ゼロ除算回避）
+    # データベース統計（Admin専用）※全テーブルのCOUNT(*)が重いのでキャッシュ経由
+    # 全 DB のテーブル名と行数は DB の構造そのものなので，admin 以外には見せない
+    # （脆弱性点検報告 4.2 の Low 項目，2026-11-01）．admin 以外には空のリストを渡す．
+    db_stats = []
     db_stats_max_rows = 1
-    for db in db_stats:
-        for t in db['tables']:
-            if t['row_count'] > db_stats_max_rows:
-                db_stats_max_rows = t['row_count']
+    if user_category == 'admin':
+        db_stats = _cached('db_stats', get_database_stats)
+        # テンプレート用：バー表示の最大行数（全DB通して、ゼロ除算回避）
+        for db in db_stats:
+            for t in db['tables']:
+                if t['row_count'] > db_stats_max_rows:
+                    db_stats_max_rows = t['row_count']
 
     # Admin専用統計
     admin_data = None
