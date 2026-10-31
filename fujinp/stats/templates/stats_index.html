@@ -1079,11 +1079,14 @@
             <p class="user-greeting">{{ user_name }}さん、ようこそ</p>
         </div>
 
+        {% if user_category == 'admin' %}
         <div class="info-banner">
             ℹ️ <strong>「現在ログイン中」の定義：</strong>
             最終アクティビティから30分以内のユーザーをアクティブとみなします。
             これはGoogle Analytics、AWS等の主要Webサービスが採用する標準的な指標です。
         </div>
+
+        {% endif %}
 
         <!-- 全体統計 -->
         <div class="stats-grid">
@@ -1112,7 +1115,8 @@
             </div>
         </div>
 
-        <!-- 現在ログイン中のユーザー -->
+        <!-- 現在ログイン中のユーザー：admin 専用（2026-11-01） -->
+        {% if user_category == 'admin' %}
         <div class="stat-card">
             <h2>🟢 現在アクティブ（{{ active_users | length }}名）</h2>
             {% if active_users %}
@@ -1131,6 +1135,7 @@
             <p style="color: #999; margin-top: 1rem;">現在アクティブなユーザーはいません</p>
             {% endif %}
         </div>
+        {% endif %}
 
         <!-- あなたのバッジ -->
         {% if user_badges %}

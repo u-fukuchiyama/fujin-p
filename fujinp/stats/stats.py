@@ -768,7 +768,9 @@ def stat_main():
     record_view_event(user_id)
 
     # 基本統計（Guest/Admin共通）
-    active_users = get_active_users()
+    # 現在アクティブな人の一覧（氏名・区分）は admin 専用（2026-11-01）．
+    # guest を含む全員に見えると，学内の誰が・admin がいつ使っているかが学外に分かるため．
+    active_users = get_active_users() if user_category == 'admin' else []
     total_stats = get_total_stats()
     hourly_dist = get_hourly_distribution()
     peak_hour = get_peak_hour(hourly_dist)
