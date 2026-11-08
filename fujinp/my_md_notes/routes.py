@@ -1,8 +1,8 @@
-# SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
+# SPDX-FileCopyrightText: 2026 Toyoaki Nishida
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # This file is part of FUJIN-P.
-# Copyright (C) 2024-2026 Toyoaki Nishida
+# Copyright (C) 2026 Toyoaki Nishida
 #
 # FUJIN-P is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -18,6 +18,7 @@
 # along with FUJIN-P.  If not, see <https://www.gnu.org/licenses/>.
 #
 # Source: https://github.com/u-fukuchiyama/fujin-p
+
 
 from flask import render_template, request, jsonify, session, url_for, redirect, flash, Response
 from decorators import login_required
@@ -67,6 +68,28 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'svg', 'pdf'}
 # 公開したときの本文での書き方を分ける（画像は <img>、それ以外は公開リンク）
 IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'svg'}
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20MB
+
+# メディアのアップロード（アップロードと同時に公開し、本文に公開リンクを書く）★4.1
+#   受け付けるのは PDF と MP4 だけ。形式は中身（先頭バイト）で判定し、
+#   公開名の拡張子は判定した形式から付ける（.pdf / .mp4）。
+MEDIA_TYPES = {
+    'pdf': {'mimetype': 'application/pdf', 'max_bytes': 20 * 1024 * 1024, 'label': 'PDF'},
+    'mp4': {'mimetype': 'video/mp4', 'max_bytes': 100 * 1024 * 1024, 'label': 'MP4'},
+}
+
+
+def detect_media_type(head_bytes):
+    """先頭バイトから PDF / MP4 を判定する（どちらでもなければ None）。
+
+    MP4 は ISO BMFF の ftyp ボックス（4〜8バイト目が 'ftyp'）で見分ける。
+    QuickTime（ブランド 'qt  '、.mov）は MP4 として扱わない。
+    """
+    if head_bytes.startswith(b'%PDF-'):
+        return 'pdf'
+    if len(head_bytes) >= 12 and head_bytes[4:8] == b'ftyp' and head_bytes[8:12] != b'qt  ':
+        return 'mp4'
+    return None
+
 
 # 拡張子ごとのマジックナンバー（拡張子偽装の検出用）
 # SVGはテキスト形式のため別扱い（svg_head_ok で検査し、保存前にサニタイズする）
@@ -361,16 +384,23 @@ def svg_head_ok(head_bytes):
 
 
 def _sanitize_svg(data):
-    """アップロードされた SVG を無害化する（2026-10-26 セキュリティ改修 R-2）．
-    旧版の正規表現による除去は，引用符なしの on* 属性・foreignObject・SMIL・
-    文字参照で隠した javascript: を通していた．カーネルの markdown_converter が持つ
-    XML 方式の許可リスト型サニタイザに委ねる．読み込めなければ中身のない SVG にする．"""
+    """アップロードされた SVG から script / on* / javascript: を除去する簡易サニタイズ
+    （コレポと同じ規則）"""
     try:
-        from markdown_converter import sanitize_svg_bytes
+        text = data.decode('utf-8', errors='replace')
     except Exception:
-        return (b'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="40">'
-                b'<text x="10" y="25" font-size="14">SVG could not be loaded safely</text></svg>')
-    return sanitize_svg_bytes(data)
+        return data
+    # <script>...</script> 除去
+    text = re.sub(r'<script\b[^>]*>.*?</script\s*>', '', text,
+                  flags=re.IGNORECASE | re.DOTALL)
+    # 自己終端の <script .../> 除去
+    text = re.sub(r'<script\b[^>]*/\s*>', '', text, flags=re.IGNORECASE)
+    # on*="..." イベントハンドラ除去
+    text = re.sub(r'\son\w+\s*=\s*"[^"]*"', '', text, flags=re.IGNORECASE)
+    text = re.sub(r"\son\w+\s*=\s*'[^']*'", '', text, flags=re.IGNORECASE)
+    # javascript: URI 除去
+    text = re.sub(r'javascript\s*:', '', text, flags=re.IGNORECASE)
+    return text.encode('utf-8')
 
 
 # =============================================================================
@@ -515,15 +545,28 @@ def load_note_row(cursor, note_id):
 
 
 def unique_stored_name(original_name):
-    """保存名（乱数8桁を先頭に付けてURLの総当たり推測を防ぐ）"""
-    ext = original_name.rsplit('.', 1)[1].lower() if '.' in original_name else ''
-    base, _ = os.path.splitext(secure_filename(original_name))
+    """保存名（乱数8桁を先頭に付けてURLの総当たり推測を防ぐ）。
+
+    拡張子は必ず元の名前から取り、小文字で末尾に付ける（公開URLが .pdf などで終わる）。
+    幹（拡張子の前）だけを secure_filename にかける。日本語だけの名前は幹が空になる
+    ので 'file' にする（以前は名前全体をかけていたため「資料.pdf」が「…_pdf.pdf」になった）。
+    """
+    original_name = original_name or 'file'
+    stem, dot, ext = original_name.rpartition('.')
+    if not dot:
+        stem, ext = original_name, ''
+    ext = secure_filename(ext.lower())
+    base = secure_filename(stem)
     return f"{uuid.uuid4().hex[:8]}_{base or 'file'}" + (f'.{ext}' if ext else '')
 
 
-def store_protected(cursor, note_id, original_name, data, mimetype, uploaded_by):
-    """保護領域にファイルを置き、台帳（my_md_notes_attachments）に1行作る"""
-    rel = os.path.join(str(note_id), unique_stored_name(original_name))
+def store_protected(cursor, note_id, original_name, data, mimetype, uploaded_by,
+                    stored_name=None):
+    """保護領域にファイルを置き、台帳（my_md_notes_attachments）に1行作る。
+
+    stored_name を渡すとその名前で置く（メディアでは拡張子を形式から付けた名前）。
+    """
+    rel = os.path.join(str(note_id), stored_name or unique_stored_name(original_name))
     abs_path = os.path.join(FILES_DIR, rel)
     os.makedirs(os.path.dirname(abs_path), exist_ok=True)
     with open(abs_path, 'wb') as f:
@@ -727,22 +770,12 @@ def create_note(user_id, name, sequence=0):
 # ルート
 # =============================================================================
 
-
-def _safe_return_to(v):
-    """「戻る」ボタンの行き先．このサイトのパス（/ で始まり // や \\ を含まない）だけを使う（2026-10-26 最終点検）．
-    javascript: や外部サイトの URL を渡されたら既定のダッシュボードに戻す"""
-    v = (v or '').strip()
-    if v.startswith('/') and not v.startswith('//') and '\\' not in v \
-            and not any(ord(ch) < 0x20 for ch in v):
-        return v
-    return url_for('auth.redirect_to_dashboard')
-
 @my_md_notes_bp.route('/')
 @login_required
 def index():
     user_category = session.get('user_category')
     notes = get_user_notes_flat(session['user_id'], category=user_category)
-    return_to = _safe_return_to(request.args.get('return_to'))
+    return_to = request.args.get('return_to') or url_for('auth.redirect_to_dashboard')
 
     return render_template('my_notes.html', notes=notes, return_to=return_to,
                            user_category=user_category, session=session)
@@ -980,6 +1013,101 @@ def upload_image():
         conn.close()
 
 
+@my_md_notes_bp.route('/upload_media', methods=['POST'])
+@login_required
+@same_origin_required
+def upload_media():
+    """メディアのアップロード（PDF 20MBまで／MP4 100MBまで）。★4.1
+
+    保護領域に原本を置き、同時に公開領域 static/mdimgs/ に複製を作る。
+    公開名は「乱数8桁_名前.<形式の拡張子>」で、拡張子は中身から判定した形式で決める。
+    本文に書く公開リンクのパス public_path（/static/mdimgs/….pdf など）を返す。
+    query / form: note=<ノートID>（編集できるノート）
+    """
+    note_id = request.args.get('note', type=int) or request.form.get('note', type=int)
+    if not note_id:
+        return jsonify({'success': False, 'error': 'ノートが指定されていません'}), 400
+    file = request.files.get('file')
+    if not file or file.filename == '':
+        return jsonify({'success': False, 'error': 'ファイルが選択されていません'}), 400
+
+    name_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if name_ext not in MEDIA_TYPES:
+        return jsonify({'success': False,
+                        'error': '許可されていない形式です（pdf / mp4 のみ）'}), 400
+
+    head = file.stream.read(16)
+    file.stream.seek(0)
+    kind = detect_media_type(head)
+    if kind is None or kind != name_ext:
+        return jsonify({'success': False, 'error': 'ファイルの内容が拡張子と一致しません'}), 400
+    spec = MEDIA_TYPES[kind]
+
+    file.stream.seek(0, os.SEEK_END)
+    size = file.stream.tell()
+    file.stream.seek(0)
+    if size == 0:
+        return jsonify({'success': False, 'error': 'ファイルが空です'}), 400
+    if size > spec['max_bytes']:
+        limit_mb = spec['max_bytes'] // (1024 * 1024)
+        return jsonify({'success': False,
+                        'error': f"{spec['label']}のサイズが上限（{limit_mb}MB）を超えています"}), 400
+
+    data = file.read()
+    # 拡張子は形式から付ける（元の名前の拡張子の大小や表記には依らない）
+    stem = file.filename.rsplit('.', 1)[0] or 'file'
+    typed_name = f'{stem}.{kind}'
+
+    conn = mysql.connector.connect(**DatabaseConfig.default())
+    cursor = conn.cursor(dictionary=True)
+    pub = None
+    src = None
+    try:
+        note = load_note_row(cursor, note_id)
+        if not note:
+            return jsonify({'success': False, 'error': 'ノートが見つかりません'}), 404
+        if not can_edit_note(note, session['user_id'], session.get('user_category')):
+            return jsonify({'success': False, 'error': 'このノートに添付する権限がありません'}), 403
+
+        stored = unique_stored_name(typed_name)
+        r = store_protected(cursor, note_id, typed_name, data, spec['mimetype'],
+                            session['user_id'], stored_name=stored)
+        src = os.path.join(FILES_DIR, str(note_id), stored)
+        pub = make_public_copy(src, typed_name)
+
+        # 公開されたことを確かめる：複製が原本と同じ大きさで、URL が形式の拡張子で終わる
+        pub_abs = public_abs_path(pub)
+        if not pub_abs or not os.path.isfile(pub_abs) or os.path.getsize(pub_abs) != len(data):
+            raise RuntimeError('公開複製の作成を確認できませんでした')
+        if not pub.endswith('.' + kind):
+            raise RuntimeError('公開URLの拡張子が形式と一致しません')
+
+        cursor.execute("UPDATE my_md_notes_attachments SET public_path = %s WHERE id = %s",
+                       (pub, r['id']))
+        conn.commit()
+        return jsonify({
+            'success': True,
+            'id': r['id'],
+            'filename': typed_name,
+            'kind': kind,
+            'public_path': pub,
+        })
+    except Exception as e:
+        conn.rollback()
+        if pub:
+            remove_public_copy(pub)
+        if src and os.path.isfile(src):
+            try:
+                os.remove(src)
+            except OSError:
+                pass
+        print(f"[my_md_notes] media upload error: {e}")
+        return jsonify({'success': False, 'error': 'アップロードに失敗しました'}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
 @my_md_notes_bp.route('/file/<int:aid>')
 @login_required
 def serve_file(aid):
@@ -1004,7 +1132,7 @@ def serve_file(aid):
     if not path or not os.path.isfile(path):
         abort(404)
     mt = a.get('mimetype') or 'application/octet-stream'
-    inline = (mt.startswith('image/') and 'svg' not in mt) or mt == 'application/pdf'
+    inline = (mt.startswith('image/') and 'svg' not in mt) or mt in ('application/pdf', 'video/mp4')
     return send_file(path, mimetype=mt, as_attachment=not inline,
                      download_name=a.get('name') or f'file{aid}')
 
@@ -2042,7 +2170,7 @@ def search_notes():
     user_category = session.get('user_category')
     keyword = request.args.get('keyword', '').strip()
     sort_by = request.args.get('sort_by', 'updated_desc')
-    return_to = _safe_return_to(request.args.get('return_to'))
+    return_to = request.args.get('return_to') or url_for('auth.redirect_to_dashboard')
 
     order_clauses = {
         'updated_asc': 'ORDER BY ns.更新日時 ASC',
