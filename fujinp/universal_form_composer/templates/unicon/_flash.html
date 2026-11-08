@@ -1,2 +1,8 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
 {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat, m in msgs %}
 <div class="msg {{ 'ng' if cat == 'ng' else 'ok' }}">{{ m }}</div>{% endfor %}{% endwith %}
