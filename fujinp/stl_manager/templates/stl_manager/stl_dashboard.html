@@ -68,6 +68,11 @@ table.matrix thead th.team-col{text-align:left;min-width:180px;left:0;z-index:5}
 .empty-note{text-align:center;color:var(--c-muted);padding:30px;font-size:.9rem}
 .hnav a.btn-return{background:var(--c-ng);color:#fff;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .hnav a.btn-return:hover{background:#dc2626}
+.svc-form{display:inline-flex;gap:4px;margin:0;align-items:center;background:rgba(0,0,0,.15);padding:3px;border-radius:22px}
+.svc-btn{border:none;cursor:pointer;font-family:inherit;font-size:.76rem;color:#fff;background:transparent;padding:4px 10px;border-radius:20px;white-space:nowrap}
+.svc-btn.on{background:#fff;color:var(--c-primary-d);font-weight:800}
+.svc-btn.on.alert{background:#fde68a;color:#92400e}
+.svc-banner{max-width:1200px;margin:8px auto 0;padding:9px 13px;border-radius:8px;font-size:.84rem;background:#fef3c7;color:#92400e;font-weight:700}
 </style>
 </head>
 <body>
@@ -75,6 +80,14 @@ table.matrix thead th.team-col{text-align:left;min-width:180px;left:0;z-index:5}
   <div class="hrow">
     <div class="site-name">🚀 STL報告書管理</div>
     <nav class="hnav">
+      {% if stl_service_mode %}
+      <form class="svc-form" method="post" action="{{ url_for('stl.service_mode_set') }}">
+        {% for k, lbl in stl_service_modes.items() %}
+        <button type="submit" name="mode" value="{{ k }}"
+                class="svc-btn{% if k == stl_service_mode %} on{% if k != 'normal' %} alert{% endif %}{% endif %}">{{ lbl }}</button>
+        {% endfor %}
+      </form>
+      {% endif %}
       <a href="{{ url_for('stl.manage_teams', fy=fy) }}">団体管理</a>
       <a href="{{ url_for('stl.manage_report_types') }}">レポート型</a>
       <a href="{{ url_for('stl.manage_disclosures') }}">開示記事</a>
@@ -123,6 +136,10 @@ table.matrix thead th.team-col{text-align:left;min-width:180px;left:0;z-index:5}
     </nav>
   </div>
 </header>
+
+{% if stl_service_mode == 'stopped' %}
+<div class="svc-banner">現在「サービス停止」です．admin 以外の利用者には「移行作業のため一時停止」とだけ表示されています．</div>
+{% endif %}
 
 {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}
 <div class="flashes">{% for cat,msg in messages %}<div class="fm {{ cat }}">{{ msg }}</div>{% endfor %}</div>

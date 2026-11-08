@@ -39,6 +39,7 @@ from db import DatabaseConfig
 
 from . import stl_bp
 from .routes import get_jst_now, is_admin_user
+from .service_mode import SERVICE_KEY
 
 
 def is_admin(user_id):
@@ -640,6 +641,9 @@ def migration_apply():
     inserted = {}
     try:
         local_cols = _local_columns(cur)
+        # このサイトのサービスモード（停止中など）は取り込みで変えない
+        cur.execute("SELECT skey, sval, updated_at FROM stl_settings WHERE skey=%s", (SERVICE_KEY,))
+        keep_service_row = cur.fetchone()
         cur.execute('SET FOREIGN_KEY_CHECKS=0')
         for t in reversed(TABLE_ORDER):
             cur.execute(f'DELETE FROM `{t}`')
@@ -649,9 +653,12 @@ def migration_apply():
             idx = [tb['columns'].index(c) for c in cols]
             ucol_pos = [cols.index(c) for c in USER_COLUMNS.get(t, []) if c in cols]
             body_pos = [cols.index(c) for c in BODY_COLUMNS.get(t, []) if c in cols]
+            skey_pos = cols.index('skey') if t == 'stl_settings' and 'skey' in cols else None
             rows = []
             for r in tb['rows']:
                 vals = [r[i] for i in idx]
+                if skey_pos is not None and vals[skey_pos] == SERVICE_KEY:
+                    continue   # 書き出し元のサービスモードは運ばない（旧版の zip 対策）
                 for j in ucol_pos:
                     if vals[j] is not None:
                         vals[j] = mapping[int(vals[j])]
@@ -665,6 +672,9 @@ def migration_apply():
                 for k in range(0, len(rows), INSERT_BATCH):
                     cur.executemany(sql, rows[k:k + INSERT_BATCH])
             inserted[t] = len(rows)
+        if keep_service_row:
+            cur.execute("INSERT INTO stl_settings (skey, sval, updated_at) VALUES (%s,%s,%s)",
+                        keep_service_row)
         cur.execute('SET FOREIGN_KEY_CHECKS=1')
         conn.commit()
     except Exception as e:
