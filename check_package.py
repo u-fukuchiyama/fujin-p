@@ -1,5 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This file is part of FUJIN-P.
+# Copyright (C) 2024-2026 Toyoaki Nishida
+#
+# FUJIN-P is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# FUJIN-P is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with FUJIN-P.  If not, see <https://www.gnu.org/licenses/>.
+#
+# Source: https://github.com/u-fukuchiyama/fujin-p
+
 """check_package.py — FUJIN-P アプリパッケージ（JSON）のポリシー適合検査
 
 FUJIN-P 作業手順書②（新規アプリの開発と公開）§2.1 の関所．
