@@ -383,9 +383,22 @@ def svg_head_ok(head_bytes):
     return '<svg' in text.lower()
 
 
+# SVG の無害化はカーネルの sanitize_svg_bytes（2026-10-26 セキュリティ改修 R-2，許可リスト方式）
+# を使う。カーネルにまだ無いサイトでは、下の簡易サニタイズで代える。
+try:
+    from markdown_converter import sanitize_svg_bytes as _kernel_sanitize_svg
+except ImportError:
+    _kernel_sanitize_svg = None
+
+
 def _sanitize_svg(data):
-    """アップロードされた SVG から script / on* / javascript: を除去する簡易サニタイズ
-    （コレポと同じ規則）"""
+    """アップロードされた SVG を無害化する。
+
+    カーネルに sanitize_svg_bytes があればそれを使う（許可リスト方式）。
+    無ければ script / on* / javascript: を除去する簡易サニタイズ（コレポと同じ規則）。
+    """
+    if _kernel_sanitize_svg is not None:
+        return _kernel_sanitize_svg(data)
     try:
         text = data.decode('utf-8', errors='replace')
     except Exception:
