@@ -34,6 +34,12 @@
 #
 # 2026-10-26 セキュリティ改修（R-2）
 #   アップロードされた SVG ファイルの無害化 sanitize_svg_bytes を加えた（コレポ・マイノート・えふえふが使う）．
+#
+# 2026-11-09 無害化の不具合修正
+#   <meta charset="utf-8"> のように閉じタグを持たない meta・link・base を「中身ごと捨てる」扱いにしていたため，
+#   捨てる状態が解けず，それ以降の本文がすべて消えていた（HTML 文書を丸ごと貼ったノートやコレポの統合レポートが白紙になる）．
+#   これらは単独のタグとして捨てるだけにした．あわせて <style> は，url( ・@import・expression 等の危険な記述と
+#   「<」を含まないものに限って残すことにした（文書を丸ごと貼ったときの見た目を保つため）．
 
 from flask import Blueprint, request, render_template, jsonify, session, redirect, url_for, flash
 from auth import login_required
@@ -62,6 +68,8 @@ _SAN_DROP_CONTENT = {
     'foreignobject', 'form', 'select', 'button', 'audio', 'video', 'math', 'base',
     'link', 'meta', 'head',
 }
+# 閉じタグを持たないので，捨てても「中身ごと」にはならない要素（2026-11-09）
+_SAN_DROP_VOID = {'meta', 'link', 'base'}
 # 中身のない（閉じタグを持たない）HTML 要素
 _SAN_VOID = {'br', 'hr', 'img', 'col', 'wbr'}
 
@@ -139,6 +147,7 @@ class _Sanitizer(_HTMLParser):
         self.stack = []          # 出力した開きタグ
         self.skip = 0            # 中身ごと捨てている深さ
         self.svg = 0             # svg の中にいる深さ
+        self.css = None          # 残す候補の <style> の中身（2026-11-09）
 
     def _attrs(self, tag, attrs, in_svg):
         allowed = set(_SAN_GLOBAL_ATTRS)
@@ -170,9 +179,15 @@ class _Sanitizer(_HTMLParser):
         return ''.join(' %s="%s"' % (n, _html.escape(v, quote=True)) for n, v in kept)
 
     def _open(self, tag, attrs, selfclose):
+        if tag in _SAN_DROP_VOID:
+            selfclose = True                      # 閉じタグが来ない要素は単独で捨てる
         if self.skip:
             if tag in _SAN_DROP_CONTENT and not selfclose:
                 self.skip += 1
+            return
+        if tag == 'style' and not selfclose and not self.svg:
+            self.css = []                         # 中身を見てから残すか決める
+            self.skip = 1
             return
         if tag in _SAN_DROP_CONTENT or (tag == 'title' and not self.svg):
             if not selfclose:
@@ -200,6 +215,11 @@ class _Sanitizer(_HTMLParser):
         if self.skip:
             if tag in _SAN_DROP_CONTENT or (tag == 'title' and not self.svg):
                 self.skip -= 1
+                if self.skip == 0 and tag == 'style' and self.css is not None:
+                    css = ''.join(self.css)
+                    self.css = None
+                    if '<' not in css and not _SAN_BAD_CSS_RE.search(css):
+                        self.out.append('<style>%s</style>' % css)
             return
         if tag not in self.stack:
             return
@@ -212,6 +232,9 @@ class _Sanitizer(_HTMLParser):
                 break
 
     def handle_data(self, data):
+        if self.css is not None and self.skip == 1:
+            self.css.append(data)
+            return
         if not self.skip:
             self.out.append(_html.escape(data, quote=False))
 
