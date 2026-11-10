@@ -23,8 +23,12 @@
 # data_saver/routes_bulk.py
 # Data Saver: Claude 向け一括調査の依頼文と，調査結果の照合・反映
 #
-#   1. /bulk/prompt  … 全アプリを対象にした依頼文を作る．現在の表（ID付き）とサーバ上の
-#                      アプリ一覧を埋め込み，結果を JSON で返すよう頼む
+#   1. /bulk/prompt  … 全アプリを対象にした依頼文を作る．現在の表（ID付き）と，アプシャに
+#                      登録されているアプリの一覧を埋め込み，結果を JSON で返すよう頼む
+#
+#   対象のアプリはアプシャの台帳（app_share_registry）に登録されているものに限る（2026-11-10）．
+#   登録を外したアプリのディレクトリが残っていても対象にしない．表にそのアプリの行が
+#   残っていれば，照合で削除の候補として示す（既定では選ばない）．
 #   2. /bulk/preview … 貼り付けられた結果（JSON またはタブ区切りテキスト）を表と照合し，
 #                      追加・訂正・削除・変更なしの計画を返す（表は変えない）
 #   3. /bulk/apply   … 同じテキストで計画を作り直し，選ばれた変更だけを1トランザクションで反映
@@ -38,6 +42,7 @@
 #     - 結果に出てきたアプリの行で，照合されなかったもの → 削除
 #       （そのアプリにエラー行があるときは削除を出さない）
 #     - 結果に出てこなかったアプリの行には触れない（照合対象外として報告）
+#     - 登録されていないアプリの行 → 削除の候補（unregistered．既定では選ばない）
 
 import os
 import re
@@ -59,24 +64,63 @@ _FENCE_RE = re.compile(r'```(?:json|tsv|text)?\s*\n(.*?)```', re.S)
 # サーバ上のアプリ一覧と現在の表
 # ============================================================
 
+REGISTRY_TABLE = 'app_share_registry'
+
+
 def list_app_dirs():
-    """基点直下で __init__.py を持つディレクトリ（＝アプリ）の名前一覧"""
+    """アプシャに登録されているアプリのうち，基点直下に __init__.py を持つディレクトリが
+    あるものの名前一覧（2026-11-10）．
+    kind（app／kernel）や enabled は問わない．止めているアプリにもデータは残るため．
+    _platform のように _ で始まる行と，Data Saver 自身は除く．"""
+    return app_inventory()['apps']
+
+
+def app_inventory():
+    """{'apps': 対象のアプリ,
+        'no_dir': 登録はあるが基点直下にディレクトリが無いもの,
+        'unregistered': ディレクトリはあるが登録の無いもの（対象外）}"""
     base = base_dir()
     work = work_root()
     own = os.path.basename(os.path.dirname(os.path.abspath(__file__)))   # data_saver 自身
-    names = []
+
+    def is_app_dir(name):
+        path = os.path.join(base, name)
+        return (os.path.isdir(path) and os.path.realpath(path) != work
+                and os.path.isfile(os.path.join(path, '__init__.py')))
+
+    registered = _registered_names()
+    apps, no_dir = [], []
+    for name in sorted(registered):
+        if name.startswith(('.', '_')) or name == own:
+            continue
+        (apps if is_app_dir(name) else no_dir).append(name)
+    unregistered = []
     try:
         for name in sorted(os.listdir(base)):
-            if name.startswith(('.', '_')) or name == own:
+            if name.startswith(('.', '_')) or name == own or name in registered:
                 continue
-            path = os.path.join(base, name)
-            if not os.path.isdir(path) or os.path.realpath(path) == work:
-                continue
-            if os.path.isfile(os.path.join(path, '__init__.py')):
-                names.append(name)
+            if is_app_dir(name):
+                unregistered.append(name)
     except Exception as e:
-        logging.error("data_saver list_app_dirs error: %s", e)
-    return names
+        logging.error("data_saver app_inventory listdir error: %s", e)
+    return {'apps': apps, 'no_dir': no_dir, 'unregistered': unregistered}
+
+
+def _registered_names():
+    """アプシャの台帳に登録されているアプリ名の集合．読めなければ例外を上げる
+    （ディレクトリの走査に戻すと，登録を外したアプリが対象に紛れ込むため）．"""
+    conn = None
+    cursor = None
+    try:
+        conn = mysql.connector.connect(**DatabaseConfig.default())
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT app_name FROM `%s`" % REGISTRY_TABLE)
+        return {r['app_name'] for r in cursor.fetchall() if r.get('app_name')}
+    except Exception as e:
+        logging.error("data_saver registry read error: %s", e)
+        raise RuntimeError('アプシャの台帳（%s）を読めませんでした: %s' % (REGISTRY_TABLE, e))
+    finally:
+        _close(conn, cursor)
 
 
 def load_rows():
@@ -112,8 +156,10 @@ BULK_PROMPT = """FUJIN-P の全アプリを解析して，各アプリのデー�
 - current_app.static_folder や __file__ を基点に組み立てたパス
 - 他アプリ（いまくら・ふぁいこんなど）や Google Drive に保存していてサーバに置かないものは対象外
 
-## 対象のアプリ（{base} 直下，{app_count} 個）
+## 対象のアプリ（アプシャに登録されているもの，{app_count} 個）
 {app_list}
+
+{base} の直下にこの一覧に無いディレクトリがあっても，登録を外したアプリの残りなので解析しないでください．
 
 ## 現在の表（data_saver_dirs）
 ```json
@@ -152,7 +198,11 @@ def bulk_prompt():
     except Exception as e:
         logging.error("data_saver bulk_prompt error: %s", e)
         return jsonify({'success': False, 'error': str(e)}), 500
-    apps = list_app_dirs()
+    try:
+        inv = app_inventory()
+    except RuntimeError as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    apps = inv['apps']
     base = base_dir()
     table = [{'id': r['id'], 'app_name': r['app_name'], 'dir_path': r['dir_path']} for r in rows]
     text = BULK_PROMPT.format(
@@ -161,7 +211,8 @@ def bulk_prompt():
         app_list='\n'.join(apps) if apps else '（見つかりません）',
         table_json=json.dumps(table, ensure_ascii=False, indent=1) if table else '[]',
     )
-    return jsonify({'success': True, 'text': text, 'app_count': len(apps), 'row_count': len(rows)})
+    return jsonify({'success': True, 'text': text, 'app_count': len(apps), 'row_count': len(rows),
+                    'no_dir': inv['no_dir'], 'unregistered': inv['unregistered']})
 
 
 # ============================================================
@@ -266,6 +317,8 @@ def parse_input(text):
 def build_plan(text):
     items, fmt = parse_input(text)
     rows = load_rows()
+    server_apps = list_app_dirs()
+    registered = set(server_apps)
     by_id = {r['id']: r for r in rows}
     actions = []
     mentioned = set()
@@ -284,6 +337,10 @@ def build_plan(text):
             actions.append({'action': 'error', 'item': it, 'error': str(e)})
             continue
         mentioned.add(it['app_name'])
+        if it['app_name'] not in registered:
+            actions.append({'action': 'error', 'item': it,
+                            'error': 'アプシャに登録されていないアプリです（取り込みません）'})
+            continue
         if it['id'] == 'bad':
             actions.append({'action': 'error', 'item': it, 'error': 'id が数値ではありません'})
             error_apps.add(it['app_name'])
@@ -355,11 +412,15 @@ def build_plan(text):
                 actions.append({'action': 'add', 'item': it, 'key': 'add:%d' % it['no']})
 
     # 4. 削除と照合対象外
+    #    登録されていないアプリの行は，結果に出ていなくても削除の候補にする（既定では選ばない）
     untouched = []
     for r in rows:
         if r['id'] in matched:
             continue
-        if r['app_name'] in mentioned:
+        if r['app_name'] not in registered:
+            actions.append({'action': 'delete', 'row': _row_view(r), 'key': 'del:%d' % r['id'],
+                            'unregistered': True})
+        elif r['app_name'] in mentioned:
             if r['app_name'] in error_apps:
                 actions.append({'action': 'hold', 'row': _row_view(r)})
             else:
@@ -367,7 +428,6 @@ def build_plan(text):
         else:
             untouched.append(_row_view(r))
 
-    server_apps = list_app_dirs()
     order = {'error': 0, 'delete': 1, 'update': 2, 'add': 3, 'hold': 4, 'dup': 5, 'none': 6, 'keep': 7}
     actions.sort(key=lambda a: ((a.get('item') or a.get('row'))['app_name'], order[a['action']]))
     counts = {}

@@ -427,7 +427,10 @@ function makePrompt(){
     if(!res.success){ toast(res.error, 'err'); return; }
     $('#prompt-text').val(res.text);
     $('#btn-copy').prop('disabled', false);
-    $('#prompt-meta').text('アプリ ' + res.app_count + ' 個，表 ' + res.row_count + ' 行');
+    let meta = 'アプシャに登録されたアプリ ' + res.app_count + ' 個，表 ' + res.row_count + ' 行';
+    if(res.unregistered && res.unregistered.length) meta += '／対象外（登録なし）: ' + res.unregistered.join(', ');
+    if(res.no_dir && res.no_dir.length) meta += '／登録はあるがディレクトリなし: ' + res.no_dir.join(', ');
+    $('#prompt-meta').text(meta);
   }).fail(function(xhr){ toast(xhr.responseJSON?.error || '通信エラー', 'err'); });
 }
 
@@ -467,7 +470,7 @@ function renderPlan(p){
           '<th style="width:240px;">根拠・説明</th></tr></thead><tbody>';
   p.actions.forEach(a => {
     const it = a.item, r = a.row;
-    const sel = a.key ? '<input type="checkbox" class="plan-cb" value="' + esc(a.key) + '" checked>' : '';
+    const sel = a.key ? '<input type="checkbox" class="plan-cb" value="' + esc(a.key) + '"' + (a.unregistered ? '' : ' checked') + '>' : '';
     let app = esc((it || r).app_name), dir = '', info = '';
     if(a.action === 'update'){
       if(r.app_name !== it.app_name) app = '<span class="old">' + esc(r.app_name) + '</span><br>' + esc(it.app_name);
@@ -477,6 +480,7 @@ function renderPlan(p){
       dir = esc(r.dir_path);
       if(r.save_count) info += '<div class="ev">保存記録 ' + r.save_count + ' 件も消えます</div>';
       if(a.action === 'hold') info += '<div class="ev">このアプリにエラー行があるため削除を保留</div>';
+      if(a.unregistered) info += '<div class="ev">アプシャに登録されていないアプリの行です（既定では選んでいません）</div>';
     } else {
       dir = it.dir_path ? esc(it.dir_path) : '—';
     }
@@ -502,7 +506,7 @@ function renderPlan(p){
             p.unreported_apps.map(a => '<code>' + esc(a) + '</code>').join(' ') + '</div>';
   }
   if(p.unknown_apps.length){
-    html += '<div class="side-list" style="color:#e67e22;">⚠ このサイトに無いアプリ: ' +
+    html += '<div class="side-list" style="color:#e67e22;">⚠ アプシャに登録されていないアプリ（取り込みません）: ' +
             p.unknown_apps.map(a => '<code>' + esc(a) + '</code>').join(' ') + '</div>';
   }
 
