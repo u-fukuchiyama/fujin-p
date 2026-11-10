@@ -1,0 +1,560 @@
+{#
+  This file is part of FUJIN-P.
+  SPDX-FileCopyrightText: 2024-2026 Toyoaki Nishida
+  SPDX-License-Identifier: AGPL-3.0-or-later
+  Source: https://github.com/u-fukuchiyama/fujin-p
+#}
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Saver - ディレクトリのバックアップ & リストア</title>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+       font-size: 13px; background: #f0f2f5; color: #333; }
+
+#header { background: #1f4e3d; color: #fff; padding: 12px 20px;
+          display: flex; align-items: center; gap: 12px; }
+#header h1 { font-size: 17px; font-weight: 600; }
+#header .sub { font-size: 11px; color: #b7e4c7; }
+#header .nav-links { margin-left: auto; }
+#header a.btn-return {
+    background: #ef4444; color: #fff; font-weight: 800; text-decoration: none;
+    border: none; border-radius: 20px; padding: 6px 14px;
+    font-size: 13px; white-space: nowrap;
+}
+#header a.btn-return:hover { background: #dc2626; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+.card { background: #fff; border: 1px solid #e0e6ed; border-radius: 6px;
+        padding: 18px 20px; margin-bottom: 16px; }
+.card h2 { font-size: 14px; color: #1f4e3d; margin-bottom: 4px; }
+.card .hint { font-size: 12px; color: #888; margin-bottom: 14px; line-height: 1.6; }
+
+.btn { padding: 6px 14px; border: none; border-radius: 4px; cursor: pointer;
+       font-size: 12px; font-weight: 600; transition: opacity .15s; white-space: nowrap; }
+.btn:hover { opacity: .88; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-primary { background: #2e6da4; color: #fff; }
+.btn-success { background: #27ae60; color: #fff; }
+.btn-danger  { background: #e74c3c; color: #fff; }
+.btn-secondary { background: #7f8c8d; color: #fff; }
+.btn-light { background: #eef3f8; color: #2e6da4; border: 1px solid #cfe0ef; }
+
+/* ===== 対象ディレクトリ表 ===== */
+.dir-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.dir-table th { background: #2d6a4f; color: #fff; padding: 6px 8px; text-align: left; }
+.dir-table td { padding: 5px 8px; border: 1px solid #e6e6e6; vertical-align: top; }
+.dir-table tr:nth-child(even) td { background: #f7faf8; }
+.dir-table input[type=text] { width: 100%; padding: 4px 6px; font-size: 12px;
+       border: 1px solid #ccd; border-radius: 3px; font-family: inherit; }
+.dir-table input.dirty { border-color: #e67e22; background: #fffaf0; }
+.dir-table .col-id { width: 44px; text-align: right; font-weight: 700; color: #1f4e3d; }
+.dir-table .col-app { width: 170px; }
+.dir-table .col-log { width: 190px; }
+.dir-table .col-ops { width: 230px; }
+.ops { display: flex; gap: 4px; flex-wrap: wrap; }
+.log-list { font-family: monospace; font-size: 11px; color: #555; line-height: 1.5; }
+.log-more { font-size: 11px; color: #2e6da4; cursor: pointer; }
+.status { font-size: 10px; margin-top: 3px; }
+.st-ok { color: #27ae60; }
+.st-warn { color: #e67e22; }
+.st-err { color: #e74c3c; }
+.new-row td { background: #f1f8f4 !important; }
+
+/* ===== Inspect / Restore ===== */
+.file-drop { border: 2px dashed #b8c8da; border-radius: 6px; padding: 20px;
+             text-align: center; color: #888; cursor: pointer; background: #fafcff;
+             display: block; margin-bottom: 10px; }
+.file-drop:hover { border-color: #2e6da4; background: #f2f8ff; }
+.file-drop input { display: none; }
+.kv { border-collapse: collapse; font-size: 12px; margin: 8px 0; width: 100%; }
+.kv th { text-align: left; background: #f4f7fa; padding: 5px 10px; width: 160px;
+         border: 1px solid #e6e6e6; color: #555; font-weight: 600; }
+.kv td { padding: 5px 10px; border: 1px solid #e6e6e6; font-family: monospace; }
+.kv td.diff { color: #e74c3c; font-weight: 700; }
+.warn-box { background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px;
+            padding: 12px 14px; margin: 12px 0; font-size: 12px; color: #8a6d00; line-height: 1.7; }
+.warn-box strong { color: #e74c3c; }
+.err-box { background: #fdecea; border: 1px solid #f5c6cb; border-radius: 6px;
+           padding: 12px 14px; margin: 12px 0; font-size: 12px; color: #c0392b; }
+.sample { font-family: monospace; font-size: 11px; color: #777; white-space: pre-wrap; }
+.result-box { margin-top: 12px; font-size: 12px; }
+.ok  { color: #27ae60; font-weight: 600; }
+.err { color: #e74c3c; font-weight: 600; }
+
+/* ===== Claude 向けテキスト ===== */
+.prompt-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+#prompt-text { width: 100%; height: 300px; font-family: monospace; font-size: 12px;
+               padding: 10px; border: 1px solid #ccd; border-radius: 4px; background: #fafafa;
+               line-height: 1.6; }
+
+#bulk-text { width: 100%; height: 200px; font-family: monospace; font-size: 12px;
+             padding: 10px; border: 1px solid #ccd; border-radius: 4px; line-height: 1.5; }
+.plan-table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 10px; }
+.plan-table th { background: #2d6a4f; color: #fff; padding: 5px 8px; text-align: left; }
+.plan-table td { padding: 4px 8px; border: 1px solid #e6e6e6; vertical-align: top; }
+.plan-table .path { font-family: monospace; font-size: 11px; word-break: break-all; }
+.plan-table .old { color: #999; text-decoration: line-through; }
+.plan-table .ev { font-size: 11px; color: #777; }
+.act { font-weight: 700; white-space: nowrap; }
+.act-add { color: #27ae60; } .act-update { color: #2e6da4; } .act-delete { color: #e74c3c; }
+.act-keep, .act-none, .act-dup { color: #999; } .act-error { color: #e67e22; } .act-hold { color: #8e44ad; }
+tr.muted td { background: #fafafa; color: #999; }
+.counts { margin-top: 12px; font-size: 12px; }
+.counts span { display: inline-block; margin-right: 12px; }
+.side-list { font-size: 12px; margin-top: 10px; line-height: 1.7; }
+.side-list code { background: #f4f4f4; padding: 0 4px; border-radius: 3px; }
+#toast { position: fixed; bottom: 20px; right: 20px; padding: 10px 16px;
+         border-radius: 4px; color: #fff; font-size: 13px; z-index: 9999;
+         display: none; max-width: 380px; }
+#toast.ok  { background: #27ae60; }
+#toast.err { background: #e74c3c; }
+.loading { color: #999; font-style: italic; padding: 14px; text-align: center; }
+.spinner { display:inline-block; width:12px; height:12px; border:2px solid #ccc;
+           border-top-color:#2e6da4; border-radius:50%; animation: spin .8s linear infinite;
+           vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>🗂️ Data Saver</h1>
+  <span class="sub">アプリのデータ置き場ディレクトリのバックアップ & リストア</span>
+  <div class="nav-links">
+    <a href="{{ url_for('data_saver.return_to_fujin') }}" class="btn-return">🏠 FUJIN-Pダッシュボードに戻る</a>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ============ 対象ディレクトリ表 ============ -->
+  <div class="card">
+    <h2>保存対象のディレクトリ</h2>
+    <div class="hint">
+      アプリ名とディレクトリは書き換えて「更新」で保存できます．保存記録は「💾 Save」を押した日時で，表示のみです．<br>
+      「💾 Save」を押すと，そのディレクトリの中身を zip にしてダウンロードします（ファイル名は <code>ID_日時.zip</code>）．
+      ディレクトリは絶対パスで書きます．<code id="base-dir">…</code> の外（ホーム直下の static/mdimgs など）も登録できます．
+    </div>
+    <div id="dir-table-wrap"><div class="loading"><span class="spinner"></span> 読み込み中...</div></div>
+  </div>
+
+  <!-- ============ Inspect / Restore ============ -->
+  <div class="card">
+    <h2>Inspect と Restore</h2>
+    <div class="hint">
+      Data Saver で保存した zip を選んで「🔍 Inspect」を押すと，どの ID・アプリ・ディレクトリのものかを表示します．この時点ではファイルは変わりません．<br>
+      「♻️ Restore」は，zip に記録された <strong>ID</strong> の行が指すディレクトリへ上書きで展開します．zip に無い既存ファイルはそのまま残ります．
+    </div>
+    <label class="file-drop" id="file-drop">
+      <input type="file" id="restore-file" accept=".zip">
+      <span id="file-drop-text">📁 クリックして zip ファイルを選択</span>
+    </label>
+    <button class="btn btn-primary" id="btn-inspect" onclick="runInspect()" disabled>🔍 Inspect</button>
+    <div id="inspect-result"></div>
+  </div>
+
+  <!-- ============ Claude 向け一括調査 ============ -->
+  <div class="card">
+    <h2>Claude 向け一括調査</h2>
+    <div class="hint">
+      「依頼文を作る」を押すと，このサイトの全アプリ（<span id="prompt-meta">…</span>）を対象に，データ置き場を調べて表を正しい内容に直すよう頼む依頼文を作ります．
+      依頼文には現在の表（ID付き）が入っており，Claude は ID を引き継いだ JSON を返します．
+      「📋 コピー」で写し，ソース一式（またはアプリパッケージ）と一緒に Claude に渡してください．
+    </div>
+    <div class="prompt-row">
+      <button class="btn btn-primary" onclick="makePrompt()">依頼文を作る</button>
+      <button class="btn btn-light" id="btn-copy" onclick="copyPrompt()" disabled>📋 コピー</button>
+    </div>
+    <textarea id="prompt-text" readonly placeholder="ここに依頼文が表示されます"></textarea>
+  </div>
+
+  <!-- ============ 調査結果の照合と反映 ============ -->
+  <div class="card">
+    <h2>調査結果の照合と反映</h2>
+    <div class="hint">
+      Claude の返事をそのまま貼り付けて「照合」を押すと，表と突き合わせて追加・訂正・削除の候補を示します（この時点では表は変わりません）．
+      JSON のほか，<code>アプリ名⇥絶対パス⇥根拠⇥説明</code> の形のタブ区切りテキストも読めます（先頭に ID 列があってもかまいません）．<br>
+      削除の候補になるのは，結果に出てきたアプリの行のうち照合されなかったものだけです．結果に出てこなかったアプリの行には触れません．
+    </div>
+    <textarea id="bulk-text" placeholder="ここに Claude の返事を貼り付けます"></textarea>
+    <div style="margin-top:8px;">
+      <button class="btn btn-primary" id="btn-preview" onclick="runPreview()">🔎 照合</button>
+    </div>
+    <div id="bulk-result"></div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const BASE = "{{ url_for('data_saver.index') }}";
+const U = (p) => BASE + p;
+
+let rows = [];
+let baseDir = '';
+let inspectToken = null;
+
+$(function(){
+  loadRows();
+  $('#restore-file').on('change', function(){
+    const f = this.files[0];
+    $('#file-drop-text').text(f ? ('📦 ' + f.name) : '📁 クリックして zip ファイルを選択');
+    $('#btn-inspect').prop('disabled', !f);
+    clearInspect();
+  });
+});
+
+// ===== 対象ディレクトリ表 =====
+function loadRows(){
+  $.get(U('rows'), function(res){
+    if(!res.success){ $('#dir-table-wrap').html('<div class="err">' + esc(res.error) + '</div>'); return; }
+    rows = res.rows; baseDir = res.base_dir;
+    $('#base-dir').text(baseDir);
+    renderRows();
+  }).fail(function(xhr){
+    $('#dir-table-wrap').html('<div class="err">' + esc(xhr.responseJSON?.error || '読み込み失敗') + '</div>');
+  });
+}
+
+function renderRows(){
+  let html = '<table class="dir-table"><thead><tr>' +
+             '<th class="col-id">ID</th><th class="col-app">アプリ名</th><th>ディレクトリ</th>' +
+             '<th class="col-log">保存記録</th><th class="col-ops">操作</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    html += '<tr data-id="' + r.id + '">' +
+            '<td class="col-id">' + r.id + '</td>' +
+            '<td><input type="text" class="in-app" value="' + esc(r.app_name) + '" data-orig="' + esc(r.app_name) + '"></td>' +
+            '<td><input type="text" class="in-dir" value="' + esc(r.dir_path) + '" data-orig="' + esc(r.dir_path) + '">' +
+              statusHtml(r.status) + '</td>' +
+            '<td>' + logHtml(r) + '</td>' +
+            '<td><div class="ops">' +
+              '<button class="btn btn-secondary" onclick="updateRow(' + r.id + ')">更新</button>' +
+              '<button class="btn btn-success" onclick="saveRow(' + r.id + ', this)"' +
+                (r.status.ok && r.status.exists ? '' : ' disabled') + '>💾 Save</button>' +
+              '<button class="btn btn-danger" onclick="deleteRow(' + r.id + ')">削除</button>' +
+            '</div></td></tr>';
+  });
+  html += '<tr class="new-row"><td class="col-id">新規</td>' +
+          '<td><input type="text" id="new-app" placeholder="例: kataribe" oninput="suggestDir()"></td>' +
+          '<td><input type="text" id="new-dir" placeholder="' + esc(baseDir) + '/XX/static"></td>' +
+          '<td></td>' +
+          '<td><div class="ops"><button class="btn btn-primary" onclick="addRow()">＋ 追加</button></div></td></tr>';
+  html += '</tbody></table>';
+  $('#dir-table-wrap').html(html);
+
+  $('#dir-table-wrap input[data-orig]').on('input', function(){
+    $(this).toggleClass('dirty', $(this).val() !== $(this).attr('data-orig'));
+  });
+}
+
+function statusHtml(st){
+  if(!st.ok) return '<div class="status st-err">✗ ' + esc(st.error) + '</div>';
+  if(!st.exists) return '<div class="status st-warn">⚠ ディレクトリがまだありません</div>';
+  return '<div class="status st-ok">✓ ディレクトリあり</div>';
+}
+
+function logHtml(r){
+  const log = (r.save_log || []).slice().reverse();
+  if(!log.length) return '<span class="log-list" style="color:#aaa;">（記録なし）</span>';
+  const head = log.slice(0, 3).map(esc).join('<br>');
+  let html = '<div class="log-list">' + head + '</div>';
+  if(log.length > 3){
+    html += '<div class="log-more" onclick="$(this).next().toggle()">他 ' + (log.length - 3) + ' 件 ▾</div>' +
+            '<div class="log-list" style="display:none;">' + log.slice(3).map(esc).join('<br>') + '</div>';
+  }
+  return html;
+}
+
+function suggestDir(){
+  const app = $('#new-app').val().trim();
+  const $d = $('#new-dir');
+  if(!$d.data('touched')){ $d.val(app ? (baseDir + '/' + app + '/static') : ''); }
+}
+$(document).on('input', '#new-dir', function(){ $(this).data('touched', true); });
+
+function addRow(){
+  postJson('rows/add', { app_name: $('#new-app').val(), dir_path: $('#new-dir').val() }, function(){
+    toast('追加しました'); loadRows();
+  });
+}
+
+function updateRow(id){
+  const $tr = $('tr[data-id="' + id + '"]');
+  postJson('rows/' + id + '/update',
+           { app_name: $tr.find('.in-app').val(), dir_path: $tr.find('.in-dir').val() },
+           function(){ toast('ID ' + id + ' を更新しました'); loadRows(); });
+}
+
+function deleteRow(id){
+  if(!confirm('ID ' + id + ' の行を削除します．ディレクトリの中身は消えません．よろしいですか？')) return;
+  postJson('rows/' + id + '/delete', {}, function(){ toast('ID ' + id + ' を削除しました'); loadRows(); });
+}
+
+function saveRow(id, btn){
+  const $tr = $('tr[data-id="' + id + '"]');
+  if($tr.find('input.dirty').length){
+    if(!confirm('未保存の編集があります．Save は表に保存済みのディレクトリで行います．続けますか？')) return;
+  }
+  const label = $(btn).html();
+  $(btn).prop('disabled', true).html('<span class="spinner"></span> 圧縮中');
+  fetch(U('save/' + id), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(async resp => {
+      if(!resp.ok){
+        let msg = '保存に失敗しました (' + resp.status + ')';
+        try { msg = (await resp.json()).error || msg; } catch(e){}
+        throw new Error(msg);
+      }
+      const cd = resp.headers.get('Content-Disposition') || '';
+      const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+      const name = m ? decodeURIComponent(m[1]) : (id + '.zip');
+      const blob = await resp.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      toast(name + ' をダウンロードしました（' + fmtSize(blob.size) + '）');
+      loadRows();
+    })
+    .catch(e => { toast(e.message, 'err'); $(btn).prop('disabled', false).html(label); });
+}
+
+// ===== Inspect / Restore =====
+function clearInspect(){
+  if(inspectToken){ postJson('cancel', { token: inspectToken }, null, true); }
+  inspectToken = null;
+  $('#inspect-result').empty();
+}
+
+function runInspect(){
+  const f = $('#restore-file')[0].files[0];
+  if(!f) return;
+  clearInspect();
+  const fd = new FormData(); fd.append('file', f);
+  $('#btn-inspect').prop('disabled', true).html('<span class="spinner"></span> 解析中...');
+  $.ajax({
+    url: U('inspect'), type: 'POST', data: fd, processData: false, contentType: false,
+    success: function(res){
+      $('#btn-inspect').prop('disabled', false).html('🔍 Inspect');
+      if(!res.success){ $('#inspect-result').html('<div class="err-box">' + esc(res.error) + '</div>'); return; }
+      inspectToken = res.token;
+      renderInspect(res.plan);
+    },
+    error: function(xhr){
+      $('#btn-inspect').prop('disabled', false).html('🔍 Inspect');
+      $('#inspect-result').html('<div class="err-box">' + esc(xhr.responseJSON?.error || '通信エラー') + '</div>');
+    }
+  });
+}
+
+function renderInspect(p){
+  const z = p.zip, r = p.row;
+  const diffApp = p.mismatch.includes('アプリ名'), diffDir = p.mismatch.includes('ディレクトリ');
+  let html = '<table class="kv">' +
+    '<tr><th>ID</th><td>' + p.id + '</td></tr>' +
+    '<tr><th>アプリ名（zip）</th><td>' + esc(z.app_name) + '</td></tr>' +
+    '<tr><th>ディレクトリ（zip）</th><td>' + esc(z.dir_path) + '</td></tr>' +
+    '<tr><th>保存日時</th><td>' + esc(z.saved_at) + '</td></tr>' +
+    '<tr><th>保存したサイト</th><td>' + esc(z.site || '') + '</td></tr>' +
+    '<tr><th>ファイル数 / 容量</th><td>' + p.file_count + ' ファイル / ' + fmtSize(p.total_bytes) + '</td></tr>';
+  if(r){
+    html += '<tr><th>復元先アプリ名（表）</th><td class="' + (diffApp ? 'diff' : '') + '">' + esc(r.app_name) + '</td></tr>' +
+            '<tr><th>復元先ディレクトリ（表）</th><td class="' + (diffDir ? 'diff' : '') + '">' + esc(r.dir_path) + '</td></tr>';
+  }
+  html += '</table>';
+
+  if(!p.target_ok){
+    html += '<div class="err-box">✗ ' + esc(p.target_error) + '</div>' +
+            '<button class="btn btn-secondary" onclick="clearInspect()">閉じる</button>';
+    $('#inspect-result').html(html); return;
+  }
+
+  html += '<div class="warn-box">';
+  if(p.mismatch.length){
+    html += '<strong>⚠ zip に記録された' + p.mismatch.join('と') + 'が，表の ID ' + p.id +
+            ' の行と違います．</strong>復元先は表の行が指すディレクトリです．<br>';
+  }
+  if(!p.target_exists) html += '復元先ディレクトリはまだありません．新しく作ります．<br>';
+  html += '<strong>上書き ' + p.overwrite_count + ' ファイル</strong>，新規 ' + p.new_count +
+          ' ファイル．zip に無い既存ファイルは残ります．</div>';
+  if(p.overwrite_samples.length){
+    html += '<div class="sample">上書きされるファイル（先頭' + p.overwrite_samples.length + '件）:\n' +
+            p.overwrite_samples.map(esc).join('\n') + '</div>';
+  }
+  html += '<div style="margin-top:12px; display:flex; gap:8px;">' +
+          '<button class="btn btn-danger" id="btn-restore" onclick="runRestore()">♻️ Restore（上書き）</button>' +
+          '<button class="btn btn-secondary" onclick="clearInspect()">キャンセル</button></div>' +
+          '<div class="result-box" id="restore-result"></div>';
+  $('#inspect-result').html(html);
+  window._plan = p;
+}
+
+function runRestore(){
+  const p = window._plan;
+  if(!inspectToken || !p) return;
+  let msg = p.row.dir_path + ' へ復元します．\n上書き ' + p.overwrite_count + ' ファイル，新規 ' + p.new_count + ' ファイル．';
+  if(p.mismatch.length) msg += '\n\n※ zip の記録と表の' + p.mismatch.join('と') + 'が違います．';
+  if(!confirm(msg + '\n\nよろしいですか？')) return;
+  $('#btn-restore').prop('disabled', true).html('<span class="spinner"></span> 復元中...');
+  postJson('restore', { token: inspectToken }, function(res){
+    inspectToken = null;
+    let html = '<div class="ok">✓ ' + esc(res.message) + '</div>';
+    if(res.error_count){
+      html += '<div class="err">✗ 失敗 ' + res.error_count + ' 件</div><div class="sample">' +
+              res.errors.map(e => esc(e.path) + ' : ' + esc(e.error)).join('\n') + '</div>';
+    }
+    $('#restore-result').html(html);
+    $('#btn-restore').html('✓ 完了');
+    $('#restore-file').val(''); $('#file-drop-text').text('📁 クリックして zip ファイルを選択');
+    $('#btn-inspect').prop('disabled', true);
+    loadRows();
+  }, false, function(err){
+    $('#btn-restore').prop('disabled', false).html('♻️ Restore（上書き）');
+    $('#restore-result').html('<div class="err">✗ ' + esc(err) + '</div>');
+  });
+}
+
+// ===== Claude 向け一括調査 =====
+function makePrompt(){
+  $.get(U('bulk/prompt'), function(res){
+    if(!res.success){ toast(res.error, 'err'); return; }
+    $('#prompt-text').val(res.text);
+    $('#btn-copy').prop('disabled', false);
+    $('#prompt-meta').text('アプリ ' + res.app_count + ' 個，表 ' + res.row_count + ' 行');
+  }).fail(function(xhr){ toast(xhr.responseJSON?.error || '通信エラー', 'err'); });
+}
+
+function copyPrompt(){
+  const t = $('#prompt-text').val();
+  navigator.clipboard.writeText(t).then(() => toast('コピーしました'),
+    () => { $('#prompt-text')[0].select(); document.execCommand('copy'); toast('コピーしました'); });
+}
+
+// ===== 照合と反映 =====
+const ACT_LABEL = { add:'追加', update:'訂正', delete:'削除', keep:'変更なし', none:'データ置き場なし',
+                    dup:'重複（無視）', error:'エラー', hold:'保留' };
+let bulkText = null;
+
+function runPreview(){
+  const text = $('#bulk-text').val();
+  $('#btn-preview').prop('disabled', true).html('<span class="spinner"></span> 照合中...');
+  postJson('bulk/preview', { text: text }, function(res){
+    $('#btn-preview').prop('disabled', false).html('🔎 照合');
+    bulkText = text;
+    renderPlan(res.plan);
+  }, false, function(err){
+    $('#btn-preview').prop('disabled', false).html('🔎 照合');
+    $('#bulk-result').html('<div class="err-box">' + esc(err) + '</div>');
+  });
+}
+
+function renderPlan(p){
+  const c = p.counts;
+  let html = '<div class="counts">' +
+    ['add','update','delete','keep','none','hold','dup','error'].filter(k => c[k])
+      .map(k => '<span class="act act-' + k + '">' + ACT_LABEL[k] + ' ' + c[k] + '</span>').join('') +
+    '<span style="color:#999;">（' + (p.format === 'json' ? 'JSON' : 'テキスト') + 'として読みました）</span></div>';
+
+  html += '<table class="plan-table"><thead><tr><th style="width:30px;"></th><th style="width:90px;">操作</th>' +
+          '<th style="width:44px;">ID</th><th style="width:140px;">アプリ名</th><th>ディレクトリ</th>' +
+          '<th style="width:240px;">根拠・説明</th></tr></thead><tbody>';
+  p.actions.forEach(a => {
+    const it = a.item, r = a.row;
+    const sel = a.key ? '<input type="checkbox" class="plan-cb" value="' + esc(a.key) + '" checked>' : '';
+    let app = esc((it || r).app_name), dir = '', info = '';
+    if(a.action === 'update'){
+      if(r.app_name !== it.app_name) app = '<span class="old">' + esc(r.app_name) + '</span><br>' + esc(it.app_name);
+      dir = (r.dir_path !== it.dir_path ? '<span class="old">' + esc(r.dir_path) + '</span><br>' : '') + esc(it.dir_path);
+      if(a.paired) info += '<div class="ev">※ 同じアプリで1対1に残った行と対応づけました</div>';
+    } else if(a.action === 'delete' || a.action === 'hold'){
+      dir = esc(r.dir_path);
+      if(r.save_count) info += '<div class="ev">保存記録 ' + r.save_count + ' 件も消えます</div>';
+      if(a.action === 'hold') info += '<div class="ev">このアプリにエラー行があるため削除を保留</div>';
+    } else {
+      dir = it.dir_path ? esc(it.dir_path) : '—';
+    }
+    if(it){
+      if(a.error) info += '<div class="act-error">' + esc(a.error) + '</div>';
+      if(it.note_id) info += '<div class="ev">' + esc(it.note_id) + '（追加として扱います）</div>';
+      if(it.evidence) info += '<div class="ev">根拠: ' + esc(it.evidence) + '</div>';
+      if(it.note) info += '<div class="ev">' + esc(it.note) + '</div>';
+    }
+    const id = r ? r.id : (a.action === 'add' ? '新' : '');
+    html += '<tr class="' + (a.key ? '' : 'muted') + '"><td>' + sel + '</td>' +
+            '<td class="act act-' + a.action + '">' + ACT_LABEL[a.action] + '</td>' +
+            '<td>' + id + '</td><td>' + app + '</td><td class="path">' + dir + '</td><td>' + info + '</td></tr>';
+  });
+  html += '</tbody></table>';
+
+  if(p.untouched.length){
+    html += '<div class="side-list">結果に出てこなかったアプリの行（変更しません）: ' +
+            p.untouched.map(r => '<code>' + r.id + ' ' + esc(r.app_name) + '</code>').join(' ') + '</div>';
+  }
+  if(p.unreported_apps.length){
+    html += '<div class="side-list" style="color:#e67e22;">⚠ 結果に出てこなかったアプリ（' + p.unreported_apps.length + '個）: ' +
+            p.unreported_apps.map(a => '<code>' + esc(a) + '</code>').join(' ') + '</div>';
+  }
+  if(p.unknown_apps.length){
+    html += '<div class="side-list" style="color:#e67e22;">⚠ このサイトに無いアプリ: ' +
+            p.unknown_apps.map(a => '<code>' + esc(a) + '</code>').join(' ') + '</div>';
+  }
+
+  const n = p.actions.filter(a => a.key).length;
+  if(n){
+    html += '<div style="margin-top:12px; display:flex; gap:8px;">' +
+            '<button class="btn btn-danger" id="btn-apply" onclick="runApply()">✔ 選んだ変更を反映</button>' +
+            '<button class="btn btn-light" onclick="$(\'.plan-cb\').prop(\'checked\', true)">全選択</button>' +
+            '<button class="btn btn-light" onclick="$(\'.plan-cb\').prop(\'checked\', false)">全解除</button></div>';
+  } else {
+    html += '<div class="ok" style="margin-top:12px;">✓ 表は調査結果と一致しています．反映する変更はありません．</div>';
+  }
+  html += '<div class="result-box" id="apply-result"></div>';
+  $('#bulk-result').html(html);
+}
+
+function runApply(){
+  const keys = $('.plan-cb:checked').map(function(){ return this.value; }).get();
+  if(!keys.length){ toast('変更が選ばれていません', 'err'); return; }
+  const nDel = keys.filter(k => k.startsWith('del:')).length;
+  let msg = keys.length + ' 件の変更を表に反映します．';
+  if(nDel) msg += '\nそのうち削除 ' + nDel + ' 件は，保存記録とともに行が消えます．';
+  if(!confirm(msg + '\n\nよろしいですか？')) return;
+  $('#btn-apply').prop('disabled', true).html('<span class="spinner"></span> 反映中...');
+  postJson('bulk/apply', { text: bulkText, keys: keys }, function(res){
+    $('#apply-result').html('<div class="ok">✓ ' + esc(res.message) + '</div>');
+    $('#btn-apply').html('✓ 反映済み');
+    $('.plan-cb').prop('disabled', true);
+    loadRows();
+  }, false, function(err){
+    $('#btn-apply').prop('disabled', false).html('✔ 選んだ変更を反映');
+    $('#apply-result').html('<div class="err">✗ ' + esc(err) + '</div>');
+  });
+}
+
+// ===== ユーティリティ =====
+function postJson(path, body, onOk, quiet, onErr){
+  $.ajax({
+    url: U(path), type: 'POST', contentType: 'application/json', data: JSON.stringify(body),
+    success: function(res){
+      if(!res.success){ if(onErr) onErr(res.error); else if(!quiet) toast(res.error, 'err'); return; }
+      if(onOk) onOk(res);
+    },
+    error: function(xhr){
+      const e = xhr.responseJSON?.error || '通信エラー';
+      if(onErr) onErr(e); else if(!quiet) toast(e, 'err');
+    }
+  });
+}
+function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtSize(b){ if(b<1024) return b+' B'; if(b<1048576) return (b/1024).toFixed(1)+' KB'; if(b<1073741824) return (b/1048576).toFixed(1)+' MB'; return (b/1073741824).toFixed(2)+' GB'; }
+function toast(msg, type='ok'){ $('#toast').stop(true,true).attr('class',type).text(msg).fadeIn(200); setTimeout(()=>$('#toast').fadeOut(400),3500); }
+</script>
+</body>
+</html>
