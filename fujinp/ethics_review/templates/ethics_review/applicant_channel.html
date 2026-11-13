@@ -203,6 +203,19 @@
             <div class="hint">1ファイル20MBまで。追加した書類は上の一覧と審査委員会に共有されます。</div>
         </div>
 
+        <!-- 初回の申請：回答準備中の初回案件でのみ表示（2026-11-13）
+             新規申請画面で「申請する」を押さずに離れた案件を，ここから申請できるようにする -->
+        <div id="submit-area" style="display:none;margin-top:12px;padding:12px 14px;border:1px solid #a7f3d0;background:#ecfdf5;border-radius:8px">
+            <div style="font-size:0.88rem;color:#065f46;font-weight:700;margin-bottom:6px">
+                申請書類がそろったら、下のボタンを押してください
+            </div>
+            <div style="font-size:0.8rem;color:#6b7280;line-height:1.7;margin-bottom:10px">
+                このボタンを押すまで、申請は受け付けられず、審査委員会の手続きは始まりません。<br>
+                押すと申請が受け付けられ、担当委員長・担当委員の指名が始まり、審査委員会へ通知が送られます。以後この画面から書類を削除することはできなくなります（追加は引き続きできます）。
+            </div>
+            <button class="nav-btn" id="btn-submit-initial">申請する</button>
+        </div>
+
         <!-- 審査再開申請：回答準備中の再提出案件でのみ表示 -->
         <div id="resume-area" style="display:none;margin-top:12px;padding:12px 14px;border:1px solid #fde68a;background:#fffbeb;border-radius:8px">
             <div style="font-size:0.88rem;color:#92400e;font-weight:700;margin-bottom:6px">
@@ -320,6 +333,14 @@ function loadMeta() {
             $('#resume-area').show();
         } else {
             $('#resume-area').hide();
+        }
+        // 初回の申請ボタン：申請者本人 かつ 回答準備中 かつ 初回案件
+        // かつ 現行版の書類が1件以上あるときだけ表示する（2026-11-13）
+        if (IS_APPLICANT && c.status === 'documents_uploading'
+            && (c.resubmission_count || 0) === 0 && hasCurrentDoc) {
+            $('#submit-area').show();
+        } else {
+            $('#submit-area').hide();
         }
         // 申請書類の追加：申請者本人 かつ 終局前 のときだけ表示
         // （差し替え版・追加資料を、申請後・審査中でもアップロード可能）
@@ -536,6 +557,28 @@ $('#btn-resume').on('click', function() {
     });
 });
 
+// ── 初回の申請（新規申請画面で申請ボタンを押さずに離れた案件の申請）2026-11-13
+$('#btn-submit-initial').on('click', function() {
+    if (!confirm('この内容で申請します。\n'
+               + '担当委員長・担当委員の指名が始まり、審査委員会へ通知が送られます。よろしいですか？')) return;
+    const $btn = $('#btn-submit-initial');
+    $btn.prop('disabled', true).text('送信中…');
+    $.ajax({
+        url: URL_BASE + 'api/case/' + CASE_ID + '/submit',
+        method: 'POST', contentType: 'application/json',
+        data: JSON.stringify({})
+    }).done(function(r) {
+        if (!r.success) { toast(r.error || '申請失敗', true); return; }
+        toast('申請しました');
+        loadMeta();
+        loadMessages();
+    }).fail(function(xhr) {
+        toast(ajaxErr(xhr), true);
+    }).always(function() {
+        $btn.prop('disabled', false).text('申請する');
+    });
+});
+
 $('#btn-withdraw').on('click', function() {
     if (!confirm('この申請を取り下げます。\nこの操作は取り消せません。よろしいですか？')) return;
     const reason = prompt('取り下げ理由（任意）：') || '';
@@ -558,3 +601,4 @@ $(document).ready(function() {
 </script>
 </body>
 </html>
+
